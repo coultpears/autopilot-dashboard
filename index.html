@@ -669,7 +669,7 @@ function parseCSV(text) {
       lines.push(current); current = '';
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
       if (ch === '\r' && text[i+1] === '\n') i++;
-      lines.push(current); current = '%%ROW%%';
+      lines.push(current); lines.push('%%ROW%%'); current = '';
     } else {
       current += ch;
     }
@@ -1044,6 +1044,7 @@ async function boot() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const text = await resp.text();
     const deals = parseCSV(text);
+    console.log('Parsed deals:', deals.length, 'First:', deals[0]);
     if (!deals.length) throw new Error('No data parsed');
     render(deals);
   } catch (err) {
