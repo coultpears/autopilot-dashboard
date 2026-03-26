@@ -186,6 +186,7 @@ body::after {
   opacity: 0.9;
 }
 .kpi-card.hero.green::before { background: var(--green-light); }
+.kpi-card.hero.blue::before { background: var(--blue-glow); }
 .kpi-card.hero.orange::before { background: var(--orange); }
 
 /* Secondary KPI row */
@@ -632,6 +633,62 @@ tbody td {
   max-width: 560px;
   margin: 4rem auto;
 }
+/* ─── SPARKLINE ─── */
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+  margin-top: 6px;
+  opacity: 0.4;
+}
+.spark-bar {
+  flex: 1;
+  background: var(--white);
+  border-radius: 1px;
+  min-height: 2px;
+}
+.kpi-card.hero.green .spark-bar { background: var(--green-light); }
+.kpi-card.hero.orange .spark-bar { background: var(--orange-light); }
+.kpi-card.hero.blue .spark-bar { background: var(--blue-glow); }
+
+/* ─── DEAL TYPE PILLS ─── */
+.deal-type-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.deal-type-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ghost);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  color: var(--white);
+}
+.deal-type-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.deal-type-pill .dt-count {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* ─── SECTION LABEL DIVIDER ─── */
+.section-divider {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--silver);
+  font-weight: 600;
+  margin: 0.25rem 0 0.5rem;
+  opacity: 0.6;
+}
+
 .error-card h2 {
   font-family: 'Outfit', sans-serif;
   font-size: 1.3rem;
@@ -667,6 +724,7 @@ tbody td {
   .topnav { padding: 0 1rem; }
   .main { padding: 1rem; }
   .kpi-hero-strip { grid-template-columns: 1fr; }
+  div[style*="grid-template-columns:repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
   .kpi-secondary { grid-template-columns: repeat(2, 1fr); }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .kpi-value { font-size: 1.6rem; }
@@ -803,7 +861,7 @@ function extractFirstName(email) {
 }
 
 // ─── RENDER ENGINE ───
-function render(deals, deinstalls, dealMap) {
+function render(deals, deinstalls, dealMap, pitchData) {
   const app = document.getElementById('app');
 
   // Helper: get HubSpot deal link for a property name
@@ -937,6 +995,68 @@ function render(deals, deinstalls, dealMap) {
     return `<span class="kpi-badge neutral">= ${PREV_YEAR}</span>`;
   }
 
+  // Sparkline helper: returns HTML for 6-month mini bar chart
+  function sparkline(monthlyValues) {
+    const max = Math.max(...monthlyValues, 1);
+    return `<div class="sparkline">${monthlyValues.map(v => `<div class="spark-bar" style="height:${Math.max((v/max)*100, 5)}%"></div>`).join('')}</div>`;
+  }
+
+  // Monthly data for sparklines (last 6 months with data)
+  const sparkMonths = [];
+  for (let m = Math.max(0, curMonth - 5); m <= curMonth; m++) {
+    sparkMonths.push({
+      newUnits: curDeals.filter(d => d.signDate.getMonth() === m).reduce((s,d) => s + d.units, 0),
+      deals: curDeals.filter(d => d.signDate.getMonth() === m).length,
+      diUnits: curDeinstalls.filter(d => d.deinstallDate.getMonth() === m).length
+    });
+  }
+  const sparkNet = sparkMonths.map(m => Math.max(m.newUnits - m.diUnits, 0));
+  const sparkDeals = sparkMonths.map(m => m.deals);
+  const sparkDi = sparkMonths.map(m => m.diUnits);
+
+  // Pitch metrics
+  const pitchWeekKey = CUR_YEAR + '-W' + String(curWeek).padStart(2, '0');
+  const prevWeekKey = CUR_YEAR + '-W' + String(curWeek - 1).padStart(2, '0');
+  const pitchThisWeek = pitchData.byWeek[pitchWeekKey] || 0;
+  const pitchLastWeek = pitchData.byWeek[prevWeekKey] || 0;
+  const pitchMonthKey = CUR_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
+  const prevPitchMonthKey = PREV_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
+  const pitchThisMonth = pitchData.byMonth[pitchMonthKey] || 0;
+  const pitchPrevMonth = pitchData.byMonth[prevPitchMonthKey] || 0;
+  // YTD pitches
+  let pitchYtdCur = 0, pitchYtdPrev = 0;
+  Object.entries(pitchData.byMonth).forEach(([k, v]) => {
+    if (k.startsWith(CUR_YEAR + '-') && parseInt(k.split('-')[1]) <= curMonth + 1) pitchYtdCur += v;
+    if (k.startsWith(PREV_YEAR + '-') && parseInt(k.split('-')[1]) <= curMonth + 1) pitchYtdPrev += v;
+  });
+  // Spark for pitches (monthly)
+  const sparkPitches = [];
+  for (let m = Math.max(0, curMonth - 5); m <= curMonth; m++) {
+    const mk = CUR_YEAR + '-' + String(m + 1).padStart(2, '0');
+    sparkPitches.push(pitchData.byMonth[mk] || 0);
+  }
+
+  // Deal type breakdown
+  const dealTypeMap = {};
+  curDeals.forEach(d => {
+    const dt = (d['Deal Type'] || '').trim() || 'Other';
+    if (!dealTypeMap[dt]) dealTypeMap[dt] = { deals: 0, units: 0 };
+    dealTypeMap[dt].deals++;
+    dealTypeMap[dt].units += d.units;
+  });
+  const dealTypeColors = { 'New Partner': 'var(--green-light)', 'Partner Expansion': 'var(--blue-glow)', 'Property Expansion': 'var(--yellow)', 'Other': 'var(--silver)' };
+
+  // Top partners by new units (installs)
+  const partnerInstallMap = {};
+  ytdCur.forEach(d => {
+    const p = d.partner && d.partner !== '—' ? d.partner.trim() : null;
+    if (!p) return;
+    if (!partnerInstallMap[p]) partnerInstallMap[p] = 0;
+    partnerInstallMap[p] += d.units;
+  });
+  const topPartners = Object.entries(partnerInstallMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const maxPartnerInstall = topPartners.length ? topPartners[0][1] : 1;
+
   // Renewals
   const renewals = validDeals.map(d => ({
     ...d,
@@ -982,25 +1102,47 @@ function render(deals, deinstalls, dealMap) {
   // ─── BUILD HTML ───
   let html = '';
 
-  // ─── HERO KPI CARDS (the 3 numbers that matter most) ───
-  html += `<div class="kpi-hero-strip">
+  // ─── HERO KPI CARDS ───
+  html += `<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:1rem;margin-bottom:0.75rem;">
     <div class="kpi-card hero green" style="animation-delay:0.05s">
       <div class="kpi-label">Net Units YTD</div>
       <div class="kpi-value" style="color:${netUnitsYtd >= 0 ? 'var(--green-light)' : 'var(--orange-light)'}">${netUnitsYtd >= 0 ? '+' : ''}${fmt(netUnitsYtd)}</div>
+      ${sparkline(sparkNet)}
       ${badge(netUnitsYtd, netUnitsYtdPrev)}
     </div>
     <div class="kpi-card hero" style="animation-delay:0.1s">
       <div class="kpi-label">Deals YTD (${CUR_YEAR})</div>
       <div class="kpi-value">${fmt(ytdCur.length)}</div>
       <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${fmt(sum(ytdCur))} units booked</div>
+      ${sparkline(sparkDeals)}
       ${badge(ytdCur.length, ytdPrev.length)}
+    </div>
+    <div class="kpi-card hero blue" style="animation-delay:0.12s">
+      <div class="kpi-label">Pitches This Week</div>
+      <div class="kpi-value" style="color:var(--blue-glow)">${fmt(pitchThisWeek)}</div>
+      <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${pitchLastWeek ? (pitchThisWeek >= pitchLastWeek ? '+' : '') + fmt(pitchThisWeek - pitchLastWeek) + ' vs last week' : 'Last week: ' + fmt(pitchLastWeek)}</div>
+      ${sparkline(sparkPitches)}
+      ${badge(pitchYtdCur, pitchYtdPrev)}
     </div>
     <div class="kpi-card hero orange" style="animation-delay:0.15s">
       <div class="kpi-label">Deinstalls YTD</div>
       <div class="kpi-value" style="color:var(--orange-light)">${fmt(diYtdCur.length)}</div>
       <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${Math.round(diYtdCur.length / sum(ytdCur) * 100)}% of ${fmt(sum(ytdCur))} units booked</div>
+      ${sparkline(sparkDi)}
       ${badge(-diYtdCur.length, -diYtdPrev.length)}
     </div>
+  </div>`;
+
+  // ─── DEAL TYPE BREAKDOWN (inline strip) ───
+  const dtEntries = Object.entries(dealTypeMap).sort((a,b) => b[1].units - a[1].units);
+  html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
+    <span class="section-divider" style="margin:0">${CUR_YEAR} by type</span>
+    ${dtEntries.map(([dt, v]) => `<div class="deal-type-pill">
+      <div class="deal-type-dot" style="background:${dealTypeColors[dt] || 'var(--silver)'}"></div>
+      <span>${dt}</span>
+      <span class="dt-count">${fmt(v.deals)}</span>
+      <span style="color:var(--silver);font-size:0.65rem">${fmt(v.units)}u</span>
+    </div>`).join('')}
   </div>`;
 
   // ─── SECONDARY KPI CARDS ───
@@ -1014,6 +1156,11 @@ function render(deals, deinstalls, dealMap) {
       <div class="kpi-label">Units This Quarter</div>
       <div class="kpi-value">${fmt(sum(qCur))}</div>
       ${badge(sum(qCur), sum(qPrev))}
+    </div>
+    <div class="kpi-card" style="animation-delay:0.21s">
+      <div class="kpi-label">Pitches This Month</div>
+      <div class="kpi-value">${fmt(pitchThisMonth)}</div>
+      ${badge(pitchThisMonth, pitchPrevMonth)}
     </div>
     <div class="kpi-card" style="animation-delay:0.22s">
       <div class="kpi-label">Deals This Month</div>
@@ -1192,6 +1339,21 @@ function render(deals, deinstalls, dealMap) {
     </div>
   </div>`;
 
+  // ─── TOP PARTNERS BY NEW UNITS ───
+  html += `<div class="section" style="animation-delay:0.48s">
+    <div class="section-header">
+      <div class="section-title">Top Partners<small>${CUR_YEAR} YTD — by units booked</small></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:0 2rem;">
+      ${topPartners.map(([partner, units], i) => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--ghost);">
+        <div style="font-size:0.72rem;color:var(--silver);width:18px;text-align:right;font-weight:600">${i+1}</div>
+        <div style="flex:1;font-size:0.8rem;color:var(--white);font-weight:500">${partner}</div>
+        <div style="width:100px"><div class="bar-track" style="height:10px"><div class="bar-fill current" style="width:${(units/maxPartnerInstall)*100}%;min-width:0;padding:0"></div></div></div>
+        <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:0.85rem;width:50px;text-align:right">${fmt(units)}<span style="font-size:0.6rem;color:var(--silver);margin-left:2px">u</span></div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+
   // RENEWALS (full width now that leaderboard is up top)
   html += `<div class="section" style="animation-delay:0.4s">
     <div class="section-header">
@@ -1230,10 +1392,11 @@ function render(deals, deinstalls, dealMap) {
           <th></th><th>Property</th><th>Partner</th><th>Market</th><th>Units</th><th>Renewal Date</th><th>Rep</th>
         </tr></thead>
         <tbody>
-          ${upcomingRenewals.slice(0, 30).map(d => {
+          ${upcomingRenewals.map((d, i) => {
             const urg = d.daysUntilRenewal <= 30 ? 'urgent' : d.daysUntilRenewal <= 90 ? 'soon' : 'normal';
             const hsLink = hsDealLink(d.property);
-            return `<tr>
+            const hidden = i >= 10 ? ' class="renewal-extra" style="display:none"' : '';
+            return `<tr${hidden}>
               <td><span class="urgency-dot ${urg}"></span></td>
               <td style="font-weight:600">${hsLink ? `<a href="${hsLink}" target="_blank" style="color:var(--white);text-decoration:none;border-bottom:1px dashed var(--silver);padding-bottom:1px;transition:color 0.15s" onmouseover="this.style.color='var(--blue-glow)'" onmouseout="this.style.color='var(--white)'">${d.property}</a>` : d.property}</td>
               <td>${d.partner}</td>
@@ -1245,6 +1408,9 @@ function render(deals, deinstalls, dealMap) {
           }).join('')}
         </tbody>
       </table>
+      <div style="text-align:center;padding:10px">
+        <button onclick="document.querySelectorAll('.renewal-extra').forEach(r=>r.style.display=r.style.display==='none'?'':'none');this.textContent=this.textContent.includes('Show all')?'Show less':'Show all ${upcomingRenewals.length} renewals'" style="background:var(--ghost);border:1px solid var(--card-border);color:var(--silver);padding:6px 18px;border-radius:20px;font-size:0.75rem;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s" onmouseover="this.style.color='var(--white)'" onmouseout="this.style.color='var(--silver)'">Show all ${upcomingRenewals.length} renewals</button>
+      </div>
     </div>
   </div>`;
 
@@ -1342,19 +1508,20 @@ async function boot() {
     const deals = parseCSV(text);
     const deinstalls = parseCSV(diText).filter(d => d['Property Name']);
 
-    // Parse HubSpot deal map (graceful fallback if unavailable)
-    let dealMap = {};
+    // Parse HubSpot data (graceful fallback if unavailable)
+    let dealMap = {}, pitchData = { byWeek: {}, byMonth: {}, total: 0 };
     if (hsResp && hsResp.ok) {
       const hsData = await hsResp.json();
       dealMap = hsData.deals || {};
-      console.log('HubSpot deals loaded:', hsData.count);
+      pitchData = hsData.pitches || pitchData;
+      console.log('HubSpot deals loaded:', hsData.count, 'Pitches:', pitchData.total);
     } else {
-      console.log('HubSpot deals unavailable — property links disabled');
+      console.log('HubSpot data unavailable');
     }
 
     console.log('Parsed deals:', deals.length, 'Deinstalls:', deinstalls.length);
     if (!deals.length) throw new Error('No data parsed');
-    render(deals, deinstalls, dealMap);
+    render(deals, deinstalls, dealMap, pitchData);
   } catch (err) {
     console.error(err);
     document.getElementById('app').innerHTML = `
