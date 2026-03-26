@@ -41,7 +41,7 @@ exports.handler = async () => {
               value: PIPELINE_ID
             }]
           }],
-          properties: ['dealname'],
+          properties: ['dealname', 'property_name'],
           limit: BATCH_SIZE,
           after
         })
@@ -54,10 +54,11 @@ exports.handler = async () => {
 
       const data = await resp.json();
       for (const deal of data.results || []) {
-        const name = (deal.properties.dealname || '').trim();
-        if (name) {
-          dealMap[name.toLowerCase()] = deal.id;
-        }
+        const dealName = (deal.properties.dealname || '').trim();
+        const propName = (deal.properties.property_name || '').trim();
+        // Index by both deal name and property name for best matching
+        if (dealName) dealMap[dealName.toLowerCase()] = deal.id;
+        if (propName) dealMap[propName.toLowerCase()] = deal.id;
       }
 
       if (data.paging && data.paging.next && data.paging.next.after) {
