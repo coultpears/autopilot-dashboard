@@ -2,6 +2,7 @@
 // Uses search API to filter by pipeline, returns deal name → deal ID mapping
 
 const PIPELINE_ID = '64402505';
+const CLOSED_WON_STAGE = '126194579';
 const BATCH_SIZE = 200;
 const MAX_PAGES = 25;
 
@@ -39,6 +40,10 @@ exports.handler = async () => {
               propertyName: 'pipeline',
               operator: 'EQ',
               value: PIPELINE_ID
+            }, {
+              propertyName: 'dealstage',
+              operator: 'EQ',
+              value: CLOSED_WON_STAGE
             }]
           }],
           properties: ['dealname', 'property_name'],
@@ -56,7 +61,7 @@ exports.handler = async () => {
       for (const deal of data.results || []) {
         const dealName = (deal.properties.dealname || '').trim();
         const propName = (deal.properties.property_name || '').trim();
-        // Index by both deal name and property name for best matching
+        // Index by deal name first, then property_name overwrites (higher priority)
         if (dealName) dealMap[dealName.toLowerCase()] = deal.id;
         if (propName) dealMap[propName.toLowerCase()] = deal.id;
       }
