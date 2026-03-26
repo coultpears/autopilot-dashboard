@@ -82,7 +82,7 @@ exports.handler = async () => {
 
     const pitchDeals = await searchDeals(token, [
       { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-      { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: prevYearStart.toISOString().split('T')[0] }
+      { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(prevYearStart.getTime()) }
     ], ['first_pitch_date__ap_'], 15);
 
     // Aggregate pitches by week (ISO week)
