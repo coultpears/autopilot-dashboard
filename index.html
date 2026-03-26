@@ -823,18 +823,32 @@ function render(deals, deinstalls, dealMap) {
     }
 
     // Fuzzy: find HS deal names that contain the property name
+    const stripped = cleanName.replace(/^the /, '');
     const candidates = [];
     for (const [hsName, dealId] of Object.entries(dealMap)) {
-      if (hsName.includes(cleanName) || hsName.includes(cleanName.replace(/^the /, ''))) {
-        candidates.push({ hsName, dealId });
+      // Exact substring match on full name or without "the"
+      if (hsName.includes(cleanName) || hsName.includes(stripped)) {
+        candidates.push({ hsName, dealId, score: 2 });
       }
     }
 
-    if (candidates.length === 1) {
-      _hsCache[key] = `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${candidates[0].dealId}`;
-    } else if (candidates.length > 1) {
-      // Pick the shortest match (most specific)
-      candidates.sort((a, b) => a.hsName.length - b.hsName.length);
+    // If no direct match, try matching significant words (3+ chars)
+    if (!candidates.length) {
+      const words = stripped.split(/\s+/).filter(w => w.length >= 3);
+      if (words.length >= 1) {
+        for (const [hsName, dealId] of Object.entries(dealMap)) {
+          const matchCount = words.filter(w => hsName.includes(w)).length;
+          // Require all significant words to match
+          if (matchCount === words.length) {
+            candidates.push({ hsName, dealId, score: 1 });
+          }
+        }
+      }
+    }
+
+    if (candidates.length >= 1) {
+      // Pick highest score, then shortest name (most specific)
+      candidates.sort((a, b) => b.score - a.score || a.hsName.length - b.hsName.length);
       _hsCache[key] = `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${candidates[0].dealId}`;
     } else {
       _hsCache[key] = null;
