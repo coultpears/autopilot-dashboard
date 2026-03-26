@@ -1,8 +1,9 @@
 // Netlify serverless function: fetches AP Pipeline deals from HubSpot
-// Returns a mapping of deal name → deal ID for linking in the dashboard
+// Uses search API to filter by pipeline, returns deal name → deal ID mapping
 
 const PIPELINE_ID = '64402505';
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 200;
+const MAX_PAGES = 25; // safety cap: 5000 deals
 
 exports.handler = async () => {
   const token = process.env.HUBSPOT_TOKEN;
@@ -12,18 +13,25 @@ exports.handler = async () => {
 
   try {
     const dealMap = {};
-    let after = undefined;
+    let after = 0;
     let pages = 0;
-    const MAX_PAGES = 30; // safety cap: 3000 deals max
 
     while (pages < MAX_PAGES) {
-      const url = new URL('https://api.hubapi.com/crm/v3/objects/deals');
-      url.searchParams.set('limit', BATCH_SIZE);
-      url.searchParams.set('properties', 'dealname,pipeline');
-      if (after) url.searchParams.set('after', after);
-
-      const resp = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      const resp = await fetch('https://api.hubapi.com/crm/v3/objects/deals/search', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filterGroups: [{
+            filters: [{
+              propertyName: 'pipeline',
+              operator: 'EQ',
+              value: PIPELINE_ID
+            }]
+          }],
+          properties: ['dealname'],
+          limit: BATCH_SIZE,
+          after
+        })
       });
 
       if (!resp.ok) {
@@ -34,9 +42,7 @@ exports.handler = async () => {
       const data = await resp.json();
       for (const deal of data.results || []) {
         const name = (deal.properties.dealname || '').trim();
-        const pipeline = deal.properties.pipeline;
-        if (name && pipeline === PIPELINE_ID) {
-          // Use lowercase key for fuzzy matching
+        if (name) {
           dealMap[name.toLowerCase()] = deal.id;
         }
       }
@@ -53,7 +59,7 @@ exports.handler = async () => {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300' // cache 5 min
+        'Cache-Control': 'public, max-age=300'
       },
       body: JSON.stringify({ deals: dealMap, count: Object.keys(dealMap).length })
     };
