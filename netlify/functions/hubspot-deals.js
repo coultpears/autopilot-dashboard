@@ -3,7 +3,20 @@
 
 const PIPELINE_ID = '64402505';
 const BATCH_SIZE = 200;
-const MAX_PAGES = 25; // safety cap: 5000 deals
+const MAX_PAGES = 25;
+
+async function fetchWithRetry(url, opts, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const resp = await fetch(url, opts);
+    if (resp.status === 429) {
+      const wait = Math.pow(2, i + 1) * 1000; // 2s, 4s, 8s
+      await new Promise(r => setTimeout(r, wait));
+      continue;
+    }
+    return resp;
+  }
+  return fetch(url, opts); // final attempt
+}
 
 exports.handler = async () => {
   const token = process.env.HUBSPOT_TOKEN;
@@ -17,7 +30,7 @@ exports.handler = async () => {
     let pages = 0;
 
     while (pages < MAX_PAGES) {
-      const resp = await fetch('https://api.hubapi.com/crm/v3/objects/deals/search', {
+      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
