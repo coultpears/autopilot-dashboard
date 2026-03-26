@@ -1254,7 +1254,7 @@ function render(deals, deinstalls, dealMap) {
   window._dashData = { curDeals, prevDeals, validDeals };
   setView('monthly');
 
-  document.getElementById('last-updated').textContent = 'Updated ' + NOW.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  document.getElementById('last-updated').innerHTML = 'Updated ' + NOW.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '<span style="opacity:0.5;margin-left:6px">· Data refreshes on reload · HubSpot links cache 1hr</span>';
 }
 
 // ─── CHART RENDERING ───
