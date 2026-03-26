@@ -75,40 +75,68 @@ exports.handler = async () => {
       if (propName) dealMap[propName.toLowerCase()] = deal.id;
     }
 
-    // 2. Pitches — all AP Pipeline deals with a first_pitch_date in 2025 or 2026
+    // 2. Pitches — use targeted queries for accurate counts
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+    const curYear = now.getFullYear();
+    const prevYear = curYear - 1;
+    const curMonth = now.getMonth();
 
-    const pitchDeals = await searchDeals(token, [
-      { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-      { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(prevYearStart.getTime()) }
-    ], ['first_pitch_date__ap_'], 15);
-
-    // Aggregate pitches by week (ISO week)
-    const pitchByWeek = {}; // "2026-W13" → count
-    for (const deal of pitchDeals) {
-      const pd = deal.properties.first_pitch_date__ap_;
-      if (!pd) continue;
-      const d = new Date(pd);
-      if (isNaN(d)) continue;
-      const year = d.getFullYear();
-      const jan1 = new Date(year, 0, 1);
-      const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-      const key = year + '-W' + String(week).padStart(2, '0');
-      pitchByWeek[key] = (pitchByWeek[key] || 0) + 1;
+    // Helper: count pitches in a date range
+    async function countPitches(gte, lte) {
+      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [
+            { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
+            { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gte.getTime()) },
+            { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lte.getTime()) }
+          ]}],
+          properties: ['first_pitch_date__ap_'],
+          limit: 1
+        })
+      });
+      if (!resp.ok) return 0;
+      const data = await resp.json();
+      return data.total || 0;
     }
 
-    // Also compute monthly totals
+    // Get week boundaries (Sunday to Saturday)
+    const dayOfWeek = now.getDay();
+    const weekStart = new Date(curYear, now.getMonth(), now.getDate() - dayOfWeek);
+    const weekEnd = new Date(curYear, now.getMonth(), now.getDate() - dayOfWeek + 6, 23, 59, 59);
+    const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
+    const prevWeekEnd = new Date(weekStart.getTime() - 1);
+
+    // Parallel queries for key metrics
+    const [thisWeek, lastWeek] = await Promise.all([
+      countPitches(weekStart, weekEnd),
+      countPitches(prevWeekStart, prevWeekEnd)
+    ]);
+
+    // Monthly counts — current year + prev year same months (parallel batches)
     const pitchByMonth = {};
-    for (const deal of pitchDeals) {
-      const pd = deal.properties.first_pitch_date__ap_;
-      if (!pd) continue;
-      const d = new Date(pd);
-      if (isNaN(d)) continue;
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      pitchByMonth[key] = (pitchByMonth[key] || 0) + 1;
+    const monthQueries = [];
+    for (let y = prevYear; y <= curYear; y++) {
+      const maxM = y === curYear ? curMonth : 11;
+      for (let m = 0; m <= maxM; m++) {
+        const mStart = new Date(y, m, 1);
+        const mEnd = new Date(y, m + 1, 0, 23, 59, 59);
+        const key = y + '-' + String(m + 1).padStart(2, '0');
+        monthQueries.push(countPitches(mStart, mEnd).then(c => { pitchByMonth[key] = c; }));
+      }
     }
+    await Promise.all(monthQueries);
+
+    // Week number helper
+    function getWeekKey(d) {
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+      return d.getFullYear() + '-W' + String(week).padStart(2, '0');
+    }
+    const pitchByWeek = {};
+    pitchByWeek[getWeekKey(now)] = thisWeek;
+    pitchByWeek[getWeekKey(prevWeekStart)] = lastWeek;
 
     return {
       statusCode: 200,
