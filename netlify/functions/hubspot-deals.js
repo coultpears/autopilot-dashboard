@@ -147,7 +147,7 @@ exports.handler = async () => {
       body: JSON.stringify({
         deals: dealMap,
         count: Object.keys(dealMap).length,
-        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, total: pitchDeals.length }
+        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
       })
     };
   } catch (err) {
