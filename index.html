@@ -806,14 +806,39 @@ function render(deals, deinstalls, dealMap) {
   const app = document.getElementById('app');
 
   // Helper: get HubSpot deal link for a property name
+  // HS deal names use formats like "ric - sphere - 22" or "fd - tpa - the wayland - 39"
+  const _hsCache = {};
   function hsDealLink(propertyName) {
     const key = (propertyName || '').trim().toLowerCase();
-    const dealId = dealMap[key];
-    if (dealId) return `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${dealId}`;
-    // Try partial match (property name without expansion/phase tags)
-    const cleanKey = key.replace(/\s*\(expansion\)|\s*\(phase \d+\)/gi, '').trim();
-    if (cleanKey !== key && dealMap[cleanKey]) return `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${dealMap[cleanKey]}`;
-    return null;
+    if (_hsCache[key] !== undefined) return _hsCache[key];
+
+    // Clean property name: remove (expansion), (phase X), etc
+    const cleanName = key.replace(/\s*\(expansion\)|\s*\(phase \d+\)/gi, '').trim();
+
+    // Direct match first
+    if (dealMap[cleanName]) {
+      _hsCache[key] = `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${dealMap[cleanName]}`;
+      return _hsCache[key];
+    }
+
+    // Fuzzy: find HS deal names that contain the property name
+    const candidates = [];
+    for (const [hsName, dealId] of Object.entries(dealMap)) {
+      if (hsName.includes(cleanName) || hsName.includes(cleanName.replace(/^the /, ''))) {
+        candidates.push({ hsName, dealId });
+      }
+    }
+
+    if (candidates.length === 1) {
+      _hsCache[key] = `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${candidates[0].dealId}`;
+    } else if (candidates.length > 1) {
+      // Pick the shortest match (most specific)
+      candidates.sort((a, b) => a.hsName.length - b.hsName.length);
+      _hsCache[key] = `https://app.hubspot.com/contacts/${HS_PORTAL}/deal/${candidates[0].dealId}`;
+    } else {
+      _hsCache[key] = null;
+    }
+    return _hsCache[key];
   }
 
   // Parse deinstalls — each row is one unit
