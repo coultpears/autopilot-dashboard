@@ -1015,10 +1015,8 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const sparkDi = sparkMonths.map(m => m.diUnits);
 
   // Pitch metrics
-  const pitchWeekKey = CUR_YEAR + '-W' + String(curWeek).padStart(2, '0');
-  const prevWeekKey = CUR_YEAR + '-W' + String(curWeek - 1).padStart(2, '0');
-  const pitchThisWeek = pitchData.byWeek[pitchWeekKey] || 0;
-  const pitchLastWeek = pitchData.byWeek[prevWeekKey] || 0;
+  const pitchThisWeek = pitchData.byWeek?.thisWeek || 0;
+  const pitchLastWeek = pitchData.byWeek?.lastWeek || 0;
   const pitchesByRep = pitchData.byRep || {};
   const pitchRepsSorted = Object.entries(pitchesByRep).sort((a, b) => b[1] - a[1]);
   // Week label: "Mon – [Today]"

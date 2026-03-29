@@ -160,15 +160,7 @@ exports.handler = async () => {
     }
     await Promise.all(monthQueries);
 
-    // Week number helper
-    function getWeekKey(d) {
-      const jan1 = new Date(d.getFullYear(), 0, 1);
-      const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-      return d.getFullYear() + '-W' + String(week).padStart(2, '0');
-    }
-    const pitchByWeek = {};
-    pitchByWeek[getWeekKey(now)] = thisWeek;
-    pitchByWeek[getWeekKey(prevWeekStart)] = lastWeek;
+    const pitchByWeek = { thisWeek, lastWeek };
 
     return {
       statusCode: 200,
