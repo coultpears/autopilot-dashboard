@@ -1019,6 +1019,11 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const prevWeekKey = CUR_YEAR + '-W' + String(curWeek - 1).padStart(2, '0');
   const pitchThisWeek = pitchData.byWeek[pitchWeekKey] || 0;
   const pitchLastWeek = pitchData.byWeek[prevWeekKey] || 0;
+  const pitchesByRep = pitchData.byRep || {};
+  const pitchRepsSorted = Object.entries(pitchesByRep).sort((a, b) => b[1] - a[1]);
+  // Week label: "Mon – [Today]"
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const pitchWeekLabel = 'Mon – ' + dayNames[NOW.getDay()];
   const pitchMonthKey = CUR_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
   const prevPitchMonthKey = PREV_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
   const pitchThisMonth = pitchData.byMonth[pitchMonthKey] || 0;

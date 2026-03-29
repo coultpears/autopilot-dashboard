@@ -101,18 +101,50 @@ exports.handler = async () => {
       return data.total || 0;
     }
 
-    // Get week boundaries (Sunday to Saturday)
+    // Get week boundaries (Monday to Sunday, matching ops monitor)
     const dayOfWeek = now.getDay();
-    const weekStart = new Date(curYear, now.getMonth(), now.getDate() - dayOfWeek);
-    const weekEnd = new Date(curYear, now.getMonth(), now.getDate() - dayOfWeek + 6, 23, 59, 59);
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const weekStart = new Date(curYear, now.getMonth(), now.getDate() - daysSinceMonday);
+    const weekEnd = new Date(curYear, now.getMonth(), now.getDate(), 23, 59, 59);
     const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
     const prevWeekEnd = new Date(weekStart.getTime() - 1);
 
-    // Parallel queries for key metrics
-    const [thisWeek, lastWeek] = await Promise.all([
-      countPitches(weekStart, weekEnd),
+    // Fetch this week's pitches with rep info for per-rep breakdown
+    async function fetchPitchesWithReps(gte, lte) {
+      const results = await searchDeals(token, [
+        { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
+        { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gte.getTime()) },
+        { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lte.getTime()) }
+      ], ['first_pitch_date__ap_', 'hubspot_owner_id'], 5);
+      return results;
+    }
+
+    // Fetch owners list for name mapping
+    const ownersResp = await fetchWithRetry('https://api.hubapi.com/crm/v3/owners', {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    });
+    const ownerMap = {};
+    if (ownersResp.ok) {
+      const ownerData = await ownersResp.json();
+      for (const o of ownerData.results || []) {
+        ownerMap[o.id] = o.firstName || o.email?.split('@')[0] || 'Unknown';
+      }
+    }
+
+    // Parallel: this week pitches (full), last week count
+    const [thisWeekDeals, lastWeek] = await Promise.all([
+      fetchPitchesWithReps(weekStart, weekEnd),
       countPitches(prevWeekStart, prevWeekEnd)
     ]);
+    const thisWeek = thisWeekDeals.length;
+
+    // Build per-rep breakdown for this week
+    const pitchesByRep = {};
+    for (const deal of thisWeekDeals) {
+      const ownerId = deal.properties.hubspot_owner_id;
+      const repName = ownerMap[ownerId] || 'Unassigned';
+      pitchesByRep[repName] = (pitchesByRep[repName] || 0) + 1;
+    }
 
     // Monthly counts — current year + prev year same months (parallel batches)
     const pitchByMonth = {};
@@ -147,7 +179,7 @@ exports.handler = async () => {
       body: JSON.stringify({
         deals: dealMap,
         count: Object.keys(dealMap).length,
-        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
+        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, byRep: pitchesByRep, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
       })
     };
   } catch (err) {
