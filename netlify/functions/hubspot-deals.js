@@ -176,44 +176,33 @@ exports.handler = async () => {
       pitchesByRep[repName] = (pitchesByRep[repName] || 0) + 1;
     }
 
-    // Monthly counts — for sparklines + YoY badge
-    // Use same approach: fetch + post-filter for active stages & CT dates
-    // Count pitches in a month — split into 2 queries (max 5 filterGroups each)
+    // Monthly pitch counts — simple pipeline-wide count (no stage filter) for sparklines/YoY
+    // Stage filtering on monthly would require 3 API calls per month x 27 months = too many
     async function countPitchesInMonth(year, month) {
       const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
       const lastDay = new Date(year, month + 1, 0).getDate();
       const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
       const gteMs = new Date(mStartStr + 'T00:00:00-06:00').getTime();
       const lteMs = new Date(mEndStr + 'T23:59:59-05:00').getTime();
-
-      const makeQuery = (stageIds) => fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
+      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          filterGroups: stageIds.map(stageId => ({
-            filters: [
-              { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-              { propertyName: 'dealstage', operator: 'EQ', value: stageId },
-              { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
-              { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
-            ]
-          })),
+          filterGroups: [{ filters: [
+            { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
+            { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
+            { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
+          ]}],
           properties: ['first_pitch_date__ap_'],
           limit: 1
         })
-      }).then(r => r.ok ? r.json() : { total: 0 }).then(d => d.total || 0);
-
-      // Split 11 stages into chunks of 5 (HubSpot max filterGroups = 5)
-      const chunks = [];
-      for (let i = 0; i < ACTIVE_STAGE_IDS.length; i += 5) {
-        chunks.push(makeQuery(ACTIVE_STAGE_IDS.slice(i, i + 5)));
-      }
-      const counts = await Promise.all(chunks);
-      return counts.reduce((s, c) => s + c, 0);
+      });
+      if (!resp.ok) return 0;
+      const data = await resp.json();
+      return data.total || 0;
     }
 
     const pitchByMonth = {};
-    // Run monthly queries in batches of 4 to avoid rate limits (each month = 3 API calls)
     const monthList = [];
     for (let y = prevYear; y <= curYear; y++) {
       const maxM = y === curYear ? curMonth : 11;
@@ -221,8 +210,9 @@ exports.handler = async () => {
         monthList.push({ year: y, month: m, key: y + '-' + String(m + 1).padStart(2, '0') });
       }
     }
-    for (let i = 0; i < monthList.length; i += 4) {
-      const batch = monthList.slice(i, i + 4);
+    // Batch 6 months at a time (6 API calls per batch)
+    for (let i = 0; i < monthList.length; i += 6) {
+      const batch = monthList.slice(i, i + 6);
       const results = await Promise.all(batch.map(({ year, month }) => countPitchesInMonth(year, month)));
       batch.forEach(({ key }, idx) => { pitchByMonth[key] = results[idx]; });
     }
