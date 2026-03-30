@@ -176,19 +176,19 @@ exports.handler = async () => {
 
     // Monthly counts — for sparklines + YoY badge
     // Use same approach: fetch + post-filter for active stages & CT dates
+    // Count pitches in a month — split into 2 queries (max 5 filterGroups each)
     async function countPitchesInMonth(year, month) {
       const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
       const lastDay = new Date(year, month + 1, 0).getDate();
       const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
-      // For monthly counts, use the simple count approach (total from search)
-      // but still filter active stages
       const gteMs = new Date(mStartStr + 'T00:00:00-06:00').getTime();
       const lteMs = new Date(mEndStr + 'T23:59:59-05:00').getTime();
-      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
+
+      const makeQuery = (stageIds) => fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          filterGroups: ACTIVE_STAGE_IDS.map(stageId => ({
+          filterGroups: stageIds.map(stageId => ({
             filters: [
               { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
               { propertyName: 'dealstage', operator: 'EQ', value: stageId },
@@ -199,10 +199,14 @@ exports.handler = async () => {
           properties: ['first_pitch_date__ap_'],
           limit: 1
         })
-      });
-      if (!resp.ok) return 0;
-      const data = await resp.json();
-      return data.total || 0;
+      }).then(r => r.ok ? r.json() : { total: 0 }).then(d => d.total || 0);
+
+      // Split 9 stages into chunks of 5 (HubSpot max filterGroups = 5)
+      const [count1, count2] = await Promise.all([
+        makeQuery(ACTIVE_STAGE_IDS.slice(0, 5)),
+        makeQuery(ACTIVE_STAGE_IDS.slice(5))
+      ]);
+      return count1 + count2;
     }
 
     const pitchByMonth = {};
