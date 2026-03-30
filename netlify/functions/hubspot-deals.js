@@ -17,6 +17,8 @@ const ACTIVE_STAGE_IDS = [
   '126194577',  // Late Stage Opportunities
   '128915635',  // Contract Discussions
   '126194578',  // Contract Redline
+  '126194579',  // Closed Won
+  '1321371563', // Email Campaign - Needs Assignment
 ];
 
 // Central Time helper — returns YYYY-MM-DD in CT
@@ -201,12 +203,13 @@ exports.handler = async () => {
         })
       }).then(r => r.ok ? r.json() : { total: 0 }).then(d => d.total || 0);
 
-      // Split 9 stages into chunks of 5 (HubSpot max filterGroups = 5)
-      const [count1, count2] = await Promise.all([
-        makeQuery(ACTIVE_STAGE_IDS.slice(0, 5)),
-        makeQuery(ACTIVE_STAGE_IDS.slice(5))
-      ]);
-      return count1 + count2;
+      // Split 11 stages into chunks of 5 (HubSpot max filterGroups = 5)
+      const chunks = [];
+      for (let i = 0; i < ACTIVE_STAGE_IDS.length; i += 5) {
+        chunks.push(makeQuery(ACTIVE_STAGE_IDS.slice(i, i + 5)));
+      }
+      const counts = await Promise.all(chunks);
+      return counts.reduce((s, c) => s + c, 0);
     }
 
     const pitchByMonth = {};
