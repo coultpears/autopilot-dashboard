@@ -1,10 +1,32 @@
 // Netlify serverless function: fetches AP Pipeline deals from HubSpot
-// Returns: deal name→ID mapping (Closed Won) + pitch counts by week
+// Returns: deal name→ID mapping (Closed Won) + pitch counts (matching ops monitor logic)
 
 const PIPELINE_ID = '64402505';
 const CLOSED_WON_STAGE = '126194579';
 const BATCH_SIZE = 200;
 const MAX_PAGES = 25;
+
+// Active pipeline stages — matches ops monitor (New Opportunities → Contract Redline)
+const ACTIVE_STAGE_IDS = [
+  '126194574',  // New Opportunities
+  '128203694',  // Contacted
+  '185461262',  // Defining Call Schedule
+  '126194575',  // Call Scheduled
+  '1225117962', // IC Review
+  '126194576',  // Active Opportunities
+  '126194577',  // Late Stage Opportunities
+  '128915635',  // Contract Discussions
+  '126194578',  // Contract Redline
+];
+
+// Central Time helper — returns YYYY-MM-DD in CT
+function toCTDate(date) {
+  return new Date(date.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+}
+function toCTDateStr(date) {
+  const ct = toCTDate(date);
+  return ct.getFullYear() + '-' + String(ct.getMonth() + 1).padStart(2, '0') + '-' + String(ct.getDate()).padStart(2, '0');
+}
 
 async function fetchWithRetry(url, opts, retries = 3) {
   for (let i = 0; i < retries; i++) {
@@ -75,51 +97,64 @@ exports.handler = async () => {
       if (propName) dealMap[propName.toLowerCase()] = deal.id;
     }
 
-    // 2. Pitches — use targeted queries for accurate counts
-    const now = new Date();
-    const curYear = now.getFullYear();
+    // 2. Pitches — matching ops monitor logic exactly:
+    //    - Active stages only (New Opps → Contract Redline)
+    //    - first_pitch_date__ap_ in date range
+    //    - Exclude future dates (Central Time)
+    //    - Week = Monday → today (CT)
+    const nowCT = toCTDate(new Date());
+    const todayStr = toCTDateStr(new Date());
+    const curYear = nowCT.getFullYear();
     const prevYear = curYear - 1;
-    const curMonth = now.getMonth();
+    const curMonth = nowCT.getMonth();
 
-    // Helper: count pitches in a date range
-    async function countPitches(gte, lte) {
-      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filterGroups: [{ filters: [
-            { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-            { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gte.getTime()) },
-            { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lte.getTime()) }
-          ]}],
-          properties: ['first_pitch_date__ap_'],
-          limit: 1
-        })
-      });
-      if (!resp.ok) return 0;
-      const data = await resp.json();
-      return data.total || 0;
-    }
-
-    // Get week boundaries (Monday to Sunday, matching ops monitor)
-    const dayOfWeek = now.getDay();
+    // Week boundaries in CT (Monday-based)
+    const dayOfWeek = nowCT.getDay();
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const weekStart = new Date(curYear, now.getMonth(), now.getDate() - daysSinceMonday);
-    const weekEnd = new Date(curYear, now.getMonth(), now.getDate(), 23, 59, 59);
-    const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
-    const prevWeekEnd = new Date(weekStart.getTime() - 1);
+    const weekStartDate = new Date(nowCT);
+    weekStartDate.setDate(nowCT.getDate() - daysSinceMonday);
+    weekStartDate.setHours(0, 0, 0, 0);
+    const weekStartStr = weekStartDate.getFullYear() + '-' + String(weekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(weekStartDate.getDate()).padStart(2, '0');
 
-    // Fetch this week's pitches with rep info for per-rep breakdown
-    async function fetchPitchesWithReps(gte, lte) {
+    // Previous week: Mon-Sun before current week
+    const prevWeekStartDate = new Date(weekStartDate);
+    prevWeekStartDate.setDate(prevWeekStartDate.getDate() - 7);
+    const prevWeekEndDate = new Date(weekStartDate);
+    prevWeekEndDate.setDate(prevWeekEndDate.getDate() - 1);
+    const prevWeekStartStr = prevWeekStartDate.getFullYear() + '-' + String(prevWeekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekStartDate.getDate()).padStart(2, '0');
+    const prevWeekEndStr = prevWeekEndDate.getFullYear() + '-' + String(prevWeekEndDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekEndDate.getDate()).padStart(2, '0');
+
+    // Fetch this week's pitches from active stages, then filter by date string (CT)
+    // Using a broad date filter then post-filtering for CT accuracy + future date exclusion
+    async function fetchPitchesInRange(gteStr, lteStr) {
+      // Search with stage filter — HubSpot IN operator requires filterGroups per stage
+      // Instead, fetch from all pipeline deals with pitch date in range, then filter stages client-side
+      const gteMs = new Date(gteStr + 'T00:00:00-06:00').getTime(); // CT approx
+      const lteMs = new Date(lteStr + 'T23:59:59-05:00').getTime();
       const results = await searchDeals(token, [
         { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-        { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gte.getTime()) },
-        { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lte.getTime()) }
-      ], ['first_pitch_date__ap_', 'hubspot_owner_id'], 5);
-      return results;
+        { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
+        { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
+      ], ['first_pitch_date__ap_', 'hubspot_owner_id', 'dealstage'], 5);
+
+      // Post-filter: active stages only + date string check (CT) + no future dates
+      return results.filter(d => {
+        if (!ACTIVE_STAGE_IDS.includes(d.properties.dealstage)) return false;
+        const pd = (d.properties.first_pitch_date__ap_ || '').slice(0, 10);
+        if (!pd || pd > todayStr) return false; // exclude future dates
+        return pd >= gteStr && pd <= lteStr;
+      });
     }
 
-    // Fetch owners list for name mapping
+    // Parallel: this week + last week
+    const [thisWeekDeals, lastWeekDeals] = await Promise.all([
+      fetchPitchesInRange(weekStartStr, todayStr),
+      fetchPitchesInRange(prevWeekStartStr, prevWeekEndStr)
+    ]);
+    const thisWeek = thisWeekDeals.length;
+    const lastWeek = lastWeekDeals.length;
+
+    // Fetch owners for rep name mapping
     const ownersResp = await fetchWithRetry('https://api.hubapi.com/crm/v3/owners', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     });
@@ -131,14 +166,7 @@ exports.handler = async () => {
       }
     }
 
-    // Parallel: this week pitches (full), last week count
-    const [thisWeekDeals, lastWeek] = await Promise.all([
-      fetchPitchesWithReps(weekStart, weekEnd),
-      countPitches(prevWeekStart, prevWeekEnd)
-    ]);
-    const thisWeek = thisWeekDeals.length;
-
-    // Build per-rep breakdown for this week
+    // Per-rep breakdown for this week
     const pitchesByRep = {};
     for (const deal of thisWeekDeals) {
       const ownerId = deal.properties.hubspot_owner_id;
@@ -146,16 +174,44 @@ exports.handler = async () => {
       pitchesByRep[repName] = (pitchesByRep[repName] || 0) + 1;
     }
 
-    // Monthly counts — current year + prev year same months (parallel batches)
+    // Monthly counts — for sparklines + YoY badge
+    // Use same approach: fetch + post-filter for active stages & CT dates
+    async function countPitchesInMonth(year, month) {
+      const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+      // For monthly counts, use the simple count approach (total from search)
+      // but still filter active stages
+      const gteMs = new Date(mStartStr + 'T00:00:00-06:00').getTime();
+      const lteMs = new Date(mEndStr + 'T23:59:59-05:00').getTime();
+      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filterGroups: ACTIVE_STAGE_IDS.map(stageId => ({
+            filters: [
+              { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
+              { propertyName: 'dealstage', operator: 'EQ', value: stageId },
+              { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
+              { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
+            ]
+          })),
+          properties: ['first_pitch_date__ap_'],
+          limit: 1
+        })
+      });
+      if (!resp.ok) return 0;
+      const data = await resp.json();
+      return data.total || 0;
+    }
+
     const pitchByMonth = {};
     const monthQueries = [];
     for (let y = prevYear; y <= curYear; y++) {
       const maxM = y === curYear ? curMonth : 11;
       for (let m = 0; m <= maxM; m++) {
-        const mStart = new Date(y, m, 1);
-        const mEnd = new Date(y, m + 1, 0, 23, 59, 59);
         const key = y + '-' + String(m + 1).padStart(2, '0');
-        monthQueries.push(countPitches(mStart, mEnd).then(c => { pitchByMonth[key] = c; }));
+        monthQueries.push(countPitchesInMonth(y, m).then(c => { pitchByMonth[key] = c; }));
       }
     }
     await Promise.all(monthQueries);
