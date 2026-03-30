@@ -213,15 +213,19 @@ exports.handler = async () => {
     }
 
     const pitchByMonth = {};
-    const monthQueries = [];
+    // Run monthly queries in batches of 4 to avoid rate limits (each month = 3 API calls)
+    const monthList = [];
     for (let y = prevYear; y <= curYear; y++) {
       const maxM = y === curYear ? curMonth : 11;
       for (let m = 0; m <= maxM; m++) {
-        const key = y + '-' + String(m + 1).padStart(2, '0');
-        monthQueries.push(countPitchesInMonth(y, m).then(c => { pitchByMonth[key] = c; }));
+        monthList.push({ year: y, month: m, key: y + '-' + String(m + 1).padStart(2, '0') });
       }
     }
-    await Promise.all(monthQueries);
+    for (let i = 0; i < monthList.length; i += 4) {
+      const batch = monthList.slice(i, i + 4);
+      const results = await Promise.all(batch.map(({ year, month }) => countPitchesInMonth(year, month)));
+      batch.forEach(({ key }, idx) => { pitchByMonth[key] = results[idx]; });
+    }
 
     const pitchByWeek = { thisWeek, lastWeek };
 
