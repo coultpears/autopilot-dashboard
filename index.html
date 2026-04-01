@@ -1753,8 +1753,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     scTbody.innerHTML = scRows.map(function(row, i) {
       var name = row[0], v = row[1];
       var isTop = i < 3;
-      var initialsMap = {Wells:'WD',Scout:'SB',Jack:'JT',John:'JL',Sophia:'SN',Ghislain:'GC',Jason:'JC',Richard:'RB',Nolan:'NM',Raegan:'RH',Xander:'XR',Ashtyn:'AG',Renato:'RL'};
-      var initials = initialsMap[name] || name.charAt(0);
+      var initials = name.charAt(0);
       var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
       var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
       // Pitch cell with prior period comparison
