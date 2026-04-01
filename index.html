@@ -1250,6 +1250,9 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const pitchWeekLabel = 'Mon – ' + dayNames[NOW.getDay()];
   const pitchMonthKey = CUR_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
   const prevPitchMonthKey = PREV_YEAR + '-' + String(curMonth + 1).padStart(2, '0');
+  // Last calendar month's pitch total (e.g., March if current is April)
+  const lastMonthKey = curMonth === 0 ? (CUR_YEAR - 1) + '-12' : CUR_YEAR + '-' + String(curMonth).padStart(2, '0');
+  const pitchLastMonth = pitchData.byMonth[lastMonthKey] || 0;
   const pitchThisMonth = pitchData.byMonth[pitchMonthKey] || 0;
   const pitchPrevMonth = pitchData.byMonth[prevPitchMonthKey] || 0;
   // YTD pitches
@@ -1438,8 +1441,8 @@ function render(deals, deinstalls, dealMap, pitchData) {
               <th>Units</th>
               <th class="col-div">Deals</th>
               <th>Units</th>
-              <th class="col-div">Week</th>
-              <th>Month</th>
+              <th class="col-div">This Wk</th>
+              <th>This Mo</th>
             </tr>
           </thead>
           <tbody id="sc-tbody">
@@ -1450,8 +1453,8 @@ function render(deals, deinstalls, dealMap, pitchData) {
             <td>${fmt(scTotals.ytdUnits)}</td>
             <td class="col-div">${fmt(scTotals.monthDeals)}</td>
             <td>${fmt(scTotals.monthUnits)}</td>
-            <td class="col-div">${fmt(scTotals.weekPitches)}</td>
-            <td>${fmt(scTotals.monthPitches)}</td>
+            <td class="col-div">${fmt(scTotals.weekPitches)}<div style="font-size:0.55rem;font-weight:500;margin-top:3px;color:${scTotals.weekPitches >= pitchLastWeek ? 'var(--green-light)' : 'var(--orange-light)'}">last wk: ${fmt(pitchLastWeek)}</div></td>
+            <td>${fmt(scTotals.monthPitches)}<div style="font-size:0.55rem;font-weight:500;margin-top:3px;color:${scTotals.monthPitches >= pitchLastMonth ? 'var(--green-light)' : 'var(--silver)'}">last mo: ${fmt(pitchLastMonth)}</div></td>
           </tr></tfoot>
         </table>
       </div>
