@@ -691,7 +691,7 @@ tbody td {
 
 /* ─── REP SCORECARD ─── */
 .scorecard {
-  background: var(--card-bg);
+  background: linear-gradient(180deg, var(--card-bg) 0%, rgba(21,25,45,0.95) 100%);
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
   padding: 1.5rem;
@@ -703,75 +703,186 @@ tbody td {
 }
 .scorecard-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 3px;
 }
 .scorecard-table thead th {
-  background: var(--ghost);
-  padding: 12px 16px;
+  background: transparent;
+  padding: 10px 16px 14px;
   text-align: center;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 1.4px;
   color: var(--silver);
   font-weight: 600;
   white-space: nowrap;
-  border-bottom: 2px solid var(--card-border);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .scorecard-table thead th:first-child {
   text-align: left;
   width: 160px;
 }
 .scorecard-table tbody tr {
-  border-bottom: 1px solid var(--ghost);
-  transition: background 0.15s;
+  transition: all 0.2s;
+  border-radius: 8px;
 }
-.scorecard-table tbody tr:hover { background: var(--ghost-hover); }
+.scorecard-table tbody tr td {
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+.scorecard-table tbody tr td:first-child { border-radius: 8px 0 0 8px; border-left: 1px solid transparent; }
+.scorecard-table tbody tr td:last-child { border-radius: 0 8px 8px 0; border-right: 1px solid transparent; }
+.scorecard-table tbody tr:hover td {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.06);
+}
+/* Top 3 rows get a subtle left accent */
+.scorecard-table tbody tr.sc-top td:first-child {
+  border-left: 3px solid var(--blue);
+}
+.scorecard-table tbody tr.sc-top td {
+  background: rgba(26,97,217,0.04);
+}
+.scorecard-table tbody tr.sc-top:hover td {
+  background: rgba(26,97,217,0.08);
+}
 .scorecard-table tbody td {
-  padding: 10px 16px;
-  text-align: center;
-  font-family: 'Outfit', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-}
-.scorecard-table tbody td:first-child {
-  text-align: left;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-.scorecard-table tbody tr:first-child td { color: var(--white); }
-.scorecard-table tfoot td {
   padding: 12px 16px;
   text-align: center;
   font-family: 'Outfit', sans-serif;
   font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(240,240,240,0.85);
+}
+.scorecard-table tbody tr.sc-top td {
+  color: var(--white);
+  font-weight: 700;
+}
+.scorecard-table tbody td:first-child {
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.scorecard-table tfoot td {
+  padding: 14px 16px;
+  text-align: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--white);
-  border-top: 2px solid var(--card-border);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
 }
 .scorecard-table tfoot td:first-child {
   text-align: left;
   font-family: 'DM Sans', sans-serif;
   text-transform: uppercase;
   font-size: 0.72rem;
-  letter-spacing: 1px;
-}
-.sc-rank {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
-  text-align: center;
-  border-radius: 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  margin-right: 8px;
-  background: var(--ghost);
+  letter-spacing: 1.2px;
   color: var(--silver);
 }
-.sc-rank.top { background: var(--blue); color: #fff; }
+.sc-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-right: 10px;
+  background: var(--ghost);
+  color: var(--silver);
+  vertical-align: middle;
+}
+.sc-rank.top {
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-glow) 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(26,97,217,0.3);
+}
 .sc-highlight { color: var(--blue-glow) !important; }
-.sc-zero { opacity: 0.3; }
+.sc-zero { opacity: 0.2; font-weight: 400; }
+
+/* Column group headers */
+.scorecard-table thead tr.col-groups th {
+  font-size: 0.58rem;
+  letter-spacing: 2px;
+  padding: 8px 16px 2px;
+  border-bottom: none;
+  color: rgba(255,255,255,0.25);
+}
+.scorecard-table thead tr.col-groups th.cg-ytd { color: var(--blue-glow); opacity: 0.6; }
+.scorecard-table thead tr.col-groups th.cg-month { color: var(--green-light); opacity: 0.6; }
+.scorecard-table thead tr.col-groups th.cg-pitch { color: var(--yellow); opacity: 0.5; }
+
+/* Column dividers */
+.scorecard-table .col-div {
+  border-left: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+/* Inline progress bar for YTD units */
+.sc-bar-cell {
+  position: relative;
+}
+.sc-bar {
+  position: absolute;
+  left: 4px; right: 4px; bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.sc-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue) 0%, var(--blue-glow) 100%);
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Rep avatar */
+.sc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--tonal);
+  color: var(--baby-blue);
+  letter-spacing: 0.5px;
+}
+.sc-top .sc-avatar {
+  background: linear-gradient(135deg, var(--blue) 0%, var(--tonal) 100%);
+  color: #fff;
+}
+
+/* Footer glow */
+.scorecard-table tfoot tr {
+  position: relative;
+}
+.scorecard-table tfoot td {
+  padding: 16px 16px;
+  background: rgba(26,97,217,0.03);
+  border-top: 1px solid rgba(26,97,217,0.15);
+}
+.scorecard-table tfoot td:first-child { border-radius: 8px 0 0 8px; }
+.scorecard-table tfoot td:last-child { border-radius: 0 8px 8px 0; }
+
+/* #1 rank subtle pulse */
+@keyframes rank-glow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(26,97,217,0.3); }
+  50% { box-shadow: 0 2px 14px rgba(26,97,217,0.5); }
+}
+.sc-rank.top.first {
+  animation: rank-glow 3s ease-in-out infinite;
+}
 
 /* TV-optimized: larger text at wide viewports */
 @media (min-width: 1600px) {
@@ -1309,24 +1420,32 @@ function render(deals, deinstalls, dealMap, pitchData) {
       </div>
       <div class="table-wrap">
         <table class="scorecard-table">
-          <thead><tr>
-            <th>Rep</th>
-            <th>YTD Deals</th>
-            <th>YTD Units</th>
-            <th>${MONTH_NAMES[curMonth]} Deals</th>
-            <th>${MONTH_NAMES[curMonth]} Units</th>
-            <th>Wk Pitches</th>
-            <th>${MONTH_NAMES[curMonth]} Pitches</th>
-          </tr></thead>
+          <thead>
+            <tr class="col-groups">
+              <th></th>
+              <th colspan="2" class="cg-ytd">Year to Date</th>
+              <th colspan="2" class="cg-month col-div">${MONTH_NAMES[curMonth]}</th>
+              <th colspan="2" class="cg-pitch col-div">Pitches</th>
+            </tr>
+            <tr>
+              <th>Rep</th>
+              <th>Deals</th>
+              <th>Units</th>
+              <th class="col-div">Deals</th>
+              <th>Units</th>
+              <th class="col-div">Week</th>
+              <th>Month</th>
+            </tr>
+          </thead>
           <tbody id="sc-tbody">
           </tbody>
           <tfoot><tr>
             <td>Team Total</td>
             <td>${fmt(scTotals.ytdDeals)}</td>
             <td>${fmt(scTotals.ytdUnits)}</td>
-            <td>${fmt(scTotals.monthDeals)}</td>
+            <td class="col-div">${fmt(scTotals.monthDeals)}</td>
             <td>${fmt(scTotals.monthUnits)}</td>
-            <td>${fmt(scTotals.weekPitches)}</td>
+            <td class="col-div">${fmt(scTotals.weekPitches)}</td>
             <td>${fmt(scTotals.monthPitches)}</td>
           </tr></tfoot>
         </table>
@@ -1604,17 +1723,30 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // Render scorecard tbody (avoid nested template literals)
   const scTbody = document.getElementById('sc-tbody');
   if (scTbody) {
+    // Scale bar against last year's full-year top rep, so there's room to grow all year
+    var prevYearMaxRepUnits = 0;
+    var prevRepMap = {};
+    prevDeals.forEach(function(d) {
+      var n = extractFirstName(d.rep);
+      if (n === '—' || !d.rep.includes('@')) return;
+      if (n.toLowerCase() === 'jasoncreel') n = 'Jason';
+      prevRepMap[n] = (prevRepMap[n] || 0) + d.units;
+    });
+    Object.values(prevRepMap).forEach(function(u) { if (u > prevYearMaxRepUnits) prevYearMaxRepUnits = u; });
+    var maxYtdUnits = Math.max(prevYearMaxRepUnits, Math.max.apply(null, scRows.map(function(r) { return r[1].ytdUnits; }).concat([1])));
     scTbody.innerHTML = scRows.map(function(row, i) {
       var name = row[0], v = row[1];
       var isTop = i < 3;
+      var initials = name.slice(0, 2).toUpperCase();
+      var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
       var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
-      return '<tr>' +
-        '<td><span class="sc-rank ' + (isTop ? 'top' : '') + '">' + (i + 1) + '</span>' + name + '</td>' +
+      return '<tr class="' + (isTop ? 'sc-top' : '') + '">' +
+        '<td><span class="sc-rank ' + (isTop ? 'top' : '') + (i === 0 ? ' first' : '') + '">' + (i + 1) + '</span><span class="sc-avatar">' + initials + '</span>' + name + '</td>' +
         '<td>' + zd(v.ytdDeals) + '</td>' +
-        '<td class="' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '</td>' +
-        '<td>' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
+        '<td class="sc-bar-cell ' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '<div class="sc-bar"><div class="sc-bar-fill" style="width:' + barWidth + '%"></div></div></td>' +
+        '<td class="col-div">' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
         '<td>' + scBadge(name, 'monthUnits', v.monthUnits) + '</td>' +
-        '<td>' + scBadge(name, 'weekPitches', v.weekPitches) + '</td>' +
+        '<td class="col-div">' + scBadge(name, 'weekPitches', v.weekPitches) + '</td>' +
         '<td>' + scBadge(name, 'monthPitches', v.monthPitches) + '</td>' +
       '</tr>';
     }).join('');
