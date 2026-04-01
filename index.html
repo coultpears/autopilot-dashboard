@@ -689,6 +689,109 @@ tbody td {
   opacity: 0.6;
 }
 
+/* ─── REP SCORECARD ─── */
+.scorecard {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: card-in 0.6s ease forwards;
+  animation-delay: 0.3s;
+}
+.scorecard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.scorecard-table thead th {
+  background: var(--ghost);
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--silver);
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--card-border);
+}
+.scorecard-table thead th:first-child {
+  text-align: left;
+  width: 160px;
+}
+.scorecard-table tbody tr {
+  border-bottom: 1px solid var(--ghost);
+  transition: background 0.15s;
+}
+.scorecard-table tbody tr:hover { background: var(--ghost-hover); }
+.scorecard-table tbody td {
+  padding: 10px 16px;
+  text-align: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.scorecard-table tbody td:first-child {
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.scorecard-table tbody tr:first-child td { color: var(--white); }
+.scorecard-table tfoot td {
+  padding: 12px 16px;
+  text-align: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--white);
+  border-top: 2px solid var(--card-border);
+}
+.scorecard-table tfoot td:first-child {
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+}
+.sc-rank {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-right: 8px;
+  background: var(--ghost);
+  color: var(--silver);
+}
+.sc-rank.top { background: var(--blue); color: #fff; }
+.sc-highlight { color: var(--blue-glow) !important; }
+.sc-zero { opacity: 0.3; }
+
+/* TV-optimized: larger text at wide viewports */
+@media (min-width: 1600px) {
+  .scorecard-table tbody td { font-size: 1.2rem; padding: 14px 18px; }
+  .scorecard-table tbody td:first-child { font-size: 1rem; }
+  .scorecard-table thead th { font-size: 0.75rem; padding: 14px 18px; }
+  .scorecard-table tfoot td { font-size: 1.2rem; padding: 14px 18px; }
+  .kpi-card.hero .kpi-value { font-size: 3.2rem; }
+  .kpi-card.hero .kpi-label { font-size: 0.85rem; }
+}
+@media (min-width: 2400px) {
+  .scorecard-table tbody td { font-size: 1.5rem; padding: 18px 22px; }
+  .scorecard-table tbody td:first-child { font-size: 1.2rem; }
+  .scorecard-table thead th { font-size: 0.85rem; padding: 16px 22px; }
+  .scorecard-table tfoot td { font-size: 1.5rem; }
+  .kpi-card.hero .kpi-value { font-size: 3.8rem; }
+  .kpi-card.hero .kpi-label { font-size: 0.95rem; }
+  .main { padding: 2rem 3rem 4rem; }
+}
+
 .error-card h2 {
   font-family: 'Outfit', sans-serif;
   font-size: 1.3rem;
@@ -1018,6 +1121,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const pitchThisWeek = pitchData.byWeek?.thisWeek || 0;
   const pitchLastWeek = pitchData.byWeek?.lastWeek || 0;
   const pitchesByRep = pitchData.byRep || {};
+  const monthlyPitchesByRep = pitchData.monthlyByRep || {};
   const pitchRepsSorted = Object.entries(pitchesByRep).sort((a, b) => b[1] - a[1]);
   // Week label: "Mon – [Today]"
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1148,6 +1252,72 @@ function render(deals, deinstalls, dealMap, pitchData) {
     </div>`).join('')}
   </div>`;
 
+  // ─── REP SCORECARD ───
+  // Compute monthly deals + units per rep
+  const repScorecard = {};
+  AP_REPS.forEach(name => {
+    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 };
+  });
+  curDeals.forEach(d => {
+    let name = extractFirstName(d.rep);
+    if (name === '—' || !d.rep.includes('@')) return;
+    if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
+    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 };
+    repScorecard[name].ytdDeals++;
+    repScorecard[name].ytdUnits += d.units;
+    if (d.signDate.getMonth() === curMonth) {
+      repScorecard[name].monthDeals++;
+      repScorecard[name].monthUnits += d.units;
+    }
+  });
+  // Merge monthly pitches from HubSpot
+  Object.entries(monthlyPitchesByRep).forEach(([name, count]) => {
+    if (repScorecard[name]) repScorecard[name].monthPitches = count;
+    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count };
+  });
+  const scRows = Object.entries(repScorecard).sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
+  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 });
+
+  html += `<div class="scorecard">
+    <div class="section-header">
+      <div class="section-title">Rep Scorecard<small>${CUR_YEAR} — ${MONTH_NAMES[curMonth]}</small></div>
+    </div>
+    <div class="table-wrap">
+      <table class="scorecard-table">
+        <thead><tr>
+          <th>Rep</th>
+          <th>YTD Deals</th>
+          <th>YTD Units</th>
+          <th>${MONTH_NAMES[curMonth]} Deals</th>
+          <th>${MONTH_NAMES[curMonth]} Units</th>
+          <th>${MONTH_NAMES[curMonth]} Pitches</th>
+        </tr></thead>
+        <tbody>
+          ${scRows.map(([name, v], i) => {
+            const isTop = i < 3;
+            const zd = (n) => n === 0 ? `<span class="sc-zero">0</span>` : fmt(n);
+            return `<tr>
+              <td><span class="sc-rank ${isTop ? 'top' : ''}">${i + 1}</span>${name}</td>
+              <td>${zd(v.ytdDeals)}</td>
+              <td class="${isTop ? 'sc-highlight' : ''}">${zd(v.ytdUnits)}</td>
+              <td>${zd(v.monthDeals)}</td>
+              <td>${zd(v.monthUnits)}</td>
+              <td>${zd(v.monthPitches)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>Team Total</td>
+          <td>${fmt(scTotals.ytdDeals)}</td>
+          <td>${fmt(scTotals.ytdUnits)}</td>
+          <td>${fmt(scTotals.monthDeals)}</td>
+          <td>${fmt(scTotals.monthUnits)}</td>
+          <td>${fmt(scTotals.monthPitches)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>`;
+
   // ─── SECONDARY KPI CARDS ───
   html += `<div class="kpi-secondary">
     <div class="kpi-card" style="animation-delay:0.18s">
@@ -1187,8 +1357,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     </div>
   </div>`;
 
-  // DEALS PERFORMANCE + REP LEADERBOARD side by side
-  html += `<div class="two-col">`;
+  // DEALS PERFORMANCE (full width — leaderboard is now the scorecard above)
   html += `<div class="section" id="perf-section">
     <div class="section-header">
       <div class="section-title">Deals Performance<small>${CUR_YEAR} vs ${PREV_YEAR}</small></div>
@@ -1210,25 +1379,6 @@ function render(deals, deinstalls, dealMap, pitchData) {
       <div class="legend-item"><div class="legend-dot previous"></div>${PREV_YEAR}</div>
     </div>
   </div>`;
-
-  // REP LEADERBOARD (next to deals performance)
-  html += `<div class="section" style="animation-delay:0.35s">
-    <div class="section-header">
-      <div class="section-title">Rep Leaderboard<small>${CUR_YEAR} YTD</small></div>
-    </div>
-    ${reps.map((r, i) => `
-      <div class="rep-row">
-        <div class="rep-rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''}">${i + 1}</div>
-        <div class="rep-avatar">${r.name.slice(0, 2).toUpperCase()}</div>
-        <div class="rep-info">
-          <div class="rep-name">${r.name}</div>
-          <div class="rep-deals">${r.deals} deals</div>
-        </div>
-        <div class="rep-units">${fmt(r.units)}<small>units</small></div>
-      </div>
-    `).join('')}
-  </div>`;
-  html += `</div>`; // end two-col perf + leaderboard
 
   // ─── DEINSTALLS SECTION ───
   const LIST_COUNT = 10; // consistent count across all lists
