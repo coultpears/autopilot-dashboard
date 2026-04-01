@@ -1217,13 +1217,13 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // ─── REP SCORECARD DATA ───
   const repScorecard = {};
   AP_REPS.forEach(name => {
-    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 };
+    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 };
   });
   curDeals.forEach(d => {
     let name = extractFirstName(d.rep);
     if (name === '—' || !d.rep.includes('@')) return;
     if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
-    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 };
+    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 };
     repScorecard[name].ytdDeals++;
     repScorecard[name].ytdUnits += d.units;
     if (d.signDate.getMonth() === curMonth) {
@@ -1233,10 +1233,29 @@ function render(deals, deinstalls, dealMap, pitchData) {
   });
   Object.entries(monthlyPitchesByRep).forEach(([name, count]) => {
     if (repScorecard[name]) repScorecard[name].monthPitches = count;
-    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count };
+    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count, weekPitches: 0 };
+  });
+  Object.entries(pitchesByRep).forEach(([name, count]) => {
+    if (repScorecard[name]) repScorecard[name].weekPitches = count;
+    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: count };
   });
   const scRows = Object.entries(repScorecard).sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
-  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 });
+  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches, weekPitches: t.weekPitches + v.weekPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 });
+
+  // Per-column rankings for badge display (top 2 in each non-YTD metric)
+  const colRanks = {};
+  ['monthDeals','monthUnits','weekPitches','monthPitches'].forEach(col => {
+    const sorted = scRows.slice().filter(r => r[1][col] > 0).sort((a, b) => b[1][col] - a[1][col]);
+    colRanks[col] = {};
+    if (sorted[0]) colRanks[col][sorted[0][0]] = 1;
+    if (sorted[1] && sorted[1][1][col] > 0) colRanks[col][sorted[1][0]] = 2;
+  });
+  function scBadge(name, col, val) {
+    if (val === 0) return '<span class="sc-zero">0</span>';
+    const rank = colRanks[col] && colRanks[col][name];
+    const b = rank ? ' <span style="display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:4px;font-size:0.55rem;font-weight:700;vertical-align:middle;background:' + (rank === 1 ? 'var(--blue)' : 'var(--tonal)') + ';color:#fff">' + rank + '</span>' : '';
+    return fmt(val) + b;
+  }
 
   // ─── BUILD HTML ───
   let html = '';
@@ -1291,21 +1310,10 @@ function render(deals, deinstalls, dealMap, pitchData) {
             <th>YTD Units</th>
             <th>${MONTH_NAMES[curMonth]} Deals</th>
             <th>${MONTH_NAMES[curMonth]} Units</th>
+            <th>Wk Pitches</th>
             <th>${MONTH_NAMES[curMonth]} Pitches</th>
           </tr></thead>
-          <tbody>
-            ${scRows.map(([name, v], i) => {
-              const isTop = i < 3;
-              const zd = (n) => n === 0 ? '<span class="sc-zero">0</span>' : fmt(n);
-              return '<tr>' +
-                '<td><span class="sc-rank ' + (isTop ? 'top' : '') + '">' + (i + 1) + '</span>' + name + '</td>' +
-                '<td>' + zd(v.ytdDeals) + '</td>' +
-                '<td class="' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '</td>' +
-                '<td>' + zd(v.monthDeals) + '</td>' +
-                '<td>' + zd(v.monthUnits) + '</td>' +
-                '<td>' + zd(v.monthPitches) + '</td>' +
-              '</tr>';
-            }).join('')}
+          <tbody id="sc-tbody">
           </tbody>
           <tfoot><tr>
             <td>Team Total</td>
@@ -1313,6 +1321,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
             <td>${fmt(scTotals.ytdUnits)}</td>
             <td>${fmt(scTotals.monthDeals)}</td>
             <td>${fmt(scTotals.monthUnits)}</td>
+            <td>${fmt(scTotals.weekPitches)}</td>
             <td>${fmt(scTotals.monthPitches)}</td>
           </tr></tfoot>
         </table>
@@ -1584,6 +1593,25 @@ function render(deals, deinstalls, dealMap, pitchData) {
         '<span>' + dt + '</span>' +
         '<span class="dt-count" style="font-size:0.75rem">' + fmt(v.deals) + '</span>' +
       '</div>';
+    }).join('');
+  }
+
+  // Render scorecard tbody (avoid nested template literals)
+  const scTbody = document.getElementById('sc-tbody');
+  if (scTbody) {
+    scTbody.innerHTML = scRows.map(function(row, i) {
+      var name = row[0], v = row[1];
+      var isTop = i < 3;
+      var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
+      return '<tr>' +
+        '<td><span class="sc-rank ' + (isTop ? 'top' : '') + '">' + (i + 1) + '</span>' + name + '</td>' +
+        '<td>' + zd(v.ytdDeals) + '</td>' +
+        '<td class="' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '</td>' +
+        '<td>' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
+        '<td>' + scBadge(name, 'monthUnits', v.monthUnits) + '</td>' +
+        '<td>' + scBadge(name, 'weekPitches', v.weekPitches) + '</td>' +
+        '<td>' + scBadge(name, 'monthPitches', v.monthPitches) + '</td>' +
+      '</tr>';
     }).join('');
   }
 
