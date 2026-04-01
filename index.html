@@ -1244,6 +1244,8 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const pitchLastWeek = pitchData.byWeek?.lastWeek || 0;
   const pitchesByRep = pitchData.byRep || {};
   const monthlyPitchesByRep = pitchData.monthlyByRep || {};
+  const lastWeekByRep = pitchData.lastWeekByRep || {};
+  const lastMonthByRep = pitchData.lastMonthByRep || {};
   const pitchRepsSorted = Object.entries(pitchesByRep).sort((a, b) => b[1] - a[1]);
   // Week label: "Mon – [Today]"
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1334,13 +1336,13 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // ─── REP SCORECARD DATA ───
   const repScorecard = {};
   AP_REPS.forEach(name => {
-    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 };
+    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 };
   });
   curDeals.forEach(d => {
     let name = extractFirstName(d.rep);
     if (name === '—' || !d.rep.includes('@')) return;
     if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
-    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 };
+    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 };
     repScorecard[name].ytdDeals++;
     repScorecard[name].ytdUnits += d.units;
     if (d.signDate.getMonth() === curMonth) {
@@ -1354,10 +1356,16 @@ function render(deals, deinstalls, dealMap, pitchData) {
   });
   Object.entries(pitchesByRep).forEach(([name, count]) => {
     if (repScorecard[name]) repScorecard[name].weekPitches = count;
-    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: count };
+    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: count, lastWeekPitches: 0, lastMonthPitches: 0 };
+  });
+  Object.entries(lastWeekByRep).forEach(([name, count]) => {
+    if (repScorecard[name]) repScorecard[name].lastWeekPitches = count;
+  });
+  Object.entries(lastMonthByRep).forEach(([name, count]) => {
+    if (repScorecard[name]) repScorecard[name].lastMonthPitches = count;
   });
   const scRows = Object.entries(repScorecard).sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
-  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches, weekPitches: t.weekPitches + v.weekPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0 });
+  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches, weekPitches: t.weekPitches + v.weekPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 });
 
   // Per-column rankings for badge display (top 2 in each non-YTD metric)
   const colRanks = {};
@@ -1745,18 +1753,28 @@ function render(deals, deinstalls, dealMap, pitchData) {
     scTbody.innerHTML = scRows.map(function(row, i) {
       var name = row[0], v = row[1];
       var isTop = i < 3;
-      var initialsMap = {Wells:'WD',Scout:'SB',Jack:'JT',John:'JL',Sophia:'SN',Ghislain:'GK',Jason:'JC',Richard:'RB',Nolan:'NM',Raegan:'RM',Xander:'XR',Ashtyn:'AG',Renato:'RG'};
+      var initialsMap = {Wells:'WD',Scout:'SB',Jack:'JT',John:'JL',Sophia:'SN',Ghislain:'GC',Jason:'JC',Richard:'RB',Nolan:'NM',Raegan:'RH',Xander:'XR',Ashtyn:'AG',Renato:'RL'};
       var initials = initialsMap[name] || name.charAt(0);
       var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
       var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
+      // Pitch cell with prior period comparison
+      var pitchCell = function(cur, prev, col) {
+        var badge = scBadge(name, col, cur);
+        if (!prev && !cur) return '<span class="sc-zero">0</span>';
+        if (!prev) return badge;
+        var diff = cur - prev;
+        var color = diff > 0 ? 'var(--green-light)' : diff < 0 ? 'var(--orange-light)' : 'var(--silver)';
+        var arrow = diff > 0 ? '+' + diff : diff < 0 ? String(diff) : '=';
+        return badge + '<div style="font-size:0.5rem;color:' + color + ';margin-top:1px;font-weight:500">' + arrow + '</div>';
+      };
       return '<tr class="' + (isTop ? 'sc-top' : '') + '">' +
         '<td><span class="sc-rank ' + (isTop ? 'top' : '') + (i === 0 ? ' first' : '') + '">' + (i + 1) + '</span><span class="sc-avatar">' + initials + '</span>' + name + '</td>' +
         '<td>' + zd(v.ytdDeals) + '</td>' +
         '<td class="sc-bar-cell ' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '<div class="sc-bar"><div class="sc-bar-fill" style="width:' + barWidth + '%"></div></div></td>' +
         '<td class="col-div">' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
         '<td>' + scBadge(name, 'monthUnits', v.monthUnits) + '</td>' +
-        '<td class="col-div">' + scBadge(name, 'weekPitches', v.weekPitches) + '</td>' +
-        '<td>' + scBadge(name, 'monthPitches', v.monthPitches) + '</td>' +
+        '<td class="col-div">' + pitchCell(v.weekPitches, v.lastWeekPitches, 'weekPitches') + '</td>' +
+        '<td>' + pitchCell(v.monthPitches, v.lastMonthPitches, 'monthPitches') + '</td>' +
       '</tr>';
     }).join('');
   }

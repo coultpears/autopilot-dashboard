@@ -151,11 +151,18 @@ exports.handler = async () => {
     // Month boundaries in CT
     const monthStartStr = nowCT.getFullYear() + '-' + String(nowCT.getMonth() + 1).padStart(2, '0') + '-01';
 
-    // Parallel: this week + last week + this month (for per-rep monthly pitches)
-    const [thisWeekDeals, lastWeekDeals, thisMonthDeals] = await Promise.all([
+    // Last month boundaries in CT
+    const lastMonthEnd = new Date(nowCT.getFullYear(), nowCT.getMonth(), 0); // last day of prev month
+    const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1);
+    const lastMonthStartStr = lastMonthStart.getFullYear() + '-' + String(lastMonthStart.getMonth() + 1).padStart(2, '0') + '-01';
+    const lastMonthEndStr = lastMonthEnd.getFullYear() + '-' + String(lastMonthEnd.getMonth() + 1).padStart(2, '0') + '-' + String(lastMonthEnd.getDate()).padStart(2, '0');
+
+    // Parallel: this week + last week + this month + last month
+    const [thisWeekDeals, lastWeekDeals, thisMonthDeals, lastMonthDeals] = await Promise.all([
       fetchPitchesInRange(weekStartStr, todayStr),
       fetchPitchesInRange(prevWeekStartStr, prevWeekEndStr),
-      fetchPitchesInRange(monthStartStr, todayStr)
+      fetchPitchesInRange(monthStartStr, todayStr),
+      fetchPitchesInRange(lastMonthStartStr, lastMonthEndStr)
     ]);
     const thisWeek = thisWeekDeals.length;
     const lastWeek = lastWeekDeals.length;
@@ -180,12 +187,28 @@ exports.handler = async () => {
       pitchesByRep[repName] = (pitchesByRep[repName] || 0) + 1;
     }
 
+    // Per-rep breakdown for last week
+    const lastWeekByRep = {};
+    for (const deal of lastWeekDeals) {
+      const ownerId = deal.properties.hubspot_owner_id;
+      const repName = ownerMap[ownerId] || 'Unassigned';
+      lastWeekByRep[repName] = (lastWeekByRep[repName] || 0) + 1;
+    }
+
     // Per-rep breakdown for this month
     const monthlyPitchesByRep = {};
     for (const deal of thisMonthDeals) {
       const ownerId = deal.properties.hubspot_owner_id;
       const repName = ownerMap[ownerId] || 'Unassigned';
       monthlyPitchesByRep[repName] = (monthlyPitchesByRep[repName] || 0) + 1;
+    }
+
+    // Per-rep breakdown for last month
+    const lastMonthByRep = {};
+    for (const deal of lastMonthDeals) {
+      const ownerId = deal.properties.hubspot_owner_id;
+      const repName = ownerMap[ownerId] || 'Unassigned';
+      lastMonthByRep[repName] = (lastMonthByRep[repName] || 0) + 1;
     }
 
     // Monthly pitch counts — simple pipeline-wide count (no stage filter) for sparklines/YoY
@@ -240,7 +263,7 @@ exports.handler = async () => {
       body: JSON.stringify({
         deals: dealMap,
         count: Object.keys(dealMap).length,
-        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, byRep: pitchesByRep, monthlyByRep: monthlyPitchesByRep, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
+        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, byRep: pitchesByRep, lastWeekByRep, monthlyByRep: monthlyPitchesByRep, lastMonthByRep, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
       })
     };
   } catch (err) {
