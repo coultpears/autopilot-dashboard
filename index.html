@@ -1423,7 +1423,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
   window._dashData = { curDeals, prevDeals, validDeals };
   setView('monthly');
 
-  document.getElementById('last-updated').innerHTML = 'Updated ' + NOW.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '<span style="opacity:0.5;margin-left:6px">· Sources: New Deal Sheet + HubSpot AP Pipeline · Refreshes on reload</span>';
+  document.getElementById('last-updated').innerHTML = 'Updated ' + NOW.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '<span style="opacity:0.5;margin-left:6px">· Sources: New Deal Sheet + HubSpot AP Pipeline · Auto-refreshes every hour</span>';
 }
 
 // ─── CHART RENDERING ───
@@ -1545,6 +1545,9 @@ async function boot() {
 }
 
 boot();
+
+// Auto-refresh every 60 minutes for TV/monitor display
+setInterval(() => location.reload(), 60 * 60 * 1000);
 </script>
 </body>
 </html>
