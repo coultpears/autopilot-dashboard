@@ -1369,8 +1369,10 @@ function render(deals, deinstalls, dealMap, pitchData) {
   function scBadge(name, col, val) {
     if (val === 0) return '<span class="sc-zero">0</span>';
     const rank = colRanks[col] && colRanks[col][name];
-    const b = rank ? ' <span style="display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:4px;font-size:0.55rem;font-weight:700;vertical-align:middle;background:' + (rank === 1 ? 'var(--blue)' : 'var(--tonal)') + ';color:#fff">' + rank + '</span>' : '';
-    return fmt(val) + b;
+    if (!rank) return fmt(val);
+    const colors = { 1: 'var(--blue-glow)', 2: 'var(--silver)', 3: 'rgba(181,185,195,0.5)' };
+    return '<span style="position:relative">' + fmt(val) +
+      '<span style="position:absolute;top:-8px;right:-10px;font-size:0.5rem;font-weight:700;color:' + colors[rank] + ';letter-spacing:0">#' + rank + '</span></span>';
   }
 
   // ─── BUILD HTML ───
@@ -1737,7 +1739,8 @@ function render(deals, deinstalls, dealMap, pitchData) {
     scTbody.innerHTML = scRows.map(function(row, i) {
       var name = row[0], v = row[1];
       var isTop = i < 3;
-      var initials = name.slice(0, 2).toUpperCase();
+      var initialsMap = {Wells:'WD',Scout:'SB',Jack:'JT',John:'JL',Sophia:'SN',Ghislain:'GK',Jason:'JC',Richard:'RB',Nolan:'NM',Raegan:'RM',Xander:'XR',Ashtyn:'AG',Renato:'RG'};
+      var initials = initialsMap[name] || name.charAt(0);
       var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
       var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
       return '<tr class="' + (isTop ? 'sc-top' : '') + '">' +
