@@ -775,21 +775,28 @@ tbody td {
 
 /* TV-optimized: larger text at wide viewports */
 @media (min-width: 1600px) {
+  .command-center { grid-template-columns: 320px 1fr !important; }
   .scorecard-table tbody td { font-size: 1.2rem; padding: 14px 18px; }
-  .scorecard-table tbody td:first-child { font-size: 1rem; }
-  .scorecard-table thead th { font-size: 0.75rem; padding: 14px 18px; }
+  .scorecard-table tbody td:first-child { font-size: 1.05rem; }
+  .scorecard-table thead th { font-size: 0.78rem; padding: 14px 18px; }
   .scorecard-table tfoot td { font-size: 1.2rem; padding: 14px 18px; }
-  .kpi-card.hero .kpi-value { font-size: 3.2rem; }
-  .kpi-card.hero .kpi-label { font-size: 0.85rem; }
 }
 @media (min-width: 2400px) {
-  .scorecard-table tbody td { font-size: 1.5rem; padding: 18px 22px; }
-  .scorecard-table tbody td:first-child { font-size: 1.2rem; }
-  .scorecard-table thead th { font-size: 0.85rem; padding: 16px 22px; }
+  .command-center { grid-template-columns: 380px 1fr !important; gap: 2rem !important; }
+  .scorecard-table tbody td { font-size: 1.5rem; padding: 18px 24px; }
+  .scorecard-table tbody td:first-child { font-size: 1.25rem; }
+  .scorecard-table thead th { font-size: 0.88rem; padding: 16px 24px; }
   .scorecard-table tfoot td { font-size: 1.5rem; }
-  .kpi-card.hero .kpi-value { font-size: 3.8rem; }
-  .kpi-card.hero .kpi-label { font-size: 0.95rem; }
   .main { padding: 2rem 3rem 4rem; }
+}
+@media (min-width: 3200px) {
+  .command-center { grid-template-columns: 440px 1fr !important; }
+  .scorecard-table tbody td { font-size: 1.8rem; padding: 22px 28px; }
+  .scorecard-table tbody td:first-child { font-size: 1.4rem; }
+  .scorecard-table thead th { font-size: 1rem; padding: 20px 28px; }
+  .scorecard-table tfoot td { font-size: 1.8rem; }
+  .topnav { height: 80px; }
+  .topnav h1 { font-size: 1.5rem; }
 }
 
 .error-card h2 {
@@ -821,6 +828,7 @@ tbody td {
 /* ─── RESPONSIVE ─── */
 @media (max-width: 1100px) {
   .two-col { grid-template-columns: 1fr; }
+  .command-center { grid-template-columns: 1fr !important; }
   div[style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 768px) {
@@ -1206,54 +1214,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
   });
   const reps = Object.entries(repMap).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.units - a.units);
 
-  // ─── BUILD HTML ───
-  let html = '';
-
-  // ─── HERO KPI CARDS ───
-  html += `<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:1rem;margin-bottom:0.75rem;">
-    <div class="kpi-card hero green" style="animation-delay:0.05s">
-      <div class="kpi-label">Net Units YTD</div>
-      <div class="kpi-value" style="color:${netUnitsYtd >= 0 ? 'var(--green-light)' : 'var(--orange-light)'}">${netUnitsYtd >= 0 ? '+' : ''}${fmt(netUnitsYtd)}</div>
-      ${sparkline(sparkNet)}
-      ${badge(netUnitsYtd, netUnitsYtdPrev)}
-    </div>
-    <div class="kpi-card hero" style="animation-delay:0.1s">
-      <div class="kpi-label">Deals YTD (${CUR_YEAR})</div>
-      <div class="kpi-value">${fmt(ytdCur.length)}</div>
-      <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${fmt(sum(ytdCur))} units booked</div>
-      ${sparkline(sparkDeals)}
-      ${badge(ytdCur.length, ytdPrev.length)}
-    </div>
-    <div class="kpi-card hero blue" style="animation-delay:0.12s">
-      <div class="kpi-label">Pitches This Week</div>
-      <div class="kpi-value" style="color:var(--blue-glow)">${fmt(pitchThisWeek)}</div>
-      <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${pitchLastWeek ? (pitchThisWeek >= pitchLastWeek ? '+' : '') + fmt(pitchThisWeek - pitchLastWeek) + ' vs last week' : 'Last week: ' + fmt(pitchLastWeek)}</div>
-      ${sparkline(sparkPitches)}
-      ${badge(pitchYtdCur, pitchYtdPrev)}
-    </div>
-    <div class="kpi-card hero orange" style="animation-delay:0.15s">
-      <div class="kpi-label">Deinstalls YTD</div>
-      <div class="kpi-value" style="color:var(--orange-light)">${fmt(diYtdCur.length)}</div>
-      <div style="font-size:0.78rem;color:var(--silver);margin-top:4px">${Math.round(diYtdCur.length / sum(ytdCur) * 100)}% of ${fmt(sum(ytdCur))} units booked</div>
-      ${sparkline(sparkDi)}
-      ${badge(-diYtdCur.length, -diYtdPrev.length)}
-    </div>
-  </div>`;
-
-  // ─── DEAL TYPE BREAKDOWN (inline strip) ───
-  const dtEntries = Object.entries(dealTypeMap).sort((a,b) => b[1].units - a[1].units);
-  html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
-    <span class="section-divider" style="margin:0">${CUR_YEAR} by type</span>
-    ${dtEntries.map(([dt, v]) => `<div class="deal-type-pill">
-      <div class="deal-type-dot" style="background:${dealTypeColors[dt] || 'var(--silver)'}"></div>
-      <span>${dt}</span>
-      <span class="dt-count">${fmt(v.deals)}</span>
-      <span style="color:var(--silver);font-size:0.65rem">${fmt(v.units)}u</span>
-    </div>`).join('')}
-  </div>`;
-
-  // ─── REP SCORECARD ───
-  // Compute monthly deals + units per rep
+  // ─── REP SCORECARD DATA ───
   const repScorecard = {};
   AP_REPS.forEach(name => {
     repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 };
@@ -1270,7 +1231,6 @@ function render(deals, deinstalls, dealMap, pitchData) {
       repScorecard[name].monthUnits += d.units;
     }
   });
-  // Merge monthly pitches from HubSpot
   Object.entries(monthlyPitchesByRep).forEach(([name, count]) => {
     if (repScorecard[name]) repScorecard[name].monthPitches = count;
     else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count };
@@ -1278,45 +1238,89 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const scRows = Object.entries(repScorecard).sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
   const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0 });
 
-  html += `<div class="scorecard">
-    <div class="section-header">
-      <div class="section-title">Rep Scorecard<small>${CUR_YEAR} — ${MONTH_NAMES[curMonth]}</small></div>
+  // ─── BUILD HTML ───
+  let html = '';
+
+  // ─── COMMAND CENTER: KPI sidebar + Scorecard main stage ───
+  const dtEntries = Object.entries(dealTypeMap).sort((a,b) => b[1].units - a[1].units);
+
+  html += `<div style="display:grid;grid-template-columns:280px 1fr;gap:1.25rem;margin-bottom:1.5rem;" class="command-center">
+
+    <!-- KPI SIDEBAR -->
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      <div class="kpi-card hero green" style="animation-delay:0.05s;padding:1.25rem 1.5rem">
+        <div class="kpi-label">Net Units YTD</div>
+        <div class="kpi-value" style="color:${netUnitsYtd >= 0 ? 'var(--green-light)' : 'var(--orange-light)'};font-size:2.4rem">${netUnitsYtd >= 0 ? '+' : ''}${fmt(netUnitsYtd)}</div>
+        ${sparkline(sparkNet)}
+        ${badge(netUnitsYtd, netUnitsYtdPrev)}
+      </div>
+      <div class="kpi-card hero" style="animation-delay:0.1s;padding:1.25rem 1.5rem">
+        <div class="kpi-label">Deals YTD</div>
+        <div class="kpi-value" style="font-size:2.4rem">${fmt(ytdCur.length)}</div>
+        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${fmt(sum(ytdCur))} units booked</div>
+        ${sparkline(sparkDeals)}
+        ${badge(ytdCur.length, ytdPrev.length)}
+      </div>
+      <div class="kpi-card hero blue" style="animation-delay:0.12s;padding:1.25rem 1.5rem">
+        <div class="kpi-label">Pitches This Week</div>
+        <div class="kpi-value" style="color:var(--blue-glow);font-size:2.4rem">${fmt(pitchThisWeek)}</div>
+        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${pitchLastWeek ? (pitchThisWeek >= pitchLastWeek ? '+' : '') + fmt(pitchThisWeek - pitchLastWeek) + ' vs last week' : 'Last week: ' + fmt(pitchLastWeek)}</div>
+        ${sparkline(sparkPitches)}
+        ${badge(pitchYtdCur, pitchYtdPrev)}
+      </div>
+      <div class="kpi-card hero orange" style="animation-delay:0.15s;padding:1.25rem 1.5rem">
+        <div class="kpi-label">Deinstalls YTD</div>
+        <div class="kpi-value" style="color:var(--orange-light);font-size:2.4rem">${fmt(diYtdCur.length)}</div>
+        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${Math.round(diYtdCur.length / sum(ytdCur) * 100)}% of ${fmt(sum(ytdCur))} booked</div>
+        ${sparkline(sparkDi)}
+        ${badge(-diYtdCur.length, -diYtdPrev.length)}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;" id="deal-type-pills"></div>
     </div>
-    <div class="table-wrap">
-      <table class="scorecard-table">
-        <thead><tr>
-          <th>Rep</th>
-          <th>YTD Deals</th>
-          <th>YTD Units</th>
-          <th>${MONTH_NAMES[curMonth]} Deals</th>
-          <th>${MONTH_NAMES[curMonth]} Units</th>
-          <th>${MONTH_NAMES[curMonth]} Pitches</th>
-        </tr></thead>
-        <tbody>
-          ${scRows.map(([name, v], i) => {
-            const isTop = i < 3;
-            const zd = (n) => n === 0 ? `<span class="sc-zero">0</span>` : fmt(n);
-            return `<tr>
-              <td><span class="sc-rank ${isTop ? 'top' : ''}">${i + 1}</span>${name}</td>
-              <td>${zd(v.ytdDeals)}</td>
-              <td class="${isTop ? 'sc-highlight' : ''}">${zd(v.ytdUnits)}</td>
-              <td>${zd(v.monthDeals)}</td>
-              <td>${zd(v.monthUnits)}</td>
-              <td>${zd(v.monthPitches)}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-        <tfoot><tr>
-          <td>Team Total</td>
-          <td>${fmt(scTotals.ytdDeals)}</td>
-          <td>${fmt(scTotals.ytdUnits)}</td>
-          <td>${fmt(scTotals.monthDeals)}</td>
-          <td>${fmt(scTotals.monthUnits)}</td>
-          <td>${fmt(scTotals.monthPitches)}</td>
-        </tr></tfoot>
-      </table>
+
+    <!-- SCORECARD MAIN STAGE -->
+    <div class="scorecard" style="margin-bottom:0">
+      <div class="section-header">
+        <div class="section-title">Rep Scorecard<small>${CUR_YEAR} — ${MONTH_NAMES[curMonth]}</small></div>
+      </div>
+      <div class="table-wrap">
+        <table class="scorecard-table">
+          <thead><tr>
+            <th>Rep</th>
+            <th>YTD Deals</th>
+            <th>YTD Units</th>
+            <th>${MONTH_NAMES[curMonth]} Deals</th>
+            <th>${MONTH_NAMES[curMonth]} Units</th>
+            <th>${MONTH_NAMES[curMonth]} Pitches</th>
+          </tr></thead>
+          <tbody>
+            ${scRows.map(([name, v], i) => {
+              const isTop = i < 3;
+              const zd = (n) => n === 0 ? '<span class="sc-zero">0</span>' : fmt(n);
+              return '<tr>' +
+                '<td><span class="sc-rank ' + (isTop ? 'top' : '') + '">' + (i + 1) + '</span>' + name + '</td>' +
+                '<td>' + zd(v.ytdDeals) + '</td>' +
+                '<td class="' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '</td>' +
+                '<td>' + zd(v.monthDeals) + '</td>' +
+                '<td>' + zd(v.monthUnits) + '</td>' +
+                '<td>' + zd(v.monthPitches) + '</td>' +
+              '</tr>';
+            }).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td>Team Total</td>
+            <td>${fmt(scTotals.ytdDeals)}</td>
+            <td>${fmt(scTotals.ytdUnits)}</td>
+            <td>${fmt(scTotals.monthDeals)}</td>
+            <td>${fmt(scTotals.monthUnits)}</td>
+            <td>${fmt(scTotals.monthPitches)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
     </div>
   </div>`;
+
+  // (scorecard rendered in command center above)
 
   // ─── SECONDARY KPI CARDS ───
   html += `<div class="kpi-secondary">
@@ -1568,6 +1572,20 @@ function render(deals, deinstalls, dealMap, pitchData) {
   </div>`;
 
   app.innerHTML = html;
+
+  // Render deal type pills (avoid nested template literals)
+  const pillsEl = document.getElementById('deal-type-pills');
+  if (pillsEl) {
+    pillsEl.innerHTML = dtEntries.map(function(entry) {
+      var dt = entry[0], v = entry[1];
+      var color = dealTypeColors[dt] || 'var(--silver)';
+      return '<div class="deal-type-pill" style="padding:4px 10px;font-size:0.68rem">' +
+        '<div class="deal-type-dot" style="background:' + color + ';width:6px;height:6px"></div>' +
+        '<span>' + dt + '</span>' +
+        '<span class="dt-count" style="font-size:0.75rem">' + fmt(v.deals) + '</span>' +
+      '</div>';
+    }).join('');
+  }
 
   // Store data for chart rendering
   window._dashData = { curDeals, prevDeals, validDeals };
