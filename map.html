@@ -557,20 +557,20 @@ function onSearch(q) {
   const results = [];
   const seen = new Set(); // dedupe
 
-  // Partners — always show first if name matches
-  Object.entries(partnerAgg).forEach(([name, data]) => {
+  // Partners — always show first if name matches (use full unfiltered data)
+  Object.entries(partnerAggFull).forEach(([name, data]) => {
     if (name.toLowerCase().includes(q)) {
       results.push({ id: 'p:' + name, name, type: 'partner', meta: `${data.markets.size} markets · ${fmt(data.units)} units`, sort: data.units + 1000000 });
     }
   });
   // Markets
-  Object.entries(marketAgg).forEach(([name, data]) => {
+  Object.entries(marketAggFull).forEach(([name, data]) => {
     if (name.toLowerCase().includes(q)) {
       results.push({ id: 'm:' + name, name, type: 'market', meta: `${data.partners.size} partners · ${fmt(data.units)} units`, sort: data.units + 500000 });
     }
   });
-  // Properties — match on name, partner, or market
-  allData.forEach(d => {
+  // Properties — match on name, partner, or market (use full data)
+  allDataFull.forEach(d => {
     const key = 'prop:' + d.property + d.market;
     if (seen.has(key)) return;
     if (d.property.toLowerCase().includes(q) || d.partner.toLowerCase().includes(q) || d.market.toLowerCase().includes(q)) {
@@ -631,7 +631,7 @@ function selectSearchIdx(idx) {
   } else {
     // Property
     setView('properties');
-    const d = allData.find(p => p.property === r.name);
+    const d = allDataFull.find(p => p.property === r.name);
     if (!d?.coords) return;
     map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
     showHighlightPin(d.coords, propertyTooltip(d));
@@ -669,10 +669,10 @@ function targetTooltipContent(d) {
 let _drillState = null;
 
 function drillIntoMarket(name) {
-  const mk = marketAgg[name];
+  const mk = marketAggFull[name];
   if (!mk?.coords) return;
 
-  // Collect current properties in this market
+  // Collect current properties in this market (full, unfiltered)
   const props = mk.props.map(d => ({
     name: d.property, market: d.market, partner: d.partner, units: d.units,
     type: 'current', coords: d.coords,
@@ -706,9 +706,9 @@ function drillIntoMarket(name) {
 }
 
 function drillIntoPartner(name) {
-  // Fuzzy match: find the partner key that matches (case-insensitive)
-  const partnerKey = Object.keys(partnerAgg).find(k => k.toLowerCase() === name.toLowerCase()) || name;
-  const pk = partnerAgg[partnerKey];
+  // Fuzzy match: find the partner key that matches (case-insensitive) — use full data
+  const partnerKey = Object.keys(partnerAggFull).find(k => k.toLowerCase() === name.toLowerCase()) || name;
+  const pk = partnerAggFull[partnerKey];
   if (!pk) return;
   const wc = pk.props.filter(d => d.coords);
   if (!wc.length) return;
@@ -963,6 +963,8 @@ function bubbleColor(units, max) {
 
 // ─── AGGREGATES ───
 let marketAgg = {}, partnerAgg = {};
+// Full (unfiltered) aggregates for search and drill-in — never affected by time period
+let marketAggFull = {}, partnerAggFull = {};
 
 function computeAggs() {
   marketAgg = {}; partnerAgg = {};
@@ -974,6 +976,20 @@ function computeAggs() {
 
     if (!partnerAgg[d.partner]) partnerAgg[d.partner] = { units: 0, markets: new Set(), props: [] };
     const p = partnerAgg[d.partner];
+    p.units += d.units; p.markets.add(d.market); p.props.push(d);
+  });
+}
+
+function computeFullAggs() {
+  marketAggFull = {}; partnerAggFull = {};
+  allDataFull.forEach(d => {
+    if (!marketAggFull[d.market]) marketAggFull[d.market] = { units: 0, partners: new Set(), props: [], coords: null };
+    const m = marketAggFull[d.market];
+    m.units += d.units; m.partners.add(d.partner); m.props.push(d);
+    if (!m.coords && d.coords) m.coords = d.coords;
+
+    if (!partnerAggFull[d.partner]) partnerAggFull[d.partner] = { units: 0, markets: new Set(), props: [] };
+    const p = partnerAggFull[d.partner];
     p.units += d.units; p.markets.add(d.market); p.props.push(d);
   });
 }
@@ -1308,6 +1324,7 @@ async function init() {
     console.log(`Loaded ${allDataFull.length} properties, ${mapped} mapped`);
 
     lb.style.width = '100%';
+    computeFullAggs();
     document.getElementById('loading').classList.add('hidden');
     updateLegend('markets');
     applyPeriodFilter(); // sets allData/deinstallData from full arrays, computes aggs, renders
