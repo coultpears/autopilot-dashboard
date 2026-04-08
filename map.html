@@ -623,19 +623,15 @@ function selectSearchIdx(idx) {
   closeSearch();
 
   if (r.type === 'market') {
-    setView('markets');
-    const mk = marketAgg[r.name];
-    if (!mk?.coords) return;
-    // Zoom in and simulate a click — show properties in this market
-    map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
+    setView('markets', true);
     drillIntoMarket(r.name);
 
   } else if (r.type === 'partner') {
-    setView('partners');
+    setView('partners', true);
     drillIntoPartner(r.name);
 
   } else if (r.type === 'target') {
-    setView('targets');
+    setView('targets', true);
     const d = targetData.find(t => t.name === r.name);
     if (!d?.coords) return;
     map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
@@ -644,7 +640,7 @@ function selectSearchIdx(idx) {
 
   } else {
     // Property
-    setView('properties');
+    setView('properties', true);
     const d = allDataFull.find(p => p.property === r.name);
     if (!d?.coords) return;
     map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
@@ -705,12 +701,15 @@ function drillIntoMarket(name) {
 
   _drillState = { title: name, type: 'market', props, targets: tgts, coords: mk.coords };
 
+  // Combined partner count across current + targets
+  const allPartners = new Set([...props.map(d => d.partner), ...tgts.map(d => d.partner)].filter(Boolean));
+
   openPortfolioPanel(name,
-    `${mk.partners.size} partners · ${mk.props.length} properties` + (tgts.length ? ` · ${tgts.length} targets` : ''),
+    `${allPartners.size} partners · ${props.length} properties · ${tgts.length} targets`,
     [
-      { val: fmt(mk.units), label: 'Units' },
-      { val: mk.partners.size.toString(), label: 'Partners' },
-      { val: mk.props.length.toString(), label: 'Properties' },
+      { val: fmt(mk.units), label: 'Current Units' },
+      { val: allPartners.size.toString(), label: 'Partners' },
+      { val: props.length.toString(), label: 'Properties' },
       { val: tgts.length.toString(), label: 'Targets' }
     ], props, tgts);
 
@@ -746,12 +745,16 @@ function drillIntoPartner(name) {
 
   _drillState = { title: partnerKey, type: 'partner', props, targets: tgts };
 
+  // Compute combined market count (current + targets)
+  const allMarkets = new Set([...props.map(d => d.market), ...tgts.map(d => d.market)].filter(Boolean));
+  const totalProps = props.length + tgts.length;
+
   openPortfolioPanel(partnerKey,
-    `${pk.markets.size} markets · ${pk.props.length} properties` + (tgts.length ? ` · ${tgts.length} targets` : ''),
+    `${allMarkets.size} markets · ${props.length} properties · ${tgts.length} targets`,
     [
-      { val: fmt(pk.units), label: 'Units' },
-      { val: pk.markets.size.toString(), label: 'Markets' },
-      { val: pk.props.length.toString(), label: 'Properties' },
+      { val: fmt(pk.units), label: 'Current Units' },
+      { val: allMarkets.size.toString(), label: 'Markets' },
+      { val: props.length.toString(), label: 'Properties' },
       { val: tgts.length.toString(), label: 'Targets' }
     ], props, tgts);
 
@@ -1027,10 +1030,10 @@ function computeFullAggs() {
 }
 
 // ─── DETAIL PANEL ───
-function closeDetail() {
+function closeDetail(resetSearch) {
   document.getElementById('detail-panel').classList.remove('open');
   _drillState = null;
-  _openedFromSearch = false;
+  if (resetSearch !== false) _openedFromSearch = false;
   updateLegend(currentView);
   renderView();
 }
@@ -1286,10 +1289,10 @@ function renderView() {
   else renderProperties();
 }
 
-function setView(view) {
+function setView(view, preserveSearch) {
   currentView = view;
   document.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-  closeDetail();
+  closeDetail(preserveSearch ? false : true);
   map.setView([39.0, -96.0], 5, { animate: true });
   updateLegend(view);
   renderView();
