@@ -518,7 +518,7 @@ function jitter(coords, i) {
 }
 
 // ─── HELPERS ───
-function clearMap() { markers.forEach(m => map.removeLayer(m)); markers = []; }
+// clearMap defined after pin plotting functions below
 function fmt(n) { return n.toLocaleString(); }
 function cleanRep(s) { return s.replace(/@hellolanding\.com/g, '').replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 
@@ -775,26 +775,27 @@ function getEnrichmentObj(propertyName) {
   return { vacant: e.vacant, available: e.available, vacancy: e.vacancy, concessions: e.concessions };
 }
 
+// Pin registry: name -> marker reference (for direct lookup from detail list)
+let _pinRegistry = {};
+
 function plotPropertyPins(props, color) {
   props.forEach((d, i) => {
     if (!d.coords) return;
     const pos = jitter(d.coords, i);
     const sz = Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8));
     const pin = L.circleMarker([pos.lat, pos.lng], {
-      radius: sz, fillColor: color, color: color.replace(')', ',0.5)').replace('#', 'rgba(').replace(/../g, (m,i2) => i2 ? parseInt(m,16) + ',' : ''), weight: 2, fillOpacity: 0.9
+      radius: sz, fillColor: color, color: 'rgba(255,255,255,0.5)', weight: 2, fillOpacity: 0.9
     });
-    // Simpler color approach
-    pin.setStyle({ color: 'rgba(255,255,255,0.5)', fillColor: color });
     pin.bindTooltip(propertyTooltip({ property: d.name, partner: d.partner, market: d.market, units: d.units, rep: '—' }), { direction: 'top', offset: [0, -sz] });
-    pin.on('click', () => zoomToProperty(d));
     pin.addTo(map); markers.push(pin);
+    _pinRegistry['prop:' + d.name + ':' + d.market] = pin;
   });
 }
 
 function plotTargetPins(tgts) {
   tgts.forEach((d, i) => {
     if (!d.coords) return;
-    const pos = jitter(d.coords, i + 500); // offset jitter seed from current props
+    const pos = jitter(d.coords, i + 500);
     const hasSignal = d.vacant > 0 || d.concessions;
     const color = hasSignal ? '#DC2626' : '#9CA3AF';
     const sz = Math.max(4, Math.min(10, 3 + Math.sqrt(d.units || 1) * 1.2));
@@ -804,23 +805,30 @@ function plotTargetPins(tgts) {
     });
     pin.bindTooltip(targetTooltipContent(d), { direction: 'top', offset: [0, -sz] });
     pin.addTo(map); markers.push(pin);
+    _pinRegistry['tgt:' + d.name + ':' + d.market] = pin;
   });
 }
 
-function zoomToProperty(d) {
-  if (!d || !d.coords) return;
-  map.setView([d.coords.lat, d.coords.lng], 14, { animate: true });
-  // Find the closest marker and open its tooltip
-  setTimeout(() => {
-    let closest = null, minDist = Infinity;
-    markers.forEach(m => {
-      if (!m.getLatLng || !m.getTooltip) return;
-      const ll = m.getLatLng();
-      const dist = Math.abs(ll.lat - d.coords.lat) + Math.abs(ll.lng - d.coords.lng);
-      if (dist < minDist) { minDist = dist; closest = m; }
-    });
-    if (closest && minDist < 0.02) closest.openTooltip();
-  }, 350);
+function clearMap() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  _pinRegistry = {};
+}
+
+function zoomToPin(key) {
+  const pin = _pinRegistry[key];
+  if (pin) {
+    const ll = pin.getLatLng();
+    map.setView([ll.lat, ll.lng], 14, { animate: true });
+    setTimeout(() => {
+      // Pulse the pin to highlight it
+      const origRadius = pin.getRadius();
+      pin.setRadius(origRadius + 6);
+      pin.setStyle({ weight: 3, color: '#2563EB' });
+      pin.openTooltip();
+      setTimeout(() => { pin.setRadius(origRadius); pin.setStyle({ weight: 2, color: 'rgba(255,255,255,0.5)' }); }, 1500);
+    }, 300);
+  }
 }
 
 // ─── PORTFOLIO PANEL ───
@@ -860,8 +868,10 @@ function showDetailTab(tab) {
 
 function renderDetailPropertyList(props) {
   const sorted = [...props].sort((a, b) => b.units - a.units);
-  document.getElementById('dp-list').innerHTML = sorted.map(d => `
-    <div class="detail-row" onclick="zoomToProperty(${d.coords ? `{coords:{lat:${d.coords.lat},lng:${d.coords.lng}}}` : 'null'})">
+  document.getElementById('dp-list').innerHTML = sorted.map(d => {
+    const key = 'prop:' + d.name + ':' + d.market;
+    return `
+    <div class="detail-row" onclick="zoomToPin('${key.replace(/'/g, "\\'")}')">
       <div class="detail-row-info">
         <div class="detail-row-name">${d.name}</div>
         <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
@@ -871,14 +881,16 @@ function renderDetailPropertyList(props) {
           ${d.concessions ? `<span class="detail-metric concession">Concessions</span>` : ''}
         </div>
       </div>
-    </div>
-  `).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
+    </div>`;
+  }).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
 }
 
 function renderDetailTargetList(tgts) {
   const sorted = [...tgts].sort((a, b) => (b.vacant || 0) - (a.vacant || 0) || (b.units || 0) - (a.units || 0));
-  document.getElementById('dp-list').innerHTML = sorted.map(d => `
-    <div class="detail-row target-row" onclick="zoomToProperty(${d.coords ? `{coords:{lat:${d.coords.lat},lng:${d.coords.lng}}}` : 'null'})">
+  document.getElementById('dp-list').innerHTML = sorted.map(d => {
+    const key = 'tgt:' + d.name + ':' + d.market;
+    return `
+    <div class="detail-row target-row" onclick="zoomToPin('${key.replace(/'/g, "\\'")}')">
       <div class="detail-row-info">
         <div class="detail-row-name">${d.name}</div>
         <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
@@ -890,8 +902,8 @@ function renderDetailTargetList(tgts) {
           ${d.leaseUp ? `<span class="detail-metric lease-up">Lease-up</span>` : ''}
         </div>
       </div>
-    </div>
-  `).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No targets found</div>';
+    </div>`;
+  }).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No targets found</div>';
 }
 
 function renderDetailMarketList() {
