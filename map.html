@@ -259,6 +259,14 @@ body {
   font-size: 0.9rem; display: grid; place-items: center; transition: all 0.1s;
 }
 .detail-close:hover { background: var(--border); color: var(--white); }
+.detail-back {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 16px; font-size: 0.7rem; font-weight: 600;
+  color: var(--blue); cursor: pointer; border-bottom: 1px solid var(--ghost);
+  transition: background 0.1s; font-family: 'Outfit', sans-serif;
+}
+.detail-back:hover { background: var(--blue-dim); }
+.detail-back svg { width: 12px; height: 12px; }
 
 /* ─── BOTTOM BAR ─── */
 .bottom-bar {
@@ -275,14 +283,15 @@ body {
 
 /* ─── MAP ─── */
 #map { flex: 1; z-index: 1; background: #F8F9FB; }
-.leaflet-control-zoom { border: none !important; }
+.leaflet-control-zoom { border: none !important; margin-bottom: 60px !important; margin-right: 8px !important; }
 .leaflet-control-zoom a {
   background: #fff !important; color: #374151 !important;
-  border: 1px solid var(--border) !important; width: 32px !important; height: 32px !important;
-  line-height: 32px !important; font-size: 14px !important;
+  border: 1px solid var(--border) !important; width: 36px !important; height: 36px !important;
+  line-height: 36px !important; font-size: 16px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
 }
-.leaflet-control-zoom a:first-child { border-radius: 8px 8px 0 0 !important; }
-.leaflet-control-zoom a:last-child { border-radius: 0 0 8px 8px !important; }
+.leaflet-control-zoom a:first-child { border-radius: 10px 10px 0 0 !important; }
+.leaflet-control-zoom a:last-child { border-radius: 0 0 10px 10px !important; }
 .leaflet-control-attribution { display: none !important; }
 
 /* ─── BUBBLE LABELS ─── */
@@ -371,6 +380,10 @@ body {
 
 <div class="detail-panel" id="detail-panel">
   <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div class="detail-back" id="dp-back" style="display:none" onclick="goBackFromDetail()">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11 2L5 8l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    Back to results
+  </div>
   <div class="detail-panel-header">
     <div class="detail-panel-title" id="dp-title"></div>
     <div class="detail-panel-subtitle" id="dp-subtitle"></div>
@@ -605,7 +618,8 @@ function closeSearch() { document.getElementById('search-results').classList.rem
 function selectSearchIdx(idx) {
   const r = window._searchResults?.[idx];
   if (!r) return;
-  document.getElementById('search-input').value = '';
+  _lastSearchQuery = document.getElementById('search-input').value;
+  _openedFromSearch = true;
   closeSearch();
 
   if (r.type === 'market') {
@@ -667,6 +681,8 @@ function targetTooltipContent(d) {
 // ─── DRILL-IN: PORTFOLIO VIEW ───
 // Stores current drill-in state for tab switching
 let _drillState = null;
+let _openedFromSearch = false; // track if detail was opened via search
+let _lastSearchQuery = ''; // preserve search for back navigation
 
 function drillIntoMarket(name) {
   const mk = marketAggFull[name];
@@ -789,7 +805,19 @@ function plotTargetPins(tgts) {
 }
 
 function zoomToProperty(d) {
-  if (d.coords) map.setView([d.coords.lat, d.coords.lng], 14, { animate: true });
+  if (!d || !d.coords) return;
+  map.setView([d.coords.lat, d.coords.lng], 14, { animate: true });
+  // Find the closest marker and open its tooltip
+  setTimeout(() => {
+    let closest = null, minDist = Infinity;
+    markers.forEach(m => {
+      if (!m.getLatLng || !m.getTooltip) return;
+      const ll = m.getLatLng();
+      const dist = Math.abs(ll.lat - d.coords.lat) + Math.abs(ll.lng - d.coords.lng);
+      if (dist < minDist) { minDist = dist; closest = m; }
+    });
+    if (closest && minDist < 0.02) closest.openTooltip();
+  }, 350);
 }
 
 // ─── PORTFOLIO PANEL ───
@@ -800,6 +828,10 @@ function openPortfolioPanel(title, subtitle, kpis, props, targets) {
   document.getElementById('dp-kpis').innerHTML = kpis.map(k =>
     `<div class="detail-kpi"><div class="detail-kpi-val">${k.val}</div><div class="detail-kpi-label">${k.label}</div></div>`
   ).join('');
+
+  // Show back button if opened from search
+  const backBtn = document.getElementById('dp-back');
+  backBtn.style.display = _openedFromSearch ? '' : 'none';
 
   // Tabs
   const hasTgts = targets.length > 0;
@@ -998,8 +1030,23 @@ function computeFullAggs() {
 function closeDetail() {
   document.getElementById('detail-panel').classList.remove('open');
   _drillState = null;
+  _openedFromSearch = false;
   updateLegend(currentView);
   renderView();
+}
+
+function goBackFromDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  _drillState = null;
+  updateLegend(currentView);
+  renderView();
+  // Restore search and reopen results
+  if (_lastSearchQuery) {
+    const input = document.getElementById('search-input');
+    input.value = _lastSearchQuery;
+    input.focus();
+    onSearch(_lastSearchQuery);
+  }
 }
 
 // ─── TOOLTIP BUILDERS ───
