@@ -65,21 +65,25 @@ body {
 .nav-links a.active { color: #fff !important; background: var(--blue); }
 
 /* ─── CONTROLS OVERLAY ─── */
+/* ─── CONTROL PANEL (top-left) ─── */
 .map-controls {
-  position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 900;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: absolute; top: 72px; left: 12px; z-index: 900;
+  display: flex; flex-direction: column; gap: 6px;
 }
-.view-pills {
-  display: flex; background: var(--panel); backdrop-filter: blur(24px);
-  border: 1px solid var(--border); border-radius: 10px; padding: 3px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+.control-group {
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; gap: 1px;
 }
+.control-group.row { flex-direction: row; gap: 0; }
 .pill {
-  font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
-  padding: 6px 16px; border: none; border-radius: 7px; cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 0.75rem; font-weight: 600;
+  padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer;
   background: transparent; color: var(--silver); transition: all 0.15s;
+  text-align: left; white-space: nowrap;
 }
-.pill:hover { color: var(--white); }
+.pill:hover { color: var(--white); background: var(--ghost); }
 .pill.active { background: var(--blue); color: #fff !important; }
 
 /* ─── LEGEND ─── */
@@ -151,31 +155,32 @@ body {
 /* ─── DEINSTALL TOGGLE ─── */
 .overlay-toggle {
   display: flex; align-items: center; gap: 6px;
-  margin-top: 4px; padding: 6px 12px;
-  background: var(--panel); backdrop-filter: blur(24px);
-  border: 1px solid var(--border); border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  font-size: 0.75rem; color: var(--white); cursor: pointer;
+  padding: 7px 12px; margin: 0;
+  background: transparent; border: none; border-radius: 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem; color: var(--silver); cursor: pointer;
   transition: all 0.15s; user-select: none;
 }
-.overlay-toggle:hover { background: rgba(255,255,255,0.96); }
-.overlay-toggle.active { border-color: #DC2626; }
-.overlay-toggle input { accent-color: #DC2626; cursor: pointer; }
+.overlay-toggle:hover { color: var(--white); background: var(--ghost); }
+.overlay-toggle.active { color: #DC2626; }
+.overlay-toggle input { accent-color: #DC2626; cursor: pointer; margin: 0; }
 
 /* ─── TIME PERIOD PILLS ─── */
 .period-pills {
-  display: flex; gap: 2px;
-  background: var(--panel); backdrop-filter: blur(24px);
-  border: 1px solid var(--border); border-radius: 8px; padding: 2px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex; gap: 0;
 }
 .period-pill {
   font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 600;
-  padding: 4px 10px; border: none; border-radius: 6px; cursor: pointer;
-  background: transparent; color: var(--silver); transition: all 0.15s;
+  padding: 5px 10px; border: none; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--muted); transition: all 0.15s;
 }
-.period-pill:hover { color: var(--white); }
+.period-pill:hover { color: var(--white); background: var(--ghost); }
 .period-pill.active { background: #374151; color: #fff; }
+
+/* ─── CONTROL DIVIDER ─── */
+.control-divider {
+  height: 1px; background: var(--border); margin: 2px 8px;
+}
 
 /* ─── PANEL (right side detail) ─── */
 .detail-panel {
@@ -321,16 +326,17 @@ body {
 </nav>
 
 <div class="map-controls">
-  <div class="view-pills">
+  <div class="control-group">
     <button class="pill active" data-view="markets" onclick="setView('markets')">Markets</button>
     <button class="pill" data-view="partners" onclick="setView('partners')">Partners</button>
     <button class="pill" data-view="properties" onclick="setView('properties')">Properties</button>
     <button class="pill" data-view="targets" onclick="setView('targets')">Targets</button>
+    <div class="control-divider"></div>
+    <label class="overlay-toggle" id="deinstall-toggle">
+      <input type="checkbox" onchange="toggleDeinstalls(this.checked)"> Deinstalls
+    </label>
   </div>
-  <label class="overlay-toggle" id="deinstall-toggle">
-    <input type="checkbox" onchange="toggleDeinstalls(this.checked)"> Show Deinstalls
-  </label>
-  <div class="period-pills" id="period-pills">
+  <div class="control-group row">
     <button class="period-pill" data-period="3m" onclick="setPeriod('3m')">3M</button>
     <button class="period-pill" data-period="6m" onclick="setPeriod('6m')">6M</button>
     <button class="period-pill active" data-period="ytd" onclick="setPeriod('ytd')">YTD</button>
@@ -406,7 +412,8 @@ function resolveMarket(raw) {
 }
 
 // ─── MAP ───
-map = L.map('map', { center: [39.0, -96.0], zoom: 5, zoomControl: true, attributionControl: false });
+map = L.map('map', { center: [39.0, -96.0], zoom: 5, zoomControl: false, attributionControl: false });
+L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 // CartoDB Voyager — clean light basemap
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -464,6 +471,7 @@ function applyPeriodFilter() {
   }
 
   computeAggs();
+  updateLegend(currentView);
   renderView();
   if (showDeinstalls) renderDeinstallOverlay();
 }
