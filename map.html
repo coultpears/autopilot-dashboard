@@ -487,19 +487,27 @@ function cleanRep(s) { return s.replace(/@hellolanding\.com/g, '').replace(/\./g
 function updateLegend(view) {
   const el = document.getElementById('map-legend');
   if (view === 'markets') {
+    const vals = Object.values(marketAgg).map(m => m.units);
+    const max = Math.max(...vals, 1);
+    const estThresh = Math.round(max * 0.4);
+    const growThresh = Math.round(max * 0.15);
     el.innerHTML = `
       <div class="legend-title">Market Density</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Established (40%+ of max)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Growing (15-40%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Emerging (&lt;15%)</div>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
+      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Established (${fmt(estThresh)}+ units)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Growing (${fmt(growThresh)}-${fmt(estThresh - 1)} units)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Emerging (&lt;${fmt(growThresh)} units)</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Largest market: ${fmt(max)} units</div>`;
   } else if (view === 'partners') {
+    const vals = Object.values(partnerAgg).map(p => p.units);
+    const max = Math.max(...vals, 1);
+    const lgThresh = Math.round(max * 0.4);
+    const mdThresh = Math.round(max * 0.15);
     el.innerHTML = `
       <div class="legend-title">Partner Scale</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Large (40%+ of max)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Mid-size (15-40%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Small (&lt;15%)</div>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
+      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Large (${fmt(lgThresh)}+ units)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Mid-size (${fmt(mdThresh)}-${fmt(lgThresh - 1)} units)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Small (&lt;${fmt(mdThresh)} units)</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Largest partner: ${fmt(max)} units</div>`;
   } else if (view === 'targets') {
     el.innerHTML = `
       <div class="legend-title">Target Signals</div>
