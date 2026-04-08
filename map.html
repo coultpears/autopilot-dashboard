@@ -815,19 +815,47 @@ function clearMap() {
   _pinRegistry = {};
 }
 
+let _activeHighlight = null;
+
 function zoomToPin(key) {
+  // Reset previous highlight
+  if (_activeHighlight) {
+    try { _activeHighlight.pin.setRadius(_activeHighlight.r); _activeHighlight.pin.setStyle({ weight: 2, color: 'rgba(255,255,255,0.5)' }); _activeHighlight.pin.closeTooltip(); } catch(e) {}
+    _activeHighlight = null;
+  }
+  // Close all open tooltips
+  markers.forEach(m => { try { m.closeTooltip(); } catch(e) {} });
+
   const pin = _pinRegistry[key];
-  if (pin) {
-    const ll = pin.getLatLng();
-    map.setView([ll.lat, ll.lng], 14, { animate: true });
-    setTimeout(() => {
-      // Pulse the pin to highlight it
-      const origRadius = pin.getRadius();
-      pin.setRadius(origRadius + 6);
-      pin.setStyle({ weight: 3, color: '#2563EB' });
-      pin.openTooltip();
-      setTimeout(() => { pin.setRadius(origRadius); pin.setStyle({ weight: 2, color: 'rgba(255,255,255,0.5)' }); }, 1500);
-    }, 300);
+  if (!pin) return;
+  const ll = pin.getLatLng();
+  map.setView([ll.lat, ll.lng], 14, { animate: true });
+  setTimeout(() => {
+    const origRadius = pin.getRadius();
+    pin.setRadius(origRadius + 6);
+    pin.setStyle({ weight: 3, color: '#2563EB' });
+    pin.openTooltip();
+    _activeHighlight = { pin, r: origRadius };
+  }, 300);
+}
+
+// Index-based click from detail list (avoids all quote/escaping issues)
+let _detailListItems = [];
+
+function detailClick(idx) {
+  const item = _detailListItems[idx];
+  if (!item) return;
+  if (item.key) {
+    zoomToPin(item.key);
+  } else if (item.market) {
+    // Market row — zoom to market coords
+    const coords = MARKET_COORDS[item.market];
+    if (coords) {
+      // Reset previous highlight
+      if (_activeHighlight) { try { _activeHighlight.pin.setRadius(_activeHighlight.r); _activeHighlight.pin.setStyle({ weight: 2, color: 'rgba(255,255,255,0.5)' }); _activeHighlight.pin.closeTooltip(); } catch(e) {} _activeHighlight = null; }
+      markers.forEach(m => { try { m.closeTooltip(); } catch(e) {} });
+      map.setView([coords.lat, coords.lng], 11, { animate: true });
+    }
   }
 }
 
@@ -868,10 +896,9 @@ function showDetailTab(tab) {
 
 function renderDetailPropertyList(props) {
   const sorted = [...props].sort((a, b) => b.units - a.units);
-  document.getElementById('dp-list').innerHTML = sorted.map(d => {
-    const key = 'prop:' + d.name + ':' + d.market;
-    return `
-    <div class="detail-row" onclick="zoomToPin('${key.replace(/'/g, "\\'")}')">
+  _detailListItems = sorted.map(d => ({ key: 'prop:' + d.name + ':' + d.market }));
+  document.getElementById('dp-list').innerHTML = sorted.map((d, i) => `
+    <div class="detail-row" onclick="detailClick(${i})">
       <div class="detail-row-info">
         <div class="detail-row-name">${d.name}</div>
         <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
@@ -881,16 +908,15 @@ function renderDetailPropertyList(props) {
           ${d.concessions ? `<span class="detail-metric concession">Concessions</span>` : ''}
         </div>
       </div>
-    </div>`;
-  }).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
+    </div>`
+  ).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
 }
 
 function renderDetailTargetList(tgts) {
   const sorted = [...tgts].sort((a, b) => (b.vacant || 0) - (a.vacant || 0) || (b.units || 0) - (a.units || 0));
-  document.getElementById('dp-list').innerHTML = sorted.map(d => {
-    const key = 'tgt:' + d.name + ':' + d.market;
-    return `
-    <div class="detail-row target-row" onclick="zoomToPin('${key.replace(/'/g, "\\'")}')">
+  _detailListItems = sorted.map(d => ({ key: 'tgt:' + d.name + ':' + d.market }));
+  document.getElementById('dp-list').innerHTML = sorted.map((d, i) => `
+    <div class="detail-row target-row" onclick="detailClick(${i})">
       <div class="detail-row-info">
         <div class="detail-row-name">${d.name}</div>
         <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
@@ -902,32 +928,33 @@ function renderDetailTargetList(tgts) {
           ${d.leaseUp ? `<span class="detail-metric lease-up">Lease-up</span>` : ''}
         </div>
       </div>
-    </div>`;
-  }).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No targets found</div>';
+    </div>`
+  ).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No targets found</div>';
 }
 
 function renderDetailMarketList() {
   const all = [...(_drillState?.props || []), ...(_drillState?.targets || [])];
   const byMkt = {};
   all.forEach(d => {
-    if (!byMkt[d.market]) byMkt[d.market] = { units: 0, count: 0, targets: 0 };
+    if (!byMkt[d.market]) byMkt[d.market] = { units: 0, count: 0, targets: 0, props: 0 };
     byMkt[d.market].units += d.units || 0;
     byMkt[d.market].count++;
     if (d.type === 'target') byMkt[d.market].targets++;
+    else byMkt[d.market].props++;
   });
   const sorted = Object.entries(byMkt).sort((a, b) => b[1].units - a[1].units);
-  const maxU = Math.max(...sorted.map(([,v]) => v.units), 1);
-  document.getElementById('dp-list').innerHTML = sorted.map(([mkt, v]) => `
-    <div class="detail-row">
+  _detailListItems = sorted.map(([mkt]) => ({ market: mkt }));
+  document.getElementById('dp-list').innerHTML = sorted.map(([mkt, v], i) => `
+    <div class="detail-row" onclick="detailClick(${i})">
       <div class="detail-row-info">
         <div class="detail-row-name">${mkt}</div>
         <div class="detail-row-metrics">
-          <span class="detail-metric units">${v.count} properties · ${v.units}u</span>
+          ${v.props ? `<span class="detail-metric units">${v.props} properties · ${v.units}u</span>` : ''}
           ${v.targets ? `<span class="detail-metric target-badge">${v.targets} targets</span>` : ''}
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`
+  ).join('');
 }
 
 // ─── DEINSTALL OVERLAY ───
