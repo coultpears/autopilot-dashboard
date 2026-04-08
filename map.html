@@ -162,6 +162,21 @@ body {
 .overlay-toggle.active { border-color: #DC2626; }
 .overlay-toggle input { accent-color: #DC2626; cursor: pointer; }
 
+/* ─── TIME PERIOD PILLS ─── */
+.period-pills {
+  display: flex; gap: 2px;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 8px; padding: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.period-pill {
+  font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 600;
+  padding: 4px 10px; border: none; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--silver); transition: all 0.15s;
+}
+.period-pill:hover { color: var(--white); }
+.period-pill.active { background: #374151; color: #fff; }
+
 /* ─── PANEL (right side detail) ─── */
 .detail-panel {
   position: absolute; top: 64px; right: 12px; bottom: 80px; width: 300px; z-index: 800;
@@ -315,6 +330,13 @@ body {
   <label class="overlay-toggle" id="deinstall-toggle">
     <input type="checkbox" onchange="toggleDeinstalls(this.checked)"> Show Deinstalls
   </label>
+  <div class="period-pills" id="period-pills">
+    <button class="period-pill" data-period="3m" onclick="setPeriod('3m')">3M</button>
+    <button class="period-pill" data-period="6m" onclick="setPeriod('6m')">6M</button>
+    <button class="period-pill active" data-period="ytd" onclick="setPeriod('ytd')">YTD</button>
+    <button class="period-pill" data-period="12m" onclick="setPeriod('12m')">12M</button>
+    <button class="period-pill" data-period="all" onclick="setPeriod('all')">All</button>
+  </div>
 </div>
 
 <div class="search-box">
@@ -354,10 +376,34 @@ const MARKET_COORDS = {"Richmond, VA":{lat:37.5407,lng:-77.436},"Portland, OR":{
 const DEINSTALL_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGbdrb1E8-Ctt4eSJ4A_fsth1CgTCw3zdD_cqVcGLAoQiMh2r_5mN5opRvlW0tYTO7aLvkz-IZm3XH/pub?gid=1480705445&single=true&output=csv';
 const MAP_DATA_API = '/api/map-data';
 
-let map, currentView = 'markets', allData = [], markers = [];
-let deinstallData = [], deinstallMarkers = [], showDeinstalls = false;
-let enrichmentMap = {}; // property name (lowercase) -> { vacant, available, vacancy, concessions }
-let targetData = []; // expansion targets not in current AP portfolio
+let map, currentView = 'markets', allData = [], allDataFull = [], markers = [];
+let deinstallData = [], deinstallDataFull = [], deinstallMarkers = [], showDeinstalls = false;
+let enrichmentMap = {};
+let targetData = [];
+let activePeriod = 'ytd'; // ytd, 12m, 6m, 3m, all
+
+// Map city-only names (deinstall sheet) to MARKET_COORDS keys
+const CITY_TO_MARKET = {};
+Object.keys(MARKET_COORDS).forEach(k => {
+  const city = k.split(',')[0].trim();
+  CITY_TO_MARKET[city.toLowerCase()] = k;
+});
+// Manual overrides for mismatches
+CITY_TO_MARKET['washington d.c.'] = 'Washington, DC';
+CITY_TO_MARKET['st louis'] = 'St. Louis, MO';
+CITY_TO_MARKET['st. louis'] = 'St. Louis, MO';
+CITY_TO_MARKET['tuscon'] = 'Tucson, AZ';
+CITY_TO_MARKET['gainsville'] = 'Gainesville, FL';
+CITY_TO_MARKET['salem'] = 'Winston Salem, NC';
+CITY_TO_MARKET['crestview'] = 'Pensacola, FL';
+
+function resolveMarket(raw) {
+  if (!raw) return null;
+  // Try exact match first
+  if (MARKET_COORDS[raw]) return raw;
+  // Try city-only lookup
+  return CITY_TO_MARKET[raw.toLowerCase()] || null;
+}
 
 // ─── MAP ───
 map = L.map('map', { center: [39.0, -96.0], zoom: 5, zoomControl: true, attributionControl: false });
@@ -385,6 +431,47 @@ function parseLine(line) {
     else { if (ch === '"') q = true; else if (ch === ',') { r.push(c); c = ''; } else c += ch; }
   }
   r.push(c); return r;
+}
+
+// ─── TIME PERIOD FILTER ───
+function getPeriodCutoff(period) {
+  const now = new Date();
+  if (period === 'all') return null;
+  if (period === 'ytd') return new Date(now.getFullYear(), 0, 1);
+  const months = { '3m': 3, '6m': 6, '12m': 12 };
+  const d = new Date(now);
+  d.setMonth(d.getMonth() - (months[period] || 12));
+  return d;
+}
+
+function applyPeriodFilter() {
+  const cutoff = getPeriodCutoff(activePeriod);
+
+  // Filter deals by sign date
+  if (cutoff) {
+    allData = allDataFull.filter(d => {
+      if (!d.signDate) return true; // keep rows without dates
+      const dt = new Date(d.signDate);
+      return !isNaN(dt) && dt >= cutoff;
+    });
+    deinstallData = deinstallDataFull.filter(d => {
+      const dt = new Date(d.date);
+      return !isNaN(dt) && dt >= cutoff;
+    });
+  } else {
+    allData = [...allDataFull];
+    deinstallData = [...deinstallDataFull];
+  }
+
+  computeAggs();
+  renderView();
+  if (showDeinstalls) renderDeinstallOverlay();
+}
+
+function setPeriod(period) {
+  activePeriod = period;
+  document.querySelectorAll('.period-pill').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+  applyPeriodFilter();
 }
 
 function jitter(coords, i) {
@@ -448,15 +535,15 @@ function onSearch(q) {
       results.push({ name, type: 'market', meta: `${data.partners.size} partners · ${fmt(data.units)} units`, units: data.units });
     }
   });
-  // Properties
+  // Properties — match on property name, partner, or market
   allData.forEach(d => {
-    if (d.property.toLowerCase().includes(q)) {
+    if (d.property.toLowerCase().includes(q) || d.partner.toLowerCase().includes(q) || d.market.toLowerCase().includes(q)) {
       results.push({ name: d.property, type: 'property', meta: `${d.partner} · ${d.market}`, units: d.units });
     }
   });
   // Targets
   targetData.forEach(d => {
-    if (d.name.toLowerCase().includes(q) || (d.partner && d.partner.toLowerCase().includes(q))) {
+    if (d.name.toLowerCase().includes(q) || (d.partner && d.partner.toLowerCase().includes(q)) || d.market.toLowerCase().includes(q)) {
       results.push({ name: d.name, type: 'target', meta: `${d.partner} · ${d.market}${d.vacant ? ' · ' + d.vacant + ' vacant' : ''}`, units: d.totalUnits || d.available || 0 });
     }
   });
@@ -989,21 +1076,24 @@ async function init() {
 
     const rows = parseCSV(await resp.text()).filter(d => d['Property Name']);
 
-    // Parse deinstalls
+    // Parse deinstalls — resolve city-only market names to full "City, ST" keys
     if (diResp && diResp.ok) {
       const diRows = parseCSV(await diResp.text()).filter(d => d['Property Name']);
-      const curYear = new Date().getFullYear();
-      deinstallData = diRows.filter(d => {
+      deinstallDataFull = diRows.filter(d => {
         const dt = new Date(d['Deinstall_Date'] || d['Requested Date']);
-        return dt && !isNaN(dt) && dt.getFullYear() === curYear;
-      }).map(d => ({
-        property: d['Property Name'] || '—',
-        market: (d['Market'] || '').trim(),
-        partner: d['Partner'] || '—',
-        reason: d['Reason'] || d['Reason '] || '—',
-        date: d['Deinstall_Date'] || d['Requested Date']
-      }));
-      console.log(`Deinstalls loaded: ${deinstallData.length} YTD`);
+        return dt && !isNaN(dt);
+      }).map(d => {
+        const rawMkt = (d['Market'] || '').trim();
+        const resolved = resolveMarket(rawMkt) || rawMkt;
+        return {
+          property: d['Property Name'] || '—',
+          market: resolved,
+          partner: d['Partner'] || '—',
+          reason: d['Reason'] || d['Reason '] || '—',
+          date: d['Deinstall_Date'] || d['Requested Date']
+        };
+      });
+      console.log(`Deinstalls loaded: ${deinstallDataFull.length} total`);
     }
 
     // Parse enrichment + targets
@@ -1012,11 +1102,10 @@ async function init() {
       enrichmentMap = enrichData.enrichment || {};
       console.log(`Enrichment loaded: ${Object.keys(enrichmentMap).length} properties`);
 
-      // Map targets to coordinates using market name
       const rawTargets = enrichData.targets || [];
       targetData = rawTargets.map(t => ({
         ...t,
-        coords: MARKET_COORDS[t.market] || null
+        coords: MARKET_COORDS[t.market] || MARKET_COORDS[resolveMarket(t.market)] || null
       }));
       const unmappedTargets = [...new Set(targetData.filter(d => !d.coords && d.market).map(d => d.market))];
       if (unmappedTargets.length) console.warn('Unmapped target markets:', unmappedTargets);
@@ -1025,7 +1114,7 @@ async function init() {
 
     lb.style.width = '80%';
 
-    allData = rows.map(d => {
+    allDataFull = rows.map(d => {
       const mkt = (d['Market'] || '').trim();
       return {
         property: d['Property Name'] || '—', market: mkt || '—',
@@ -1037,16 +1126,15 @@ async function init() {
       };
     });
 
-    const mapped = allData.filter(d => d.coords).length;
-    const unmapped = [...new Set(allData.filter(d => !d.coords).map(d => d.market))].filter(Boolean);
+    const mapped = allDataFull.filter(d => d.coords).length;
+    const unmapped = [...new Set(allDataFull.filter(d => !d.coords).map(d => d.market))].filter(Boolean);
     if (unmapped.length) console.warn('Unmapped markets:', unmapped);
-    console.log(`Loaded ${allData.length} properties, ${mapped} mapped`);
+    console.log(`Loaded ${allDataFull.length} properties, ${mapped} mapped`);
 
     lb.style.width = '100%';
-    computeAggs();
     document.getElementById('loading').classList.add('hidden');
     updateLegend('markets');
-    renderMarkets();
+    applyPeriodFilter(); // sets allData/deinstallData from full arrays, computes aggs, renders
   } catch (err) {
     console.error(err);
     lt.textContent = 'Failed to load. Check console.';
