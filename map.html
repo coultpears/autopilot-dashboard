@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AP Supply Map — Landing</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231A61D9'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='20' fill='white'%3EL%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --navy: #F8F9FB;
+  --navy-mid: #FFFFFF;
+  --navy-light: #F1F3F7;
+  --panel: rgba(255,255,255,0.92);
+  --blue: #2563EB;
+  --blue-dim: rgba(37,99,235,0.08);
+  --green: #059669;
+  --green-dim: rgba(5,150,105,0.08);
+  --orange: #EA580C;
+  --orange-dim: rgba(234,88,12,0.06);
+  --white: #1F2937;
+  --silver: #6B7280;
+  --muted: #9CA3AF;
+  --ghost: rgba(0,0,0,0.04);
+  --border: rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--navy);
+  color: var(--white);
+  height: 100vh; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* ─── NAV ─── */
+.topnav {
+  z-index: 1000; height: 52px; flex-shrink: 0;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topnav-left { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 30px; height: 30px; background: var(--blue); border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1rem; color: #fff !important;
+}
+.topnav h1 { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; }
+.topnav h1 span { color: var(--silver); font-weight: 400; margin-left: 6px; }
+.nav-links { display: flex; gap: 4px; }
+.nav-links a {
+  color: var(--silver); text-decoration: none; font-size: 0.78rem; font-weight: 500;
+  padding: 5px 12px; border-radius: 6px; transition: all 0.15s;
+}
+.nav-links a:hover { color: var(--white); background: var(--ghost); }
+.nav-links a.active { color: #fff !important; background: var(--blue); }
+
+/* ─── CONTROLS OVERLAY ─── */
+.map-controls {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 900;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.view-pills {
+  display: flex; background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px; padding: 3px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.pill {
+  font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
+  padding: 6px 16px; border: none; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--silver); transition: all 0.15s;
+}
+.pill:hover { color: var(--white); }
+.pill.active { background: var(--blue); color: #fff !important; }
+
+/* ─── LEGEND ─── */
+.map-legend {
+  position: absolute; bottom: 80px; left: 12px; z-index: 900;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.legend-title {
+  font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--silver); margin-bottom: 6px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 8px; padding: 2px 0;
+  font-size: 0.75rem; color: var(--white);
+}
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* ─── SEARCH ─── */
+.search-box {
+  position: absolute; top: 64px; right: 12px; z-index: 900;
+  width: 260px;
+}
+.search-input {
+  width: 100%; padding: 9px 14px 9px 34px;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  color: var(--white); outline: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: border-color 0.15s;
+}
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--muted); }
+.search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 0.85rem; pointer-events: none;
+}
+.search-results {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px;
+  max-height: 320px; overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  display: none;
+}
+.search-results.open { display: block; }
+.search-result {
+  padding: 10px 14px; cursor: pointer; transition: background 0.1s;
+  border-bottom: 1px solid var(--ghost);
+}
+.search-result:last-child { border-bottom: none; }
+.search-result:hover { background: var(--ghost); }
+.search-result-name { font-weight: 600; font-size: 0.82rem; }
+.search-result-meta { font-size: 0.68rem; color: var(--silver); margin-top: 1px; }
+.search-result-type {
+  display: inline-block; font-size: 0.6rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px;
+  border-radius: 4px; margin-left: 6px;
+}
+.type-partner { background: var(--blue-dim); color: var(--blue); }
+.type-market { background: rgba(124,58,237,0.1); color: #7C3AED; }
+.type-property { background: var(--green-dim); color: var(--green); }
+.type-target { background: rgba(220,38,38,0.08); color: #DC2626; }
+
+/* ─── DEINSTALL TOGGLE ─── */
+.overlay-toggle {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 4px; padding: 6px 12px;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  font-size: 0.75rem; color: var(--white); cursor: pointer;
+  transition: all 0.15s; user-select: none;
+}
+.overlay-toggle:hover { background: rgba(255,255,255,0.96); }
+.overlay-toggle.active { border-color: #DC2626; }
+.overlay-toggle input { accent-color: #DC2626; cursor: pointer; }
+
+/* ─── PANEL (right side detail) ─── */
+.detail-panel {
+  position: absolute; top: 64px; right: 12px; bottom: 80px; width: 300px; z-index: 800;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none; transform: translateX(12px);
+  transition: all 0.25s ease;
+}
+.detail-panel.open { opacity: 1; pointer-events: auto; transform: translateX(0); }
+.detail-panel-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--ghost);
+}
+.detail-panel-title {
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.05rem;
+  margin-bottom: 2px;
+}
+.detail-panel-subtitle { font-size: 0.75rem; color: var(--silver); }
+.detail-panel-kpis {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+  padding: 12px 18px; border-bottom: 1px solid var(--ghost);
+}
+.detail-kpi { text-align: center; }
+.detail-kpi-val { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; }
+.detail-kpi-label { font-size: 0.62rem; color: var(--silver); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.detail-panel-list {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+.detail-panel-list::-webkit-scrollbar { width: 3px; }
+.detail-panel-list::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+.detail-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 18px; transition: background 0.1s; cursor: default;
+}
+.detail-row:hover { background: var(--ghost); }
+.detail-row-rank {
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.7rem;
+  color: var(--muted); width: 18px; text-align: right; flex-shrink: 0;
+}
+.detail-row-info { flex: 1; min-width: 0; }
+.detail-row-name {
+  font-size: 0.82rem; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.detail-row-meta { font-size: 0.68rem; color: var(--silver); }
+.detail-row-bar {
+  width: 48px; height: 4px; background: var(--ghost); border-radius: 2px; flex-shrink: 0;
+}
+.detail-row-bar-fill { height: 100%; border-radius: 2px; }
+.detail-row-val {
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.82rem;
+  width: 40px; text-align: right; flex-shrink: 0;
+}
+.detail-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 24px; height: 24px; border-radius: 6px; border: none;
+  background: var(--ghost); color: var(--silver); cursor: pointer;
+  font-size: 0.9rem; display: grid; place-items: center; transition: all 0.1s;
+}
+.detail-close:hover { background: var(--border); color: var(--white); }
+
+/* ─── BOTTOM BAR ─── */
+.bottom-bar {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 900;
+  display: flex; gap: 1px;
+  background: var(--panel); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 20px;
+}
+.bb-stat { text-align: center; padding: 0 16px; border-right: 1px solid var(--ghost); }
+.bb-stat:last-child { border-right: none; }
+.bb-val { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; }
+.bb-label { font-size: 0.6rem; color: var(--silver); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-top: 1px; }
+
+/* ─── MAP ─── */
+#map { flex: 1; z-index: 1; background: #F8F9FB; }
+.leaflet-control-zoom { border: none !important; }
+.leaflet-control-zoom a {
+  background: #fff !important; color: #374151 !important;
+  border: 1px solid var(--border) !important; width: 32px !important; height: 32px !important;
+  line-height: 32px !important; font-size: 14px !important;
+}
+.leaflet-control-zoom a:first-child { border-radius: 8px 8px 0 0 !important; }
+.leaflet-control-zoom a:last-child { border-radius: 0 0 8px 8px !important; }
+.leaflet-control-attribution { display: none !important; }
+
+/* ─── BUBBLE LABELS ─── */
+.bubble-label {
+  background: none !important; border: none !important; box-shadow: none !important;
+  font-family: 'Outfit', sans-serif; font-weight: 700; color: #fff;
+  text-align: center; pointer-events: none !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+/* ─── TOOLTIP ─── */
+.leaflet-tooltip {
+  background: #fff !important; color: #1F2937 !important;
+  border: 1px solid rgba(0,0,0,0.1) !important; border-radius: 10px !important;
+  padding: 10px 14px !important; font-family: 'DM Sans', sans-serif !important;
+  font-size: 0.78rem !important; box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+}
+.leaflet-tooltip::before { border-top-color: #fff !important; }
+.leaflet-tooltip-top::before { border-top-color: #fff !important; }
+.leaflet-tooltip-bottom::before { border-bottom-color: #fff !important; }
+.tt-dim { color: #6B7280 !important; }
+.tt-val { color: #1F2937 !important; }
+.tt-name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.85rem; margin-bottom: 2px; }
+.tt-row { display: flex; justify-content: space-between; gap: 16px; }
+.tt-dim { color: var(--silver); }
+.tt-val { font-weight: 600; }
+
+/* ─── LOADING ─── */
+.loading-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2000;
+  background: rgba(248,249,251,0.97);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  transition: opacity 0.4s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 36px; height: 36px; border: 3px solid var(--ghost); border-top-color: var(--blue);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-family: 'Outfit', sans-serif; font-size: 0.85rem; color: var(--silver); }
+.loading-progress { width: 160px; height: 3px; background: var(--ghost); border-radius: 2px; overflow: hidden; }
+.loading-progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.3s; width: 0%; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-left">
+    <div class="logo-mark">L</div>
+    <h1>Supply Map<span>AP Partnerships</span></h1>
+  </div>
+  <div class="nav-links">
+    <a href="index.html">Dashboard</a>
+    <a href="map.html" class="active">Map</a>
+  </div>
+</nav>
+
+<div class="map-controls">
+  <div class="view-pills">
+    <button class="pill active" data-view="markets" onclick="setView('markets')">Markets</button>
+    <button class="pill" data-view="partners" onclick="setView('partners')">Partners</button>
+    <button class="pill" data-view="properties" onclick="setView('properties')">Properties</button>
+    <button class="pill" data-view="targets" onclick="setView('targets')">Targets</button>
+  </div>
+  <label class="overlay-toggle" id="deinstall-toggle">
+    <input type="checkbox" onchange="toggleDeinstalls(this.checked)"> Show Deinstalls
+  </label>
+</div>
+
+<div class="search-box">
+  <span class="search-icon">&#128269;</span>
+  <input class="search-input" id="search-input" type="text" placeholder="Search partners, markets, properties..." oninput="onSearch(this.value)" onfocus="onSearch(this.value)" onblur="setTimeout(() => closeSearch(), 200)">
+  <div class="search-results" id="search-results"></div>
+</div>
+
+<div class="map-legend" id="map-legend"></div>
+
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div class="detail-panel-header">
+    <div class="detail-panel-title" id="dp-title"></div>
+    <div class="detail-panel-subtitle" id="dp-subtitle"></div>
+  </div>
+  <div class="detail-panel-kpis" id="dp-kpis"></div>
+  <div class="detail-panel-list" id="dp-list"></div>
+</div>
+
+<div id="map"></div>
+<div class="bottom-bar" id="bottom-bar"></div>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Loading supply data...</div>
+  <div class="loading-progress"><div class="loading-progress-fill" id="loading-bar"></div></div>
+</div>
+
+<script>
+const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGbdrb1E8-Ctt4eSJ4A_fsth1CgTCw3zdD_cqVcGLAoQiMh2r_5mN5opRvlW0tYTO7aLvkz-IZm3XH/pub?gid=0&single=true&output=csv';
+
+// Pre-computed market coordinates — no runtime geocoding needed
+const MARKET_COORDS = {"Richmond, VA":{lat:37.5407,lng:-77.436},"Portland, OR":{lat:45.5152,lng:-122.6784},"Fort Lauderdale, FL":{lat:26.1224,lng:-80.1373},"Miami, FL":{lat:25.7617,lng:-80.1918},"Nashville, TN":{lat:36.1627,lng:-86.7816},"Denver, CO":{lat:39.7392,lng:-104.9903},"Fort Worth, TX":{lat:32.7555,lng:-97.3308},"Philadelphia, PA":{lat:39.9526,lng:-75.1652},"Birmingham, AL":{lat:33.5186,lng:-86.8104},"Austin, TX":{lat:30.2672,lng:-97.7431},"Houston, TX":{lat:29.7604,lng:-95.3698},"Mobile, AL":{lat:30.6954,lng:-88.0399},"St. Petersburg, FL":{lat:27.7676,lng:-82.6403},"Indianapolis, IN":{lat:39.7684,lng:-86.1581},"Raleigh, NC":{lat:35.7796,lng:-78.6382},"Chicago, IL":{lat:41.8781,lng:-87.6298},"Cleveland, OH":{lat:41.4993,lng:-81.6944},"San Antonio, TX":{lat:29.4241,lng:-98.4936},"Columbus, OH":{lat:39.9612,lng:-82.9988},"Detroit, MI":{lat:42.3314,lng:-83.0458},"Washington, DC":{lat:38.9072,lng:-77.0369},"Dayton, OH":{lat:39.7589,lng:-84.1916},"Fort Wayne, IN":{lat:41.0793,lng:-85.1394},"Jacksonville, FL":{lat:30.3322,lng:-81.6557},"St. Louis, MO":{lat:38.627,lng:-90.1994},"Dallas, TX":{lat:32.7767,lng:-96.797},"Kansas City, MO":{lat:39.0997,lng:-94.5786},"Port Charlotte, FL":{lat:26.9756,lng:-82.0912},"Tucson, AZ":{lat:32.2226,lng:-110.9747},"Wilmington, NC":{lat:34.2257,lng:-77.9447},"Charlotte, NC":{lat:35.2271,lng:-80.8431},"Atlanta, GA":{lat:33.749,lng:-84.388},"Memphis, TN":{lat:35.1495,lng:-90.049},"Savannah, GA":{lat:32.0809,lng:-81.0912},"Cape Coral, FL":{lat:26.5629,lng:-81.9495},"Huntsville, AL":{lat:34.7304,lng:-86.5861},"Las Vegas, NV":{lat:36.1699,lng:-115.1398},"Reno, NV":{lat:39.5296,lng:-119.8138},"Phoenix, AZ":{lat:33.4484,lng:-112.074},"Seattle, WA":{lat:47.6062,lng:-122.3321},"Orlando, FL":{lat:28.5383,lng:-81.3792},"New York, NY":{lat:40.7128,lng:-74.006},"Tampa, FL":{lat:27.9506,lng:-82.4572},"Fort Collins, CO":{lat:40.5853,lng:-105.0844},"Baton Rouge, LA":{lat:30.4515,lng:-91.1871},"Myrtle Beach, SC":{lat:33.6891,lng:-78.8867},"Gainesville, FL":{lat:29.6516,lng:-82.3248},"Sarasota, FL":{lat:27.3364,lng:-82.5307},"Charleston, SC":{lat:32.7765,lng:-79.9311},"Greenville, SC":{lat:34.8526,lng:-82.394},"Salt Lake City, UT":{lat:40.7608,lng:-111.891},"Cincinnati, OH":{lat:39.1031,lng:-84.512},"Kansas City, KS":{lat:39.1142,lng:-94.6275},"Oklahoma City, OK":{lat:35.4676,lng:-97.5164},"Tulsa, OK":{lat:36.154,lng:-95.9928},"Fort Myers, FL":{lat:26.6406,lng:-81.8723},"West Palm Beach, FL":{lat:26.7153,lng:-80.0534},"Melbourne, FL":{lat:28.0836,lng:-80.6081},"Winston Salem, NC":{lat:36.0999,lng:-80.2442},"San Diego, CA":{lat:32.7157,lng:-117.1611},"Port Royal, SC":{lat:32.3793,lng:-80.6926},"San Marcos, TX":{lat:29.8833,lng:-97.9414},"Santa Rosa Beach, FL":{lat:30.3949,lng:-86.2286},"New Orleans, LA":{lat:29.9511,lng:-90.0715},"Knoxville, TN":{lat:35.9606,lng:-83.9207},"Ithaca, NY":{lat:42.444,lng:-76.5019},"Baltimore, MD":{lat:39.2904,lng:-76.6122},"Asheville, NC":{lat:35.5951,lng:-82.5515},"Chattanooga, TN":{lat:35.0456,lng:-85.3097},"Gulf Shores, AL":{lat:30.246,lng:-87.7008},"Milwaukee, WI":{lat:43.0389,lng:-87.9065},"Wildwood, FL":{lat:28.8655,lng:-82.0126},"Pensacola, FL":{lat:30.4213,lng:-87.2169},"Corpus Christi, TX":{lat:27.8006,lng:-97.3964},"Little Rock, AR":{lat:34.7465,lng:-92.2896},"Pittsburgh, PA":{lat:40.4406,lng:-79.9959},"Vero Beach, FL":{lat:27.6386,lng:-80.3973},"Buffalo, NY":{lat:42.8864,lng:-78.8784},"Palm Coast, FL":{lat:29.5844,lng:-81.2079},"Wichita, KS":{lat:37.6872,lng:-97.3301},"Springfield, MO":{lat:37.209,lng:-93.2923},"Norfolk, VA":{lat:36.8508,lng:-76.2859},"Colorado Springs, CO":{lat:38.8339,lng:-104.8214},"Boston, MA":{lat:42.3601,lng:-71.0589},"Daytona Beach, FL":{lat:29.2108,lng:-81.0228},"Saint Augustine, FL":{lat:29.8918,lng:-81.3145},"Stratford, CT":{lat:41.1845,lng:-73.1332},"Springfield, MA":{lat:42.1015,lng:-72.5898},"Hartford, CT":{lat:41.7658,lng:-72.6734},"New Haven, CT":{lat:41.3083,lng:-72.9279},"Orange Beach, AL":{lat:30.2941,lng:-87.5736},"Charlottesville, VA":{lat:38.0293,lng:-78.4767},"Prescott, AZ":{lat:34.54,lng:-112.4685},"Ocala, FL":{lat:29.1872,lng:-82.1401},"Bozeman, MT":{lat:45.677,lng:-111.0429},"Billings, MT":{lat:45.7833,lng:-108.5007},"Mesa, AZ":{lat:33.4152,lng:-111.8315},"Lakeland, FL":{lat:28.0395,lng:-81.9498},"Albany, NY":{lat:42.6526,lng:-73.7562},"Los Angeles, CA":{lat:34.0522,lng:-118.2437},"Rome, GA":{lat:34.257,lng:-85.1647},"Waco, TX":{lat:31.5493,lng:-97.1467},"Richland, WA":{lat:46.2856,lng:-119.2845},"Naples, FL":{lat:26.142,lng:-81.7948},"Red Oak, TX":{lat:32.5185,lng:-96.8044},"Leander, TX":{lat:30.5788,lng:-97.8531},"Melissa, TX":{lat:33.286,lng:-96.5727},"Hickory, NC":{lat:35.7332,lng:-81.3412},"Tallahassee, FL":{lat:30.4383,lng:-84.2807},"Columbia, MD":{lat:39.2037,lng:-76.861},"Louisville, KY":{lat:38.2527,lng:-85.7585},
+"Raliegh, NC":{lat:35.7796,lng:-78.6382},"Tuscon, AZ":{lat:32.2226,lng:-110.9747},"St Louis, MO":{lat:38.627,lng:-90.1994},"Raleigh,NC":{lat:35.7796,lng:-78.6382},"Cincinatti, OH":{lat:39.1031,lng:-84.512},"Washington DC":{lat:38.9072,lng:-77.0369},"Birmingham AL":{lat:33.5186,lng:-86.8104},"Gulf Shores":{lat:30.246,lng:-87.7008},"Charleston":{lat:32.7765,lng:-79.9311},"Dallas":{lat:32.7767,lng:-96.797}};
+
+const DEINSTALL_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGbdrb1E8-Ctt4eSJ4A_fsth1CgTCw3zdD_cqVcGLAoQiMh2r_5mN5opRvlW0tYTO7aLvkz-IZm3XH/pub?gid=1480705445&single=true&output=csv';
+const MAP_DATA_API = '/api/map-data';
+
+let map, currentView = 'markets', allData = [], markers = [];
+let deinstallData = [], deinstallMarkers = [], showDeinstalls = false;
+let enrichmentMap = {}; // property name (lowercase) -> { vacant, available, vacancy, concessions }
+let targetData = []; // expansion targets not in current AP portfolio
+
+// ─── MAP ───
+map = L.map('map', { center: [39.0, -96.0], zoom: 5, zoomControl: true, attributionControl: false });
+
+// CartoDB Voyager — clean light basemap
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  maxZoom: 18, subdomains: 'abcd'
+}).addTo(map);
+
+// ─── CSV ───
+function parseCSV(text) {
+  const lines = text.split('\n'); if (!lines.length) return [];
+  const hdrs = parseLine(lines[0]);
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const v = parseLine(line), o = {};
+    hdrs.forEach((h, i) => o[h.trim()] = (v[i] || '').trim());
+    return o;
+  });
+}
+function parseLine(line) {
+  const r = []; let c = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"' && line[i+1] === '"') { c += '"'; i++; } else if (ch === '"') q = false; else c += ch; }
+    else { if (ch === '"') q = true; else if (ch === ',') { r.push(c); c = ''; } else c += ch; }
+  }
+  r.push(c); return r;
+}
+
+function jitter(coords, i) {
+  const a = (i * 137.508) * Math.PI / 180, r = 0.01 + (i % 7) * 0.003;
+  return { lat: coords.lat + r * Math.cos(a), lng: coords.lng + r * Math.sin(a) };
+}
+
+// ─── HELPERS ───
+function clearMap() { markers.forEach(m => map.removeLayer(m)); markers = []; }
+function fmt(n) { return n.toLocaleString(); }
+function cleanRep(s) { return s.replace(/@hellolanding\.com/g, '').replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+
+function updateLegend(view) {
+  const el = document.getElementById('map-legend');
+  if (view === 'markets') {
+    el.innerHTML = `
+      <div class="legend-title">Market Density</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Established (40%+ of max)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Growing (15-40%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Emerging (&lt;15%)</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
+  } else if (view === 'partners') {
+    el.innerHTML = `
+      <div class="legend-title">Partner Scale</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div>Large (40%+ of max)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Mid-size (15-40%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>Small (&lt;15%)</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
+  } else if (view === 'targets') {
+    el.innerHTML = `
+      <div class="legend-title">Target Signals</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div>Vacancy + concessions</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>Vacancy or concessions</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div>Lease-up signal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9CA3AF"></div>No enrichment yet</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Not in current AP portfolio</div>`;
+  } else {
+    el.innerHTML = `
+      <div class="legend-title">Properties</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#059669"></div>Active property</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Pin size = unit count</div>`;
+  }
+}
+
+// ─── SEARCH ───
+function onSearch(q) {
+  const el = document.getElementById('search-results');
+  if (!q || q.length < 2) { el.classList.remove('open'); return; }
+  q = q.toLowerCase();
+  const results = [];
+
+  // Partners
+  Object.entries(partnerAgg).forEach(([name, data]) => {
+    if (name.toLowerCase().includes(q)) {
+      results.push({ name, type: 'partner', meta: `${data.markets.size} markets · ${fmt(data.units)} units`, units: data.units });
+    }
+  });
+  // Markets
+  Object.entries(marketAgg).forEach(([name, data]) => {
+    if (name.toLowerCase().includes(q)) {
+      results.push({ name, type: 'market', meta: `${data.partners.size} partners · ${fmt(data.units)} units`, units: data.units });
+    }
+  });
+  // Properties
+  allData.forEach(d => {
+    if (d.property.toLowerCase().includes(q)) {
+      results.push({ name: d.property, type: 'property', meta: `${d.partner} · ${d.market}`, units: d.units });
+    }
+  });
+  // Targets
+  targetData.forEach(d => {
+    if (d.name.toLowerCase().includes(q) || (d.partner && d.partner.toLowerCase().includes(q))) {
+      results.push({ name: d.name, type: 'target', meta: `${d.partner} · ${d.market}${d.vacant ? ' · ' + d.vacant + ' vacant' : ''}`, units: d.totalUnits || d.available || 0 });
+    }
+  });
+
+  results.sort((a, b) => b.units - a.units);
+  const top = results.slice(0, 12);
+
+  if (!top.length) { el.classList.remove('open'); return; }
+  el.innerHTML = top.map(r => `
+    <div class="search-result" onmousedown="selectSearchResult('${r.type}', '${r.name.replace(/'/g, "\\'")}')">
+      <div class="search-result-name">${r.name}<span class="search-result-type type-${r.type}">${r.type}</span></div>
+      <div class="search-result-meta">${r.meta}</div>
+    </div>
+  `).join('');
+  el.classList.add('open');
+}
+
+function closeSearch() { document.getElementById('search-results').classList.remove('open'); }
+
+function selectSearchResult(type, name) {
+  document.getElementById('search-input').value = '';
+  closeSearch();
+  if (type === 'market') {
+    setView('markets');
+    const mk = marketAgg[name];
+    if (mk?.coords) {
+      map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
+    }
+  } else if (type === 'partner') {
+    setView('partners');
+    // Simulate click on partner bubble
+    const pk = partnerAgg[name];
+    if (!pk) return;
+    const wc = pk.props.filter(d => d.coords);
+    if (!wc.length) return;
+    // Zoom to partner footprint
+    clearMap();
+    const mktBreak = {};
+    pk.props.forEach(d => {
+      if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
+      mktBreak[d.market].units += d.units;
+      mktBreak[d.market].props++;
+    });
+    const rows = Object.entries(mktBreak)
+      .sort((a, b) => b[1].units - a[1].units)
+      .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
+    const c = bubbleColor(pk.units, Math.max(...Object.values(partnerAgg).map(p => p.units), 1));
+    openDetail(name, `${pk.markets.size} markets · ${pk.props.length} properties`, [
+      { val: fmt(pk.units), label: 'Units' },
+      { val: pk.markets.size.toString(), label: 'Markets' },
+      { val: pk.props.length.toString(), label: 'Properties' }
+    ], rows, c.fill);
+    pk.props.forEach((d, i) => {
+      if (!d.coords) return;
+      const pos = jitter(d.coords, i);
+      const pin = L.circleMarker([pos.lat, pos.lng], {
+        radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
+        fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
+      });
+      pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+      pin.addTo(map); markers.push(pin);
+    });
+    const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
+    else map.setView(bounds[0], 10, { animate: true });
+  } else if (type === 'target') {
+    setView('targets');
+    const d = targetData.find(t => t.name === name);
+    if (d?.coords) map.setView([d.coords.lat, d.coords.lng], 13, { animate: true });
+  } else {
+    setView('properties');
+    const d = allData.find(p => p.property === name);
+    if (d?.coords) map.setView([d.coords.lat, d.coords.lng], 13, { animate: true });
+  }
+}
+
+// ─── DEINSTALL OVERLAY ───
+function toggleDeinstalls(on) {
+  showDeinstalls = on;
+  document.getElementById('deinstall-toggle').classList.toggle('active', on);
+  if (on) renderDeinstallOverlay();
+  else { deinstallMarkers.forEach(m => map.removeLayer(m)); deinstallMarkers = []; }
+}
+
+function renderDeinstallOverlay() {
+  deinstallMarkers.forEach(m => map.removeLayer(m));
+  deinstallMarkers = [];
+  if (!showDeinstalls || !deinstallData.length) return;
+
+  // Aggregate deinstalls by market
+  const diByMarket = {};
+  deinstallData.forEach(d => {
+    const mkt = d.market;
+    if (!mkt || !MARKET_COORDS[mkt]) return;
+    if (!diByMarket[mkt]) diByMarket[mkt] = { count: 0, reasons: {}, partners: {} };
+    diByMarket[mkt].count++;
+    const reason = d.reason || 'Unknown';
+    diByMarket[mkt].reasons[reason] = (diByMarket[mkt].reasons[reason] || 0) + 1;
+    const partner = d.partner || 'Unknown';
+    diByMarket[mkt].partners[partner] = (diByMarket[mkt].partners[partner] || 0) + 1;
+  });
+
+  const maxDi = Math.max(...Object.values(diByMarket).map(d => d.count), 1);
+
+  Object.entries(diByMarket).forEach(([mkt, data]) => {
+    const coords = MARKET_COORDS[mkt];
+    if (!coords) return;
+    const sz = Math.max(6, Math.min(22, 4 + Math.sqrt(data.count) * 2.5));
+
+    const ring = L.circleMarker([coords.lat, coords.lng], {
+      radius: sz + 4, fillColor: 'rgba(220,38,38,0.12)', color: '#DC2626',
+      weight: 2, fillOpacity: 0.4, dashArray: '4 3'
+    });
+
+    const topReasons = Object.entries(data.reasons).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([r, c]) => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${r}</span><span class="tt-val" style="font-size:0.72rem;color:#DC2626">${c}</span></div>`).join('');
+    const topPartners = Object.entries(data.partners).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([p, c]) => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${p}</span><span class="tt-val" style="font-size:0.72rem;color:#DC2626">${c}</span></div>`).join('');
+
+    ring.bindTooltip(`
+      <div class="tt-name" style="color:#DC2626">Deinstalls: ${mkt}</div>
+      <div class="tt-row"><span class="tt-dim">Units Lost (YTD)</span><span class="tt-val" style="color:#DC2626">${data.count}</span></div>
+      ${topReasons ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px"><div style="font-size:0.65rem;color:var(--silver);font-weight:600;margin-bottom:2px">TOP REASONS</div>' + topReasons + '</div>' : ''}
+      ${topPartners ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px"><div style="font-size:0.65rem;color:var(--silver);font-weight:600;margin-bottom:2px">BY PARTNER</div>' + topPartners + '</div>' : ''}
+    `, { direction: 'top', offset: [0, -sz - 4] });
+
+    ring.addTo(map);
+    deinstallMarkers.push(ring);
+  });
+}
+
+// ─── ENRICHMENT HELPERS ───
+function getEnrichment(propertyName) {
+  if (!propertyName) return null;
+  return enrichmentMap[propertyName.toLowerCase()] || null;
+}
+
+function enrichmentBadges(e) {
+  if (!e) return '';
+  const parts = [];
+  if (e.vacant) parts.push(`<span style="color:#DC2626;font-weight:600">${e.vacant} vacant</span>`);
+  if (e.available) parts.push(`${e.available} avail`);
+  if (e.vacancy) parts.push(`${e.vacancy}% vac rate`);
+  if (e.concessions) parts.push(`<span style="color:#D97706;font-style:italic">${e.concessions.slice(0, 60)}${e.concessions.length > 60 ? '...' : ''}</span>`);
+  return parts.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-size:0.72rem;line-height:1.5">' + parts.join(' · ') + '</div>' : '';
+}
+
+// Bubble color by density tier
+function bubbleColor(units, max) {
+  if (units >= max * 0.4) return { fill: '#2563EB', stroke: 'rgba(37,99,235,0.5)', glow: 'rgba(37,99,235,0.12)' };
+  if (units >= max * 0.15) return { fill: '#7C3AED', stroke: 'rgba(124,58,237,0.45)', glow: 'rgba(124,58,237,0.10)' };
+  return { fill: '#EA580C', stroke: 'rgba(234,88,12,0.5)', glow: 'rgba(234,88,12,0.12)' };
+}
+
+// ─── AGGREGATES ───
+let marketAgg = {}, partnerAgg = {};
+
+function computeAggs() {
+  marketAgg = {}; partnerAgg = {};
+  allData.forEach(d => {
+    if (!marketAgg[d.market]) marketAgg[d.market] = { units: 0, partners: new Set(), props: [], coords: null };
+    const m = marketAgg[d.market];
+    m.units += d.units; m.partners.add(d.partner); m.props.push(d);
+    if (!m.coords && d.coords) m.coords = d.coords;
+
+    if (!partnerAgg[d.partner]) partnerAgg[d.partner] = { units: 0, markets: new Set(), props: [] };
+    const p = partnerAgg[d.partner];
+    p.units += d.units; p.markets.add(d.market); p.props.push(d);
+  });
+}
+
+// ─── DETAIL PANEL ───
+function openDetail(title, subtitle, kpis, rows, color) {
+  const panel = document.getElementById('detail-panel');
+  document.getElementById('dp-title').textContent = title;
+  document.getElementById('dp-subtitle').textContent = subtitle;
+  document.getElementById('dp-kpis').innerHTML = kpis.map(k =>
+    `<div class="detail-kpi"><div class="detail-kpi-val">${k.val}</div><div class="detail-kpi-label">${k.label}</div></div>`
+  ).join('');
+  const maxVal = Math.max(...rows.map(r => r.units), 1);
+  document.getElementById('dp-list').innerHTML = rows.map((r, i) =>
+    `<div class="detail-row">
+      <div class="detail-row-rank">${i + 1}</div>
+      <div class="detail-row-info">
+        <div class="detail-row-name">${r.name}</div>
+        <div class="detail-row-meta">${r.meta}</div>
+      </div>
+      <div class="detail-row-bar"><div class="detail-row-bar-fill" style="width:${Math.round(r.units/maxVal*100)}%;background:${color}"></div></div>
+      <div class="detail-row-val">${fmt(r.units)}</div>
+    </div>`
+  ).join('');
+  panel.classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  // Re-render to clear highlights
+  renderView();
+}
+
+// ─── TOOLTIP BUILDERS ───
+function marketTooltip(name, data) {
+  const topPartners = Object.entries(data.props.reduce((a, d) => { a[d.partner] = (a[d.partner]||0) + d.units; return a; }, {}))
+    .sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return `<div class="tt-name">${name}</div>
+    <div class="tt-row"><span class="tt-dim">Units</span><span class="tt-val">${fmt(data.units)}</span></div>
+    <div class="tt-row"><span class="tt-dim">Partners</span><span class="tt-val">${data.partners.size}</span></div>
+    <div class="tt-row"><span class="tt-dim">Properties</span><span class="tt-val">${data.props.length}</span></div>
+    ${topPartners.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px">' +
+      topPartners.map(([p, u]) => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${p}</span><span class="tt-val" style="font-size:0.72rem">${u}u</span></div>`).join('') + '</div>' : ''}`;
+}
+
+function partnerTooltip(name, data) {
+  const topMarkets = Object.entries(data.props.reduce((a, d) => { a[d.market] = (a[d.market]||0) + d.units; return a; }, {}))
+    .sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return `<div class="tt-name">${name}</div>
+    <div class="tt-row"><span class="tt-dim">Units</span><span class="tt-val">${fmt(data.units)}</span></div>
+    <div class="tt-row"><span class="tt-dim">Markets</span><span class="tt-val">${data.markets.size}</span></div>
+    <div class="tt-row"><span class="tt-dim">Properties</span><span class="tt-val">${data.props.length}</span></div>
+    ${topMarkets.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px">' +
+      topMarkets.map(([m, u]) => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${m}</span><span class="tt-val" style="font-size:0.72rem">${u}u</span></div>`).join('') + '</div>' : ''}`;
+}
+
+function propertyTooltip(d) {
+  const e = getEnrichment(d.property);
+  return `<div class="tt-name">${d.property}</div>
+    <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner}</span></div>
+    <div class="tt-row"><span class="tt-dim">Market</span><span class="tt-val">${d.market}</span></div>
+    <div class="tt-row"><span class="tt-dim">Units</span><span class="tt-val">${fmt(d.units)}</span></div>
+    ${d.rep !== '—' ? `<div class="tt-row"><span class="tt-dim">Rep</span><span class="tt-val">${d.rep}</span></div>` : ''}
+    ${enrichmentBadges(e)}`;
+}
+
+// ─── RENDER: MARKETS ───
+function renderMarkets() {
+  clearMap();
+  const entries = Object.entries(marketAgg).filter(([, v]) => v.coords);
+  const maxUnits = Math.max(...entries.map(([, v]) => v.units), 1);
+
+  entries.forEach(([name, data]) => {
+    const sz = Math.max(14, Math.min(44, 10 + Math.sqrt(data.units) * 3));
+    const c = bubbleColor(data.units, maxUnits);
+
+    // Glow ring
+    const glow = L.circleMarker([data.coords.lat, data.coords.lng], {
+      radius: sz + 6, fillColor: c.glow, color: 'transparent', weight: 0, fillOpacity: 1
+    });
+    glow.addTo(map); markers.push(glow);
+
+    // Main bubble
+    const bubble = L.circleMarker([data.coords.lat, data.coords.lng], {
+      radius: sz, fillColor: c.fill, color: c.stroke, weight: 2, fillOpacity: 0.85
+    });
+
+    bubble.bindTooltip(marketTooltip(name, data), { direction: 'top', offset: [0, -sz], className: '' });
+
+    bubble.on('click', () => {
+      // Drill into market
+      const partnerBreak = {};
+      data.props.forEach(d => {
+        if (!partnerBreak[d.partner]) partnerBreak[d.partner] = { units: 0, props: 0 };
+        partnerBreak[d.partner].units += d.units;
+        partnerBreak[d.partner].props++;
+      });
+      const rows = Object.entries(partnerBreak)
+        .sort((a, b) => b[1].units - a[1].units)
+        .map(([p, v]) => ({ name: p, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
+
+      openDetail(name, `${data.partners.size} partners · ${data.props.length} properties`, [
+        { val: fmt(data.units), label: 'Units' },
+        { val: data.partners.size.toString(), label: 'Partners' },
+        { val: data.props.length.toString(), label: 'Properties' }
+      ], rows, c.fill);
+
+      map.setView([data.coords.lat, data.coords.lng], 10, { animate: true });
+
+      // Show property pins
+      clearMap();
+      data.props.forEach((d, i) => {
+        if (!d.coords) return;
+        const pos = jitter(d.coords, i);
+        const pin = L.circleMarker([pos.lat, pos.lng], {
+          radius: Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8)),
+          fillColor: '#059669', color: 'rgba(5,150,105,0.5)', weight: 2, fillOpacity: 0.9
+        });
+        pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+        pin.addTo(map); markers.push(pin);
+      });
+    });
+
+    bubble.addTo(map); markers.push(bubble);
+
+    // Label inside bubble for larger ones
+    if (sz >= 20) {
+      const label = L.divIcon({
+        className: 'bubble-label',
+        html: `<div style="font-size:${Math.max(9, Math.min(13, sz * 0.35))}px">${data.units}</div>`,
+        iconSize: [sz * 2, sz], iconAnchor: [sz, sz / 2]
+      });
+      const lm = L.marker([data.coords.lat, data.coords.lng], { icon: label, interactive: false });
+      lm.addTo(map); markers.push(lm);
+    }
+  });
+
+  // Bottom bar
+  const totalMkts = entries.length;
+  const totalUnits = entries.reduce((s, [, v]) => s + v.units, 0);
+  const avgPerMkt = Math.round(totalUnits / totalMkts);
+  const singlePartner = entries.filter(([, v]) => v.partners.size === 1).length;
+  const thinMkts = entries.filter(([, v]) => v.units < avgPerMkt * 0.4).length;
+
+  document.getElementById('bottom-bar').innerHTML = `
+    <div class="bb-stat"><div class="bb-val">${fmt(totalMkts)}</div><div class="bb-label">Markets</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalUnits)}</div><div class="bb-label">Total Units</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(avgPerMkt)}</div><div class="bb-label">Avg / Market</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:var(--orange)">${singlePartner}</div><div class="bb-label">Sole Partner</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:var(--orange)">${thinMkts}</div><div class="bb-label">Low Density</div></div>
+  `;
+}
+
+// ─── RENDER: PARTNERS ───
+function renderPartners() {
+  clearMap();
+  const entries = Object.entries(partnerAgg).filter(([, v]) => v.props.some(p => p.coords));
+  const maxUnits = Math.max(...entries.map(([, v]) => v.units), 1);
+
+  entries.forEach(([name, data]) => {
+    const wc = data.props.filter(d => d.coords);
+    const lat = wc.reduce((s, d) => s + d.coords.lat, 0) / wc.length;
+    const lng = wc.reduce((s, d) => s + d.coords.lng, 0) / wc.length;
+    const sz = Math.max(8, Math.min(30, 6 + Math.sqrt(data.units) * 2.5));
+    const c = bubbleColor(data.units, maxUnits);
+
+    const bubble = L.circleMarker([lat, lng], {
+      radius: sz, fillColor: c.fill, color: c.stroke, weight: 2, fillOpacity: 0.85
+    });
+
+    bubble.bindTooltip(partnerTooltip(name, data), { direction: 'top', offset: [0, -sz] });
+
+    bubble.on('click', () => {
+      const mktBreak = {};
+      data.props.forEach(d => {
+        if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
+        mktBreak[d.market].units += d.units;
+        mktBreak[d.market].props++;
+      });
+      const rows = Object.entries(mktBreak)
+        .sort((a, b) => b[1].units - a[1].units)
+        .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
+
+      openDetail(name, `${data.markets.size} markets · ${data.props.length} properties`, [
+        { val: fmt(data.units), label: 'Units' },
+        { val: data.markets.size.toString(), label: 'Markets' },
+        { val: data.props.length.toString(), label: 'Properties' }
+      ], rows, c.fill);
+
+      // Show this partner's properties
+      clearMap();
+      data.props.forEach((d, i) => {
+        if (!d.coords) return;
+        const pos = jitter(d.coords, i);
+        const pin = L.circleMarker([pos.lat, pos.lng], {
+          radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
+          fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
+        });
+        pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+        pin.addTo(map); markers.push(pin);
+      });
+
+      const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
+      else if (bounds.length === 1) map.setView(bounds[0], 10, { animate: true });
+    });
+
+    bubble.addTo(map); markers.push(bubble);
+
+    // Unit count label on partner bubble
+    if (sz >= 16) {
+      const label = L.divIcon({
+        className: 'bubble-label',
+        html: `<div style="font-size:${Math.max(9, Math.min(13, sz * 0.35))}px">${data.units}</div>`,
+        iconSize: [sz * 2, sz], iconAnchor: [sz, sz / 2]
+      });
+      const lm = L.marker([lat, lng], { icon: label, interactive: false });
+      lm.addTo(map); markers.push(lm);
+    }
+  });
+
+  const totalPartners = entries.length;
+  const totalUnits = entries.reduce((s, [, v]) => s + v.units, 0);
+  const multiMkt = entries.filter(([, v]) => v.markets.size > 1).length;
+  const totalMkts = new Set(allData.map(d => d.market)).size;
+
+  document.getElementById('bottom-bar').innerHTML = `
+    <div class="bb-stat"><div class="bb-val">${fmt(totalPartners)}</div><div class="bb-label">Partners</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalUnits)}</div><div class="bb-label">Total Units</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalMkts)}</div><div class="bb-label">Markets</div></div>
+    <div class="bb-stat"><div class="bb-val">${multiMkt}</div><div class="bb-label">Multi-Market</div></div>
+  `;
+}
+
+// ─── RENDER: PROPERTIES ───
+function renderProperties() {
+  clearMap();
+  const wc = allData.filter(d => d.coords);
+  const maxUnits = Math.max(...wc.map(d => d.units), 1);
+
+  wc.forEach((d, i) => {
+    const pos = jitter(d.coords, i);
+    const sz = Math.max(5, Math.min(16, 3 + Math.sqrt(d.units) * 2));
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: sz, fillColor: '#059669', color: 'rgba(5,150,105,0.45)', weight: 1.5, fillOpacity: 0.8
+    });
+    pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -sz] });
+    pin.addTo(map); markers.push(pin);
+  });
+
+  const totalUnits = wc.reduce((s, d) => s + d.units, 0);
+  const mkts = new Set(wc.map(d => d.market)).size;
+  const partners = new Set(wc.map(d => d.partner)).size;
+
+  document.getElementById('bottom-bar').innerHTML = `
+    <div class="bb-stat"><div class="bb-val">${fmt(wc.length)}</div><div class="bb-label">Properties</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalUnits)}</div><div class="bb-label">Total Units</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(partners)}</div><div class="bb-label">Partners</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(mkts)}</div><div class="bb-label">Markets</div></div>
+  `;
+}
+
+// ─── RENDER: TARGETS ───
+function renderTargets() {
+  clearMap();
+  const withCoords = targetData.filter(d => d.coords);
+
+  if (!withCoords.length) {
+    document.getElementById('bottom-bar').innerHTML = `
+      <div class="bb-stat"><div class="bb-val">0</div><div class="bb-label">Targets</div></div>
+      <div class="bb-stat" style="padding:0 16px"><div class="bb-label" style="font-size:0.75rem;color:var(--silver)">Expansion targets load from HubSpot after deploy</div></div>
+    `;
+    return;
+  }
+
+  const maxUnits = Math.max(...withCoords.map(d => d.totalUnits || d.available || 1), 1);
+
+  withCoords.forEach((d, i) => {
+    const pos = jitter(d.coords, i);
+    const hasVacancy = d.vacant > 0 || d.vacancy > 0;
+    const hasConcessions = !!d.concessions;
+    // Color: red-orange = high vacancy/concessions (hot target), yellow = moderate, grey = cold
+    let color = '#9CA3AF'; // default grey
+    if (hasVacancy && hasConcessions) color = '#DC2626'; // hot
+    else if (hasVacancy || hasConcessions) color = '#F59E0B'; // warm
+    else if (d.leaseUp) color = '#8B5CF6'; // lease-up signal
+
+    const sz = Math.max(5, Math.min(16, 4 + Math.sqrt(d.totalUnits || d.available || 1) * 1.5));
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: sz, fillColor: color, color: color.replace(')', ',0.5)').replace('rgb', 'rgba'),
+      weight: 2, fillOpacity: 0.8
+    });
+
+    const signals = [];
+    if (d.vacant) signals.push(`<span style="color:#DC2626;font-weight:600">${d.vacant} vacant</span>`);
+    if (d.available) signals.push(`${d.available} total units`);
+    if (d.vacancy) signals.push(`${d.vacancy}% vacancy`);
+    if (d.concessions) signals.push(`<span style="color:#D97706">${d.concessions.slice(0, 80)}${d.concessions.length > 80 ? '...' : ''}</span>`);
+    if (d.leaseUp) signals.push(`<span style="color:#8B5CF6;font-weight:600">Lease-up signal</span>`);
+
+    pin.bindTooltip(`
+      <div class="tt-name">${d.name}</div>
+      <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner}</span></div>
+      <div class="tt-row"><span class="tt-dim">Market</span><span class="tt-val">${d.market}</span></div>
+      ${d.totalUnits ? `<div class="tt-row"><span class="tt-dim">Total Units</span><span class="tt-val">${d.totalUnits}</span></div>` : ''}
+      ${signals.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-size:0.72rem;line-height:1.6">' + signals.join('<br>') + '</div>' : ''}
+    `, { direction: 'top', offset: [0, -sz] });
+
+    pin.addTo(map); markers.push(pin);
+  });
+
+  // Stats
+  const totalTargets = withCoords.length;
+  const withVacancy = withCoords.filter(d => d.vacant > 0).length;
+  const withConcessions = withCoords.filter(d => d.concessions).length;
+  const hotTargets = withCoords.filter(d => (d.vacant > 0 || d.vacancy > 0) && d.concessions).length;
+  const targetMarkets = new Set(withCoords.map(d => d.market)).size;
+
+  document.getElementById('bottom-bar').innerHTML = `
+    <div class="bb-stat"><div class="bb-val">${fmt(totalTargets)}</div><div class="bb-label">Targets</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(targetMarkets)}</div><div class="bb-label">Markets</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#DC2626">${hotTargets}</div><div class="bb-label">Hot (Vac + Conc)</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#F59E0B">${withVacancy}</div><div class="bb-label">Vacancy Signal</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#D97706">${withConcessions}</div><div class="bb-label">Concessions</div></div>
+  `;
+}
+
+// ─── VIEW SWITCH ───
+function renderView() {
+  if (currentView === 'markets') renderMarkets();
+  else if (currentView === 'partners') renderPartners();
+  else if (currentView === 'targets') renderTargets();
+  else renderProperties();
+}
+
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  closeDetail();
+  map.setView([39.0, -96.0], 5, { animate: true });
+  updateLegend(view);
+  renderView();
+  if (showDeinstalls) renderDeinstallOverlay();
+}
+
+// ─── INIT ───
+async function init() {
+  const lt = document.getElementById('loading-text');
+  const lb = document.getElementById('loading-bar');
+  try {
+    lt.textContent = 'Fetching data...';
+    lb.style.width = '20%';
+
+    // Fetch deals, deinstalls, and enrichment in parallel
+    const [resp, diResp, enrichResp] = await Promise.all([
+      fetch(SHEET_CSV),
+      fetch(DEINSTALL_CSV),
+      fetch(MAP_DATA_API).catch(() => null)
+    ]);
+
+    if (!resp.ok) throw new Error(`Deals HTTP ${resp.status}`);
+    lb.style.width = '50%';
+
+    const rows = parseCSV(await resp.text()).filter(d => d['Property Name']);
+
+    // Parse deinstalls
+    if (diResp && diResp.ok) {
+      const diRows = parseCSV(await diResp.text()).filter(d => d['Property Name']);
+      const curYear = new Date().getFullYear();
+      deinstallData = diRows.filter(d => {
+        const dt = new Date(d['Deinstall_Date'] || d['Requested Date']);
+        return dt && !isNaN(dt) && dt.getFullYear() === curYear;
+      }).map(d => ({
+        property: d['Property Name'] || '—',
+        market: (d['Market'] || '').trim(),
+        partner: d['Partner'] || '—',
+        reason: d['Reason'] || d['Reason '] || '—',
+        date: d['Deinstall_Date'] || d['Requested Date']
+      }));
+      console.log(`Deinstalls loaded: ${deinstallData.length} YTD`);
+    }
+
+    // Parse enrichment + targets
+    if (enrichResp && enrichResp.ok) {
+      const enrichData = await enrichResp.json();
+      enrichmentMap = enrichData.enrichment || {};
+      console.log(`Enrichment loaded: ${Object.keys(enrichmentMap).length} properties`);
+
+      // Map targets to coordinates using market name
+      const rawTargets = enrichData.targets || [];
+      targetData = rawTargets.map(t => ({
+        ...t,
+        coords: MARKET_COORDS[t.market] || null
+      }));
+      const unmappedTargets = [...new Set(targetData.filter(d => !d.coords && d.market).map(d => d.market))];
+      if (unmappedTargets.length) console.warn('Unmapped target markets:', unmappedTargets);
+      console.log(`Targets loaded: ${targetData.length} (${targetData.filter(d => d.coords).length} mapped)`);
+    }
+
+    lb.style.width = '80%';
+
+    allData = rows.map(d => {
+      const mkt = (d['Market'] || '').trim();
+      return {
+        property: d['Property Name'] || '—', market: mkt || '—',
+        address: (d['Property Address'] || '').trim(),
+        partner: d['Partner'] || '—', rep: cleanRep(d['AP Sales Person'] || '—'),
+        units: parseInt(d['Total Unit Count']) || 0, dealType: d['Deal Type'] || '—',
+        signDate: d['Contract Signed Date'] || '',
+        coords: MARKET_COORDS[mkt] || null
+      };
+    });
+
+    const mapped = allData.filter(d => d.coords).length;
+    const unmapped = [...new Set(allData.filter(d => !d.coords).map(d => d.market))].filter(Boolean);
+    if (unmapped.length) console.warn('Unmapped markets:', unmapped);
+    console.log(`Loaded ${allData.length} properties, ${mapped} mapped`);
+
+    lb.style.width = '100%';
+    computeAggs();
+    document.getElementById('loading').classList.add('hidden');
+    updateLegend('markets');
+    renderMarkets();
+  } catch (err) {
+    console.error(err);
+    lt.textContent = 'Failed to load. Check console.';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
