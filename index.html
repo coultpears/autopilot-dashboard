@@ -753,10 +753,10 @@ tbody td {
   font-family: 'Outfit', sans-serif;
   font-size: 1.05rem;
   font-weight: 600;
-  color: rgba(240,240,240,0.85);
+  color: var(--sc-cell-color, rgba(240,240,240,0.85));
 }
 .scorecard-table tbody tr.sc-top td {
-  color: var(--white);
+  color: var(--sc-cell-top-color, var(--white));
   font-weight: 700;
 }
 .scorecard-table tbody td:first-child {
@@ -958,6 +958,391 @@ tbody td {
 }
 @media (max-width: 480px) {
   .kpi-strip { grid-template-columns: 1fr; }
+}
+
+/* ─── PORTRAIT TV / PROJECTOR (1080x1920 vertical wall display) ───
+   IMPORTANT: This block uses !important liberally because the JS renders
+   inline styles with dark-mode CSS variable colors. On a projector, dark
+   backgrounds are muddy — everything must be forced to light mode. ─── */
+@media (max-width: 1100px) and (min-height: 1400px) {
+  html { font-size: 19px; }
+
+  /* Light mode palette — max clarity on projectors */
+  :root {
+    --navy: #F0F2F7;
+    --navy-mid: #FFFFFF;
+    --navy-light: #E8EBF2;
+    --tonal: #D8DCE8;
+    --card-bg: #FFFFFF;
+    --card-border: rgba(0,0,0,0.12);
+    --ghost: rgba(0,0,0,0.04);
+    --ghost-hover: rgba(0,0,0,0.07);
+    --white: #111827;
+    --silver: #4B5563;
+    --blue: #1D4ED8;
+    --blue-glow: #1D4ED8;
+    --green: #047857;
+    --green-light: #047857;
+    --orange: #DC2626;
+    --orange-light: #DC2626;
+    --yellow: #92400E;
+    --baby-blue: #DBEAFE;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  body { background: #F0F2F7 !important; color: #111827 !important; }
+  body::before, body::after { display: none !important; }
+
+  /* ── NAV ── */
+  .topnav {
+    height: 44px; padding: 0 1rem;
+    background: #fff !important; border-bottom: 2px solid #E5E7EB;
+    backdrop-filter: none;
+  }
+  .topnav h1 { font-size: 0.95rem; color: #111827 !important; }
+  .topnav h1 span { color: #6B7280 !important; }
+  .topnav-right { font-size: 0.65rem; color: #6B7280 !important; }
+  .topnav-right a { color: #6B7280 !important; }
+  .logo-mark { width: 28px; height: 28px; font-size: 0.9rem; }
+  .status-dot { background: #047857 !important; }
+  .main { padding: 0.6rem 0.8rem 1.5rem; max-width: 100%; }
+
+  /* ── LAYOUT: Scorecard first (hero), KPIs as side strip ── */
+  .command-center {
+    display: flex !important;
+    flex-direction: row-reverse !important;
+    gap: 0.5rem !important;
+    margin-bottom: 0.6rem !important;
+  }
+  .command-center > .scorecard,
+  .command-center > div:last-child {
+    flex: 1; min-width: 0;
+  }
+  .command-center > div:first-child {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.4rem;
+    width: 200px !important;
+    flex-shrink: 0;
+  }
+
+  /* Custom properties for scorecard cell colors — overrides the base rgba() */
+  :root {
+    --sc-cell-color: #111827;
+    --sc-cell-top-color: #111827;
+  }
+
+  /* ── KPI CARDS — compact for sidebar ── */
+  .kpi-card {
+    background: #fff !important; border: 1px solid #E5E7EB !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    opacity: 1 !important; transform: none !important; animation: none !important;
+  }
+  .kpi-card::before { opacity: 1 !important; }
+  .kpi-card.hero {
+    padding: 0.8rem 1rem 0.7rem !important;
+    background: #fff !important;
+  }
+  .kpi-card.hero .kpi-value {
+    font-size: 1.8rem !important; font-weight: 800 !important;
+    letter-spacing: -1px !important; color: #111827 !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .kpi-card.hero .kpi-label {
+    font-size: 0.55rem !important; letter-spacing: 1.8px !important;
+    color: #6B7280 !important; font-weight: 700 !important;
+  }
+  .kpi-card.hero::before { height: 4px !important; }
+  .kpi-card.hero.green::before { background: #047857 !important; }
+  .kpi-card.hero.blue::before { background: #1D4ED8 !important; }
+  .kpi-card.hero.orange::before { background: #DC2626 !important; }
+
+  /* Inline color overrides for KPI values — force dark text */
+  .kpi-card.hero .kpi-value[style*="color:var(--green-light)"],
+  .kpi-card.hero .kpi-value[style*="color:var(--orange-light)"],
+  .kpi-card.hero .kpi-value[style*="color:var(--blue-glow)"] {
+    color: #111827 !important;
+  }
+
+  /* Secondary text inside hero cards */
+  .kpi-card.hero div[style*="color:var(--silver)"] { color: #6B7280 !important; }
+
+  /* Sparkline SVGs — make lines darker */
+  .kpi-card svg polyline, .kpi-card svg line { stroke-opacity: 0.6; }
+
+  /* ── BADGES ── */
+  .kpi-badge { font-size: 0.65rem !important; font-weight: 700 !important; padding: 3px 8px !important; }
+  .kpi-badge.ahead { background: #D1FAE5 !important; color: #047857 !important; }
+  .kpi-badge.behind { background: #FEE2E2 !important; color: #DC2626 !important; }
+  .kpi-badge.neutral { background: #FEF3C7 !important; color: #92400E !important; }
+
+  /* ── SECTIONS ── */
+  .section {
+    padding: 0.8rem !important; margin-bottom: 0.6rem !important;
+    background: #fff !important; border: 1px solid #E5E7EB !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    opacity: 1 !important; transform: none !important; animation: none !important;
+  }
+  .section-title { font-size: 0.95rem !important; font-weight: 800 !important; color: #111827 !important; }
+  .section-title small { font-size: 0.62rem !important; color: #6B7280 !important; }
+
+  /* ── SCORECARD TABLE — the hero of the wall ── */
+  .scorecard-table { font-size: 1rem; background: #fff; }
+
+  /* Column group headers */
+  .scorecard-table thead tr.col-groups th {
+    font-size: 0.72rem !important; padding: 6px 8px 2px !important;
+    opacity: 1 !important; font-weight: 800 !important;
+    color: #6B7280 !important; background: #fff !important;
+  }
+  .scorecard-table thead tr.col-groups th.cg-ytd { color: #1D4ED8 !important; }
+  .scorecard-table thead tr.col-groups th.cg-month { color: #047857 !important; }
+  .scorecard-table thead tr.col-groups th.cg-pitch { color: #92400E !important; }
+
+  /* Column headers */
+  .scorecard-table thead th {
+    font-size: 0.6rem !important; padding: 6px 8px !important;
+    letter-spacing: 1px !important; color: #6B7280 !important;
+    font-weight: 700 !important; border-bottom: 2px solid #D1D5DB !important;
+    background: #fff !important;
+  }
+
+  /* ── SCORECARD: Complete light-mode override ── */
+
+  /* All cells: dark text, white bg, clean borders */
+  .scorecard-table td,
+  .scorecard-table tbody td,
+  .scorecard-table tbody tr td,
+  .scorecard-table tfoot td {
+    color: #111827 !important;
+    background: #fff !important;
+    border-bottom: 1px solid #E5E7EB !important;
+    border-top: none !important; border-left: none !important; border-right: none !important;
+  }
+  .scorecard-table tbody td {
+    font-size: 1.05rem !important; padding: 10px 8px !important; font-weight: 700 !important;
+  }
+  .scorecard-table tbody td:first-child {
+    font-size: 0.88rem !important; font-weight: 600 !important; color: #374151 !important;
+    border-left: 3px solid transparent !important;
+  }
+  .scorecard-table tbody tr:hover td { background: #F9FAFB !important; }
+
+  /* Top 3 reps */
+  .scorecard-table tbody tr.sc-top td {
+    background: #EFF6FF !important; font-weight: 800 !important;
+  }
+  .scorecard-table tbody tr.sc-top td:first-child {
+    border-left: 3px solid #1D4ED8 !important; color: #1D4ED8 !important;
+  }
+  .scorecard-table tbody tr.sc-top:hover td { background: #DBEAFE !important; }
+
+  /* Footer totals */
+  .scorecard-table tfoot td {
+    font-size: 1.05rem !important; padding: 10px 8px !important;
+    font-weight: 800 !important; color: #111827 !important;
+    border-top: 2px solid #9CA3AF !important;
+    background: #F3F4F6 !important;
+    border-bottom: none !important;
+  }
+  .scorecard-table tfoot tr { background: transparent !important; }
+  .scorecard-table tfoot td:first-child { border-radius: 0 !important; }
+  .scorecard-table tfoot td:last-child { border-radius: 0 !important; }
+
+  /* Inline text in cells: inherit dark color EXCEPT specific elements */
+  .scorecard-table td span { color: inherit !important; }
+  .scorecard-table td div { color: inherit !important; }
+
+  /* Rank badge — numbered circle */
+  .sc-rank {
+    background: #F3F4F6 !important; color: #6B7280 !important;
+    font-size: 0.65rem !important; font-weight: 800 !important;
+    box-shadow: none !important; animation: none !important;
+  }
+  .sc-rank.top {
+    background: #1D4ED8 !important; color: #fff !important;
+    box-shadow: none !important;
+  }
+  .sc-rank.top.first {
+    background: #1D4ED8 !important; color: #fff !important;
+    box-shadow: 0 0 0 2px #BFDBFE !important; animation: none !important;
+  }
+
+  /* Avatar — solid blue circle, white initial */
+  .sc-avatar {
+    width: 26px !important; height: 26px !important;
+    font-size: 0.68rem !important; font-weight: 800 !important;
+    background: #DBEAFE !important; color: #1D4ED8 !important;
+    border: none !important; border-radius: 7px !important;
+  }
+  .sc-top .sc-avatar {
+    background: #1D4ED8 !important; color: #fff !important;
+    box-shadow: none !important;
+  }
+
+  /* YTD Units progress bar — sits UNDER the number, not filling it */
+  .sc-bar-cell { position: relative !important; }
+  .sc-bar {
+    height: 4px !important; border-radius: 2px !important;
+    background: #E5E7EB !important;
+    position: absolute !important; left: 8px !important; right: 8px !important; bottom: 4px !important;
+  }
+  .sc-bar-fill {
+    border-radius: 2px !important;
+    background: #1D4ED8 !important;
+    /* Remove the gradient that bleeds into text */
+    background-image: none !important;
+  }
+  .sc-bar-cell.sc-highlight { color: #1D4ED8 !important; }
+
+  /* Zeros */
+  .sc-zero { color: #D1D5DB !important; opacity: 1 !important; font-weight: 400 !important; }
+
+  /* Column dividers — visible grey */
+  .scorecard-table .col-div { border-left: 1px solid #D1D5DB !important; }
+
+  /* Pitch comparison arrows inside cells */
+  .scorecard-table td div[style*="font-size:0.5"] { font-size: 0.55rem !important; }
+
+  /* #N rank superscript badges on cell values */
+  .scorecard-table td span[style*="position:absolute"] { color: #1D4ED8 !important; }
+
+  /* Highlight (YTD Units top value) */
+  .sc-highlight { color: #1D4ED8 !important; }
+
+  /* ── SECONDARY KPIS ── */
+  .kpi-hero-strip { grid-template-columns: repeat(3, 1fr) !important; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .kpi-secondary { grid-template-columns: repeat(3, 1fr) !important; gap: 0.4rem; margin-bottom: 0.5rem; }
+  .kpi-secondary .kpi-card { padding: 0.6rem 0.75rem !important; }
+  .kpi-secondary .kpi-card .kpi-value { font-size: 1.4rem !important; font-weight: 800 !important; color: #111827 !important; }
+  .kpi-secondary .kpi-card .kpi-label { font-size: 0.52rem !important; color: #6B7280 !important; }
+
+  /* ── CHARTS ── */
+  .chart-row { gap: 4px; }
+  .bar-fill { border-radius: 3px; }
+  .bar-track { background: #E5E7EB !important; border-radius: 3px; }
+
+  /* ── LAYOUT STACKING ── */
+  .two-col { grid-template-columns: 1fr !important; }
+  div[style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* Deal type pills */
+  .deal-type-pill {
+    font-size: 0.68rem !important; padding: 4px 8px !important; font-weight: 700 !important;
+    background: #F3F4F6 !important; border-color: #D1D5DB !important; color: #374151 !important;
+  }
+  .deal-type-dot { opacity: 1 !important; }
+
+  /* Renewal bars */
+  .renewal-month-bar { border-radius: 3px; }
+
+  /* ── SCORECARD CONTAINER — kill the dark gradient ── */
+  .scorecard {
+    background: #fff !important;
+    border: 1px solid #E5E7EB !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+    padding: 1rem !important;
+    opacity: 1 !important; transform: none !important; animation: none !important;
+  }
+
+  /* ── DEALS PERFORMANCE CHART ── */
+  .chart-row { border-bottom: 1px solid #F3F4F6 !important; padding: 5px 0 !important; }
+  .chart-label { color: #374151 !important; font-weight: 600 !important; font-size: 0.75rem !important; }
+  .bar-track { background: #F3F4F6 !important; height: 14px !important; }
+  .bar-fill { font-size: 0.6rem !important; color: #fff !important; }
+  .bar-fill.current { background: #1D4ED8 !important; }
+  .bar-fill.previous { background: #D1D5DB !important; opacity: 1 !important; }
+  .chart-delta { font-size: 0.75rem !important; font-weight: 700 !important; }
+  .chart-delta.ahead { color: #047857 !important; }
+  .chart-delta.behind { color: #DC2626 !important; }
+  .chart-delta.neutral { color: #9CA3AF !important; }
+  .chart-legend { border-top: 1px solid #E5E7EB !important; }
+  .legend-item { color: #6B7280 !important; font-size: 0.7rem !important; }
+  .legend-dot.current { background: #1D4ED8 !important; }
+  .legend-dot.previous { background: #D1D5DB !important; opacity: 1 !important; }
+
+  /* Metric/tab toggle buttons */
+  .tabs, .metric-toggle { background: #F3F4F6 !important; border-radius: 8px !important; }
+  .tab-btn, .metric-btn {
+    color: #6B7280 !important; background: transparent !important;
+    font-size: 0.7rem !important;
+  }
+  .tab-btn:hover, .metric-btn:hover { color: #111827 !important; }
+  .tab-btn.active { background: #1D4ED8 !important; color: #fff !important; }
+  .metric-btn.active { background: #374151 !important; color: #fff !important; }
+
+  /* ── DEINSTALLS SECTION ── */
+  /* Monthly bars in deinstall compact chart */
+  div[style*="background:var(--blue)"] { background: #1D4ED8 !important; }
+  div[style*="background:var(--orange)"] { background: #DC2626 !important; }
+
+  /* ── RENEWAL SECTION ── */
+  .renewal-stat { background: #F3F4F6 !important; border-radius: 8px !important; }
+  .renewal-stat-value { color: #111827 !important; }
+  .renewal-stat-label { color: #6B7280 !important; }
+  .renewal-stat.urgent .renewal-stat-value { color: #DC2626 !important; }
+  .renewal-stat.soon .renewal-stat-value { color: #92400E !important; }
+  .renewal-stat.upcoming .renewal-stat-value { color: #1D4ED8 !important; }
+  .renewal-month-count { color: #111827 !important; font-weight: 800 !important; }
+  .renewal-month-label { color: #6B7280 !important; }
+  .renewal-month-bar { background: #1D4ED8 !important; opacity: 0.8 !important; }
+  .renewal-month-bar.has-urgent { background: #DC2626 !important; opacity: 1 !important; }
+  .renewal-month-bar.has-soon { background: #D97706 !important; opacity: 0.9 !important; }
+
+  /* ── TABLES (renewals, partners) ── */
+  .table-wrap { border: 1px solid #E5E7EB !important; border-radius: 8px !important; }
+  table thead th {
+    background: #F9FAFB !important; color: #6B7280 !important;
+    border-bottom: 1px solid #E5E7EB !important; font-size: 0.62rem !important;
+  }
+  table tbody tr { border-bottom: 1px solid #F3F4F6 !important; }
+  table tbody tr:hover { background: #F9FAFB !important; }
+  table tbody td { color: #111827 !important; padding: 8px 12px !important; font-size: 0.78rem !important; }
+  .urgency-dot.urgent { background: #DC2626 !important; box-shadow: none !important; }
+  .urgency-dot.soon { background: #D97706 !important; }
+  .urgency-dot.normal { background: #D1D5DB !important; }
+  .units-badge { background: #EFF6FF !important; color: #1D4ED8 !important; font-weight: 700 !important; }
+
+  /* ── TOP PARTNERS (bar list) ── */
+  div[style*="border-bottom:1px solid var(--ghost)"] { border-bottom-color: #F3F4F6 !important; }
+
+  /* ── SPARKLINES ── */
+  .sparkline { opacity: 0.5 !important; }
+  .spark-bar { background: #9CA3AF !important; }
+  .kpi-card.hero.green .spark-bar { background: #047857 !important; }
+  .kpi-card.hero.orange .spark-bar { background: #DC2626 !important; }
+  .kpi-card.hero.blue .spark-bar { background: #1D4ED8 !important; }
+
+  /* ── DEAL TYPE PILLS ── */
+  .deal-type-pill {
+    background: #F3F4F6 !important; color: #374151 !important;
+    border: 1px solid #E5E7EB !important; font-weight: 700 !important;
+  }
+  .deal-type-pill .dt-count { color: #111827 !important; }
+
+  /* ── LOADING STATE ── */
+  .loading-screen { background: #F0F2F7; }
+  .loader { border-color: #E5E7EB !important; border-top-color: #1D4ED8 !important; }
+  .loading-text { color: #6B7280 !important; }
+
+  /* ── GLOBAL: force all inline var() colors to light-safe values ── */
+  [style*="color:var(--silver)"] { color: #6B7280 !important; }
+  [style*="color:var(--green-light)"] { color: #047857 !important; }
+  [style*="color:var(--orange-light)"] { color: #DC2626 !important; }
+  [style*="color:var(--blue-glow)"] { color: #1D4ED8 !important; }
+  [style*="color:var(--white)"] { color: #111827 !important; }
+  [style*="color:var(--orange)"] { color: #DC2626 !important; }
+  [style*="color:var(--yellow)"] { color: #92400E !important; }
+  [style*="color:var(--green)"] { color: #047857 !important; }
+
+  /* Inline bg overrides */
+  [style*="background:var(--ghost)"] { background: #F3F4F6 !important; }
+  [style*="background:var(--tonal)"] { background: #E5E7EB !important; }
+  [style*="background:var(--card-bg)"] { background: #fff !important; }
+
+  /* Links in nav */
+  a[style*="color:var(--silver)"] { color: #6B7280 !important; }
+  a[style*="color:var(--silver)"]:hover { color: #111827 !important; }
 }
 </style>
 </head>
@@ -1385,7 +1770,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     if (val === 0) return '<span class="sc-zero">0</span>';
     const rank = colRanks[col] && colRanks[col][name];
     if (!rank) return fmt(val);
-    const colors = { 1: 'var(--blue-glow)', 2: 'var(--silver)', 3: 'rgba(181,185,195,0.5)' };
+    const colors = { 1: 'var(--blue-glow)', 2: 'var(--silver)', 3: 'var(--silver)' };
     return '<span style="position:relative">' + fmt(val) +
       '<span style="position:absolute;top:-8px;right:-10px;font-size:0.5rem;font-weight:700;color:' + colors[rank] + ';letter-spacing:0">#' + rank + '</span></span>';
   }
