@@ -107,8 +107,8 @@ body {
 
 /* ─── SEARCH ─── */
 .search-box {
-  position: absolute; top: 64px; right: 12px; z-index: 900;
-  width: 260px;
+  position: absolute; top: 72px; right: 12px; z-index: 1100;
+  width: 280px;
 }
 .search-input {
   width: 100%; padding: 9px 14px 9px 34px;
@@ -129,9 +129,9 @@ body {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
   background: var(--panel); backdrop-filter: blur(24px);
   border: 1px solid var(--border); border-radius: 10px;
-  max-height: 320px; overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  display: none;
+  max-height: 360px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  display: none; z-index: 1200;
 }
 .search-results.open { display: block; }
 .search-result {
@@ -184,7 +184,7 @@ body {
 
 /* ─── PANEL (right side detail) ─── */
 .detail-panel {
-  position: absolute; top: 64px; right: 12px; bottom: 80px; width: 300px; z-index: 800;
+  position: absolute; top: 116px; right: 12px; bottom: 80px; width: 300px; z-index: 800;
   background: var(--panel); backdrop-filter: blur(24px);
   border: 1px solid var(--border); border-radius: var(--radius);
   display: flex; flex-direction: column;
@@ -483,7 +483,7 @@ function setPeriod(period) {
 }
 
 function jitter(coords, i) {
-  const a = (i * 137.508) * Math.PI / 180, r = 0.01 + (i % 7) * 0.003;
+  const a = (i * 137.508) * Math.PI / 180, r = 0.004 + (i % 5) * 0.0015;
   return { lat: coords.lat + r * Math.cos(a), lng: coords.lng + r * Math.sin(a) };
 }
 
@@ -538,38 +538,44 @@ function onSearch(q) {
   if (!q || q.length < 2) { el.classList.remove('open'); return; }
   q = q.toLowerCase();
   const results = [];
+  const seen = new Set(); // dedupe
 
-  // Partners
+  // Partners — always show first if name matches
   Object.entries(partnerAgg).forEach(([name, data]) => {
     if (name.toLowerCase().includes(q)) {
-      results.push({ name, type: 'partner', meta: `${data.markets.size} markets · ${fmt(data.units)} units`, units: data.units });
+      results.push({ id: 'p:' + name, name, type: 'partner', meta: `${data.markets.size} markets · ${fmt(data.units)} units`, sort: data.units + 1000000 });
     }
   });
   // Markets
   Object.entries(marketAgg).forEach(([name, data]) => {
     if (name.toLowerCase().includes(q)) {
-      results.push({ name, type: 'market', meta: `${data.partners.size} partners · ${fmt(data.units)} units`, units: data.units });
+      results.push({ id: 'm:' + name, name, type: 'market', meta: `${data.partners.size} partners · ${fmt(data.units)} units`, sort: data.units + 500000 });
     }
   });
-  // Properties — match on property name, partner, or market
+  // Properties — match on name, partner, or market
   allData.forEach(d => {
+    const key = 'prop:' + d.property + d.market;
+    if (seen.has(key)) return;
     if (d.property.toLowerCase().includes(q) || d.partner.toLowerCase().includes(q) || d.market.toLowerCase().includes(q)) {
-      results.push({ name: d.property, type: 'property', meta: `${d.partner} · ${d.market}`, units: d.units });
+      seen.add(key);
+      results.push({ id: key, name: d.property, type: 'property', meta: `${d.partner} · ${d.market} · ${d.units}u`, sort: d.units });
     }
   });
   // Targets
   targetData.forEach(d => {
     if (d.name.toLowerCase().includes(q) || (d.partner && d.partner.toLowerCase().includes(q)) || d.market.toLowerCase().includes(q)) {
-      results.push({ name: d.name, type: 'target', meta: `${d.partner} · ${d.market}${d.vacant ? ' · ' + d.vacant + ' vacant' : ''}`, units: d.totalUnits || d.available || 0 });
+      results.push({ id: 't:' + d.dealId, name: d.name, type: 'target', meta: `${d.partner} · ${d.market}${d.vacant ? ' · ' + d.vacant + ' vacant' : ''}`, sort: d.totalUnits || d.available || 0 });
     }
   });
 
-  results.sort((a, b) => b.units - a.units);
-  const top = results.slice(0, 12);
+  results.sort((a, b) => b.sort - a.sort);
+  const top = results.slice(0, 15);
 
   if (!top.length) { el.classList.remove('open'); return; }
-  el.innerHTML = top.map(r => `
-    <div class="search-result" onmousedown="selectSearchResult('${r.type}', '${r.name.replace(/'/g, "\\'")}')">
+  // Store results for click handling (avoids quote-escaping issues in inline handlers)
+  window._searchResults = top;
+  el.innerHTML = top.map((r, i) => `
+    <div class="search-result" onmousedown="selectSearchIdx(${i})">
       <div class="search-result-name">${r.name}<span class="search-result-type type-${r.type}">${r.type}</span></div>
       <div class="search-result-meta">${r.meta}</div>
     </div>
@@ -579,61 +585,142 @@ function onSearch(q) {
 
 function closeSearch() { document.getElementById('search-results').classList.remove('open'); }
 
-function selectSearchResult(type, name) {
+function selectSearchIdx(idx) {
+  const r = window._searchResults?.[idx];
+  if (!r) return;
   document.getElementById('search-input').value = '';
   closeSearch();
-  if (type === 'market') {
+
+  if (r.type === 'market') {
     setView('markets');
-    const mk = marketAgg[name];
-    if (mk?.coords) {
-      map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
-    }
-  } else if (type === 'partner') {
+    const mk = marketAgg[r.name];
+    if (!mk?.coords) return;
+    // Zoom in and simulate a click — show properties in this market
+    map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
+    drillIntoMarket(r.name);
+
+  } else if (r.type === 'partner') {
     setView('partners');
-    // Simulate click on partner bubble
-    const pk = partnerAgg[name];
-    if (!pk) return;
-    const wc = pk.props.filter(d => d.coords);
-    if (!wc.length) return;
-    // Zoom to partner footprint
-    clearMap();
-    const mktBreak = {};
-    pk.props.forEach(d => {
-      if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
-      mktBreak[d.market].units += d.units;
-      mktBreak[d.market].props++;
-    });
-    const rows = Object.entries(mktBreak)
-      .sort((a, b) => b[1].units - a[1].units)
-      .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
-    const c = bubbleColor(pk.units, Math.max(...Object.values(partnerAgg).map(p => p.units), 1));
-    openDetail(name, `${pk.markets.size} markets · ${pk.props.length} properties`, [
-      { val: fmt(pk.units), label: 'Units' },
-      { val: pk.markets.size.toString(), label: 'Markets' },
-      { val: pk.props.length.toString(), label: 'Properties' }
-    ], rows, c.fill);
-    pk.props.forEach((d, i) => {
-      if (!d.coords) return;
-      const pos = jitter(d.coords, i);
-      const pin = L.circleMarker([pos.lat, pos.lng], {
-        radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
-        fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
-      });
-      pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
-      pin.addTo(map); markers.push(pin);
-    });
-    const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
-    if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
-    else map.setView(bounds[0], 10, { animate: true });
-  } else if (type === 'target') {
+    drillIntoPartner(r.name);
+
+  } else if (r.type === 'target') {
     setView('targets');
-    const d = targetData.find(t => t.name === name);
-    if (d?.coords) map.setView([d.coords.lat, d.coords.lng], 13, { animate: true });
+    const d = targetData.find(t => t.name === r.name);
+    if (!d?.coords) return;
+    map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
+    // Highlight with a temporary prominent marker
+    showHighlightPin(d.coords, targetTooltipContent(d));
+
   } else {
+    // Property
     setView('properties');
-    const d = allData.find(p => p.property === name);
-    if (d?.coords) map.setView([d.coords.lat, d.coords.lng], 13, { animate: true });
+    const d = allData.find(p => p.property === r.name);
+    if (!d?.coords) return;
+    map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
+    showHighlightPin(d.coords, propertyTooltip(d));
   }
+}
+
+// Show a highlighted pin with an open popup at given coords
+function showHighlightPin(coords, tooltipContent) {
+  const highlight = L.circleMarker([coords.lat, coords.lng], {
+    radius: 16, fillColor: '#2563EB', color: '#fff', weight: 3, fillOpacity: 0.9
+  });
+  highlight.addTo(map);
+  markers.push(highlight);
+  // Use popup instead of tooltip so it stays open
+  highlight.bindPopup(`<div style="font-size:0.82rem">${tooltipContent}</div>`, {
+    maxWidth: 300, className: 'leaflet-popup'
+  }).openPopup();
+}
+
+function targetTooltipContent(d) {
+  const signals = [];
+  if (d.vacant) signals.push(`<span style="color:#DC2626;font-weight:600">${d.vacant} vacant</span>`);
+  if (d.available) signals.push(`${d.available} total units`);
+  if (d.vacancy) signals.push(`${d.vacancy}% vacancy`);
+  if (d.concessions) signals.push(`<span style="color:#D97706">${d.concessions.slice(0, 80)}</span>`);
+  if (d.leaseUp) signals.push(`<span style="color:#8B5CF6;font-weight:600">Lease-up signal</span>`);
+  return `<div class="tt-name">${d.name}</div>
+    <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner}</span></div>
+    <div class="tt-row"><span class="tt-dim">Market</span><span class="tt-val">${d.market}</span></div>
+    ${signals.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-size:0.72rem;line-height:1.6">' + signals.join('<br>') + '</div>' : ''}`;
+}
+
+// ─── DRILL-IN FUNCTIONS (shared by search + bubble clicks) ───
+function drillIntoMarket(name) {
+  const mk = marketAgg[name];
+  if (!mk?.coords) return;
+  clearMap();
+
+  const partnerBreak = {};
+  mk.props.forEach(d => {
+    if (!partnerBreak[d.partner]) partnerBreak[d.partner] = { units: 0, props: 0 };
+    partnerBreak[d.partner].units += d.units;
+    partnerBreak[d.partner].props++;
+  });
+  const rows = Object.entries(partnerBreak)
+    .sort((a, b) => b[1].units - a[1].units)
+    .map(([p, v]) => ({ name: p, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
+  const c = bubbleColor(mk.units, Math.max(...Object.values(marketAgg).map(m => m.units), 1));
+
+  openDetail(name, `${mk.partners.size} partners · ${mk.props.length} properties`, [
+    { val: fmt(mk.units), label: 'Units' },
+    { val: mk.partners.size.toString(), label: 'Partners' },
+    { val: mk.props.length.toString(), label: 'Properties' }
+  ], rows, c.fill);
+
+  mk.props.forEach((d, i) => {
+    if (!d.coords) return;
+    const pos = jitter(d.coords, i);
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8)),
+      fillColor: '#059669', color: 'rgba(5,150,105,0.5)', weight: 2, fillOpacity: 0.9
+    });
+    pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+    pin.addTo(map); markers.push(pin);
+  });
+  map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
+}
+
+function drillIntoPartner(name) {
+  const pk = partnerAgg[name];
+  if (!pk) return;
+  const wc = pk.props.filter(d => d.coords);
+  if (!wc.length) return;
+
+  clearMap();
+  const mktBreak = {};
+  pk.props.forEach(d => {
+    if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
+    mktBreak[d.market].units += d.units;
+    mktBreak[d.market].props++;
+  });
+  const rows = Object.entries(mktBreak)
+    .sort((a, b) => b[1].units - a[1].units)
+    .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
+  const c = bubbleColor(pk.units, Math.max(...Object.values(partnerAgg).map(p => p.units), 1));
+
+  openDetail(name, `${pk.markets.size} markets · ${pk.props.length} properties`, [
+    { val: fmt(pk.units), label: 'Units' },
+    { val: pk.markets.size.toString(), label: 'Markets' },
+    { val: pk.props.length.toString(), label: 'Properties' }
+  ], rows, c.fill);
+
+  pk.props.forEach((d, i) => {
+    if (!d.coords) return;
+    const pos = jitter(d.coords, i);
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
+      fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
+    });
+    pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+    pin.addTo(map); markers.push(pin);
+  });
+
+  const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
+  if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
+  else map.setView(bounds[0], 10, { animate: true });
 }
 
 // ─── DEINSTALL OVERLAY ───
@@ -816,39 +903,7 @@ function renderMarkets() {
 
     bubble.bindTooltip(marketTooltip(name, data), { direction: 'top', offset: [0, -sz], className: '' });
 
-    bubble.on('click', () => {
-      // Drill into market
-      const partnerBreak = {};
-      data.props.forEach(d => {
-        if (!partnerBreak[d.partner]) partnerBreak[d.partner] = { units: 0, props: 0 };
-        partnerBreak[d.partner].units += d.units;
-        partnerBreak[d.partner].props++;
-      });
-      const rows = Object.entries(partnerBreak)
-        .sort((a, b) => b[1].units - a[1].units)
-        .map(([p, v]) => ({ name: p, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
-
-      openDetail(name, `${data.partners.size} partners · ${data.props.length} properties`, [
-        { val: fmt(data.units), label: 'Units' },
-        { val: data.partners.size.toString(), label: 'Partners' },
-        { val: data.props.length.toString(), label: 'Properties' }
-      ], rows, c.fill);
-
-      map.setView([data.coords.lat, data.coords.lng], 10, { animate: true });
-
-      // Show property pins
-      clearMap();
-      data.props.forEach((d, i) => {
-        if (!d.coords) return;
-        const pos = jitter(d.coords, i);
-        const pin = L.circleMarker([pos.lat, pos.lng], {
-          radius: Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8)),
-          fillColor: '#059669', color: 'rgba(5,150,105,0.5)', weight: 2, fillOpacity: 0.9
-        });
-        pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
-        pin.addTo(map); markers.push(pin);
-      });
-    });
+    bubble.on('click', () => drillIntoMarket(name));
 
     bubble.addTo(map); markers.push(bubble);
 
@@ -899,40 +954,7 @@ function renderPartners() {
 
     bubble.bindTooltip(partnerTooltip(name, data), { direction: 'top', offset: [0, -sz] });
 
-    bubble.on('click', () => {
-      const mktBreak = {};
-      data.props.forEach(d => {
-        if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
-        mktBreak[d.market].units += d.units;
-        mktBreak[d.market].props++;
-      });
-      const rows = Object.entries(mktBreak)
-        .sort((a, b) => b[1].units - a[1].units)
-        .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
-
-      openDetail(name, `${data.markets.size} markets · ${data.props.length} properties`, [
-        { val: fmt(data.units), label: 'Units' },
-        { val: data.markets.size.toString(), label: 'Markets' },
-        { val: data.props.length.toString(), label: 'Properties' }
-      ], rows, c.fill);
-
-      // Show this partner's properties
-      clearMap();
-      data.props.forEach((d, i) => {
-        if (!d.coords) return;
-        const pos = jitter(d.coords, i);
-        const pin = L.circleMarker([pos.lat, pos.lng], {
-          radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
-          fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
-        });
-        pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
-        pin.addTo(map); markers.push(pin);
-      });
-
-      const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
-      if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
-      else if (bounds.length === 1) map.setView(bounds[0], 10, { animate: true });
-    });
+    bubble.on('click', () => drillIntoPartner(name));
 
     bubble.addTo(map); markers.push(bubble);
 
