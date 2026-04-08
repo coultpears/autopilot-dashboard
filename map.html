@@ -184,7 +184,7 @@ body {
 
 /* ─── PANEL (right side detail) ─── */
 .detail-panel {
-  position: absolute; top: 116px; right: 12px; bottom: 80px; width: 300px; z-index: 800;
+  position: absolute; top: 116px; right: 12px; bottom: 16px; width: 360px; z-index: 800;
   background: var(--panel); backdrop-filter: blur(24px);
   border: 1px solid var(--border); border-radius: var(--radius);
   display: flex; flex-direction: column;
@@ -193,51 +193,67 @@ body {
 }
 .detail-panel.open { opacity: 1; pointer-events: auto; transform: translateX(0); }
 .detail-panel-header {
-  padding: 16px 18px 12px;
+  padding: 14px 16px 10px;
   border-bottom: 1px solid var(--ghost);
 }
 .detail-panel-title {
   font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.05rem;
-  margin-bottom: 2px;
+  margin-bottom: 2px; padding-right: 28px;
 }
-.detail-panel-subtitle { font-size: 0.75rem; color: var(--silver); }
+.detail-panel-subtitle { font-size: 0.72rem; color: var(--silver); }
 .detail-panel-kpis {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
-  padding: 12px 18px; border-bottom: 1px solid var(--ghost);
+  display: flex; gap: 0; padding: 10px 16px; border-bottom: 1px solid var(--ghost);
 }
-.detail-kpi { text-align: center; }
-.detail-kpi-val { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; }
-.detail-kpi-label { font-size: 0.62rem; color: var(--silver); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.detail-kpi { flex: 1; text-align: center; }
+.detail-kpi-val { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.1rem; }
+.detail-kpi-label { font-size: 0.58rem; color: var(--silver); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.detail-panel-tabs {
+  display: flex; gap: 0; padding: 4px 16px; border-bottom: 1px solid var(--ghost);
+}
+.detail-tab {
+  font-family: 'Outfit', sans-serif; font-size: 0.7rem; font-weight: 600;
+  padding: 5px 12px; border: none; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--muted); transition: all 0.15s;
+}
+.detail-tab:hover { color: var(--white); }
+.detail-tab.active { background: var(--blue); color: #fff; }
 .detail-panel-list {
-  flex: 1; overflow-y: auto; padding: 8px 0;
+  flex: 1; overflow-y: auto; padding: 4px 0;
 }
 .detail-panel-list::-webkit-scrollbar { width: 3px; }
 .detail-panel-list::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+.detail-section-label {
+  font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted);
+  padding: 8px 16px 4px;
+}
 .detail-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 18px; transition: background 0.1s; cursor: default;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 16px; transition: background 0.1s; cursor: pointer;
+  border-bottom: 1px solid var(--ghost);
 }
-.detail-row:hover { background: var(--ghost); }
-.detail-row-rank {
-  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.7rem;
-  color: var(--muted); width: 18px; text-align: right; flex-shrink: 0;
-}
+.detail-row:hover { background: rgba(37,99,235,0.04); }
+.detail-row.target-row:hover { background: rgba(220,38,38,0.04); }
 .detail-row-info { flex: 1; min-width: 0; }
 .detail-row-name {
-  font-size: 0.82rem; font-weight: 500;
+  font-size: 0.78rem; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.detail-row-meta { font-size: 0.68rem; color: var(--silver); }
-.detail-row-bar {
-  width: 48px; height: 4px; background: var(--ghost); border-radius: 2px; flex-shrink: 0;
+.detail-row-market { font-size: 0.65rem; color: var(--silver); }
+.detail-row-metrics {
+  display: flex; gap: 8px; margin-top: 3px; flex-wrap: wrap;
 }
-.detail-row-bar-fill { height: 100%; border-radius: 2px; }
-.detail-row-val {
-  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.82rem;
-  width: 40px; text-align: right; flex-shrink: 0;
+.detail-metric {
+  font-size: 0.62rem; padding: 1px 6px; border-radius: 4px;
+  font-weight: 600; white-space: nowrap;
 }
+.detail-metric.units { background: var(--blue-dim); color: var(--blue); }
+.detail-metric.vacant { background: rgba(220,38,38,0.08); color: #DC2626; }
+.detail-metric.concession { background: rgba(217,119,6,0.08); color: #D97706; }
+.detail-metric.target-badge { background: rgba(220,38,38,0.08); color: #DC2626; }
+.detail-metric.lease-up { background: rgba(139,92,246,0.08); color: #8B5CF6; }
 .detail-close {
-  position: absolute; top: 12px; right: 12px;
+  position: absolute; top: 10px; right: 10px;
   width: 24px; height: 24px; border-radius: 6px; border: none;
   background: var(--ghost); color: var(--silver); cursor: pointer;
   font-size: 0.9rem; display: grid; place-items: center; transition: all 0.1s;
@@ -360,6 +376,7 @@ body {
     <div class="detail-panel-subtitle" id="dp-subtitle"></div>
   </div>
   <div class="detail-panel-kpis" id="dp-kpis"></div>
+  <div class="detail-panel-tabs" id="dp-tabs"></div>
   <div class="detail-panel-list" id="dp-list"></div>
 </div>
 
@@ -647,80 +664,223 @@ function targetTooltipContent(d) {
     ${signals.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-size:0.72rem;line-height:1.6">' + signals.join('<br>') + '</div>' : ''}`;
 }
 
-// ─── DRILL-IN FUNCTIONS (shared by search + bubble clicks) ───
+// ─── DRILL-IN: PORTFOLIO VIEW ───
+// Stores current drill-in state for tab switching
+let _drillState = null;
+
 function drillIntoMarket(name) {
   const mk = marketAgg[name];
   if (!mk?.coords) return;
+
+  // Collect current properties in this market
+  const props = mk.props.map(d => ({
+    name: d.property, market: d.market, partner: d.partner, units: d.units,
+    type: 'current', coords: d.coords,
+    ...getEnrichmentObj(d.property)
+  }));
+
+  // Collect targets in this market
+  const tgts = targetData.filter(t => t.market === name || resolveMarket(t.market) === name).map(t => ({
+    name: t.name, market: t.market, partner: t.partner, units: t.totalUnits || t.available || 0,
+    type: 'target', coords: t.coords,
+    vacant: t.vacant, available: t.available, vacancy: t.vacancy,
+    concessions: t.concessions, leaseUp: t.leaseUp
+  }));
+
+  _drillState = { title: name, type: 'market', props, targets: tgts, coords: mk.coords };
+
+  openPortfolioPanel(name,
+    `${mk.partners.size} partners · ${mk.props.length} properties` + (tgts.length ? ` · ${tgts.length} targets` : ''),
+    [
+      { val: fmt(mk.units), label: 'Units' },
+      { val: mk.partners.size.toString(), label: 'Partners' },
+      { val: mk.props.length.toString(), label: 'Properties' },
+      { val: tgts.length.toString(), label: 'Targets' }
+    ], props, tgts);
+
+  // Map pins
   clearMap();
-
-  const partnerBreak = {};
-  mk.props.forEach(d => {
-    if (!partnerBreak[d.partner]) partnerBreak[d.partner] = { units: 0, props: 0 };
-    partnerBreak[d.partner].units += d.units;
-    partnerBreak[d.partner].props++;
-  });
-  const rows = Object.entries(partnerBreak)
-    .sort((a, b) => b[1].units - a[1].units)
-    .map(([p, v]) => ({ name: p, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
-  const c = bubbleColor(mk.units, Math.max(...Object.values(marketAgg).map(m => m.units), 1));
-
-  openDetail(name, `${mk.partners.size} partners · ${mk.props.length} properties`, [
-    { val: fmt(mk.units), label: 'Units' },
-    { val: mk.partners.size.toString(), label: 'Partners' },
-    { val: mk.props.length.toString(), label: 'Properties' }
-  ], rows, c.fill);
-
-  mk.props.forEach((d, i) => {
-    if (!d.coords) return;
-    const pos = jitter(d.coords, i);
-    const pin = L.circleMarker([pos.lat, pos.lng], {
-      radius: Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8)),
-      fillColor: '#059669', color: 'rgba(5,150,105,0.5)', weight: 2, fillOpacity: 0.9
-    });
-    pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
-    pin.addTo(map); markers.push(pin);
-  });
+  plotPropertyPins(props, '#059669');
+  plotTargetPins(tgts);
   map.setView([mk.coords.lat, mk.coords.lng], 10, { animate: true });
 }
 
 function drillIntoPartner(name) {
-  const pk = partnerAgg[name];
+  // Fuzzy match: find the partner key that matches (case-insensitive)
+  const partnerKey = Object.keys(partnerAgg).find(k => k.toLowerCase() === name.toLowerCase()) || name;
+  const pk = partnerAgg[partnerKey];
   if (!pk) return;
   const wc = pk.props.filter(d => d.coords);
   if (!wc.length) return;
 
+  const props = pk.props.map(d => ({
+    name: d.property, market: d.market, partner: d.partner, units: d.units,
+    type: 'current', coords: d.coords,
+    ...getEnrichmentObj(d.property)
+  }));
+
+  // Find targets for this partner (fuzzy match on partner name)
+  const pLower = partnerKey.toLowerCase();
+  const tgts = targetData.filter(t => t.partner && t.partner.toLowerCase().includes(pLower)).map(t => ({
+    name: t.name, market: t.market, partner: t.partner, units: t.totalUnits || t.available || 0,
+    type: 'target', coords: t.coords,
+    vacant: t.vacant, available: t.available, vacancy: t.vacancy,
+    concessions: t.concessions, leaseUp: t.leaseUp
+  }));
+
+  _drillState = { title: partnerKey, type: 'partner', props, targets: tgts };
+
+  openPortfolioPanel(partnerKey,
+    `${pk.markets.size} markets · ${pk.props.length} properties` + (tgts.length ? ` · ${tgts.length} targets` : ''),
+    [
+      { val: fmt(pk.units), label: 'Units' },
+      { val: pk.markets.size.toString(), label: 'Markets' },
+      { val: pk.props.length.toString(), label: 'Properties' },
+      { val: tgts.length.toString(), label: 'Targets' }
+    ], props, tgts);
+
+  // Map pins
   clearMap();
-  const mktBreak = {};
-  pk.props.forEach(d => {
-    if (!mktBreak[d.market]) mktBreak[d.market] = { units: 0, props: 0 };
-    mktBreak[d.market].units += d.units;
-    mktBreak[d.market].props++;
-  });
-  const rows = Object.entries(mktBreak)
-    .sort((a, b) => b[1].units - a[1].units)
-    .map(([m, v]) => ({ name: m, meta: `${v.props} propert${v.props > 1 ? 'ies' : 'y'}`, units: v.units }));
-  const c = bubbleColor(pk.units, Math.max(...Object.values(partnerAgg).map(p => p.units), 1));
+  plotPropertyPins(props, '#2563EB');
+  plotTargetPins(tgts);
 
-  openDetail(name, `${pk.markets.size} markets · ${pk.props.length} properties`, [
-    { val: fmt(pk.units), label: 'Units' },
-    { val: pk.markets.size.toString(), label: 'Markets' },
-    { val: pk.props.length.toString(), label: 'Properties' }
-  ], rows, c.fill);
+  const allCoords = [...props, ...tgts].filter(d => d.coords);
+  const bounds = allCoords.map(d => [d.coords.lat, d.coords.lng]);
+  if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
+  else if (bounds.length === 1) map.setView(bounds[0], 10, { animate: true });
+}
 
-  pk.props.forEach((d, i) => {
+function getEnrichmentObj(propertyName) {
+  const e = getEnrichment(propertyName);
+  if (!e) return { vacant: 0, available: 0, vacancy: 0, concessions: '' };
+  return { vacant: e.vacant, available: e.available, vacancy: e.vacancy, concessions: e.concessions };
+}
+
+function plotPropertyPins(props, color) {
+  props.forEach((d, i) => {
     if (!d.coords) return;
     const pos = jitter(d.coords, i);
+    const sz = Math.max(5, Math.min(14, 4 + Math.sqrt(d.units) * 1.8));
     const pin = L.circleMarker([pos.lat, pos.lng], {
-      radius: Math.max(6, Math.min(16, 4 + Math.sqrt(d.units) * 2)),
-      fillColor: '#2563EB', color: 'rgba(37,99,235,0.5)', weight: 2, fillOpacity: 0.9
+      radius: sz, fillColor: color, color: color.replace(')', ',0.5)').replace('#', 'rgba(').replace(/../g, (m,i2) => i2 ? parseInt(m,16) + ',' : ''), weight: 2, fillOpacity: 0.9
     });
-    pin.bindTooltip(propertyTooltip(d), { direction: 'top', offset: [0, -8] });
+    // Simpler color approach
+    pin.setStyle({ color: 'rgba(255,255,255,0.5)', fillColor: color });
+    pin.bindTooltip(propertyTooltip({ property: d.name, partner: d.partner, market: d.market, units: d.units, rep: '—' }), { direction: 'top', offset: [0, -sz] });
+    pin.on('click', () => zoomToProperty(d));
     pin.addTo(map); markers.push(pin);
   });
+}
 
-  const bounds = wc.map(d => [d.coords.lat, d.coords.lng]);
-  if (bounds.length > 1) map.fitBounds(bounds, { padding: [80, 80], animate: true });
-  else map.setView(bounds[0], 10, { animate: true });
+function plotTargetPins(tgts) {
+  tgts.forEach((d, i) => {
+    if (!d.coords) return;
+    const pos = jitter(d.coords, i + 500); // offset jitter seed from current props
+    const hasSignal = d.vacant > 0 || d.concessions;
+    const color = hasSignal ? '#DC2626' : '#9CA3AF';
+    const sz = Math.max(4, Math.min(10, 3 + Math.sqrt(d.units || 1) * 1.2));
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: sz, fillColor: color, color: 'rgba(255,255,255,0.5)',
+      weight: 1.5, fillOpacity: 0.7, dashArray: '3 2'
+    });
+    pin.bindTooltip(targetTooltipContent(d), { direction: 'top', offset: [0, -sz] });
+    pin.addTo(map); markers.push(pin);
+  });
+}
+
+function zoomToProperty(d) {
+  if (d.coords) map.setView([d.coords.lat, d.coords.lng], 14, { animate: true });
+}
+
+// ─── PORTFOLIO PANEL ───
+function openPortfolioPanel(title, subtitle, kpis, props, targets) {
+  const panel = document.getElementById('detail-panel');
+  document.getElementById('dp-title').textContent = title;
+  document.getElementById('dp-subtitle').textContent = subtitle;
+  document.getElementById('dp-kpis').innerHTML = kpis.map(k =>
+    `<div class="detail-kpi"><div class="detail-kpi-val">${k.val}</div><div class="detail-kpi-label">${k.label}</div></div>`
+  ).join('');
+
+  // Tabs
+  const hasTgts = targets.length > 0;
+  document.getElementById('dp-tabs').innerHTML = `
+    <button class="detail-tab active" onclick="showDetailTab('properties')">Properties (${props.length})</button>
+    ${hasTgts ? `<button class="detail-tab" onclick="showDetailTab('targets')">Targets (${targets.length})</button>` : ''}
+    <button class="detail-tab" onclick="showDetailTab('markets')">By Market</button>
+  `;
+
+  renderDetailPropertyList(props);
+  panel.classList.add('open');
+}
+
+function showDetailTab(tab) {
+  if (!_drillState) return;
+  document.querySelectorAll('.detail-tab').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  if (tab === 'properties') renderDetailPropertyList(_drillState.props);
+  else if (tab === 'targets') renderDetailTargetList(_drillState.targets);
+  else if (tab === 'markets') renderDetailMarketList();
+}
+
+function renderDetailPropertyList(props) {
+  const sorted = [...props].sort((a, b) => b.units - a.units);
+  document.getElementById('dp-list').innerHTML = sorted.map(d => `
+    <div class="detail-row" onclick="zoomToProperty(${d.coords ? `{coords:{lat:${d.coords.lat},lng:${d.coords.lng}}}` : 'null'})">
+      <div class="detail-row-info">
+        <div class="detail-row-name">${d.name}</div>
+        <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
+        <div class="detail-row-metrics">
+          <span class="detail-metric units">${d.units}u</span>
+          ${d.vacant ? `<span class="detail-metric vacant">${d.vacant} vacant</span>` : ''}
+          ${d.concessions ? `<span class="detail-metric concession">Concessions</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
+}
+
+function renderDetailTargetList(tgts) {
+  const sorted = [...tgts].sort((a, b) => (b.vacant || 0) - (a.vacant || 0) || (b.units || 0) - (a.units || 0));
+  document.getElementById('dp-list').innerHTML = sorted.map(d => `
+    <div class="detail-row target-row" onclick="zoomToProperty(${d.coords ? `{coords:{lat:${d.coords.lat},lng:${d.coords.lng}}}` : 'null'})">
+      <div class="detail-row-info">
+        <div class="detail-row-name">${d.name}</div>
+        <div class="detail-row-market">${d.market}${d.partner !== _drillState?.title ? ' · ' + d.partner : ''}</div>
+        <div class="detail-row-metrics">
+          <span class="detail-metric target-badge">Target</span>
+          ${d.units ? `<span class="detail-metric units">${d.units}u</span>` : ''}
+          ${d.vacant ? `<span class="detail-metric vacant">${d.vacant} vacant</span>` : ''}
+          ${d.concessions ? `<span class="detail-metric concession">Concessions</span>` : ''}
+          ${d.leaseUp ? `<span class="detail-metric lease-up">Lease-up</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No targets found</div>';
+}
+
+function renderDetailMarketList() {
+  const all = [...(_drillState?.props || []), ...(_drillState?.targets || [])];
+  const byMkt = {};
+  all.forEach(d => {
+    if (!byMkt[d.market]) byMkt[d.market] = { units: 0, count: 0, targets: 0 };
+    byMkt[d.market].units += d.units || 0;
+    byMkt[d.market].count++;
+    if (d.type === 'target') byMkt[d.market].targets++;
+  });
+  const sorted = Object.entries(byMkt).sort((a, b) => b[1].units - a[1].units);
+  const maxU = Math.max(...sorted.map(([,v]) => v.units), 1);
+  document.getElementById('dp-list').innerHTML = sorted.map(([mkt, v]) => `
+    <div class="detail-row">
+      <div class="detail-row-info">
+        <div class="detail-row-name">${mkt}</div>
+        <div class="detail-row-metrics">
+          <span class="detail-metric units">${v.count} properties · ${v.units}u</span>
+          ${v.targets ? `<span class="detail-metric target-badge">${v.targets} targets</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
 }
 
 // ─── DEINSTALL OVERLAY ───
@@ -819,31 +979,9 @@ function computeAggs() {
 }
 
 // ─── DETAIL PANEL ───
-function openDetail(title, subtitle, kpis, rows, color) {
-  const panel = document.getElementById('detail-panel');
-  document.getElementById('dp-title').textContent = title;
-  document.getElementById('dp-subtitle').textContent = subtitle;
-  document.getElementById('dp-kpis').innerHTML = kpis.map(k =>
-    `<div class="detail-kpi"><div class="detail-kpi-val">${k.val}</div><div class="detail-kpi-label">${k.label}</div></div>`
-  ).join('');
-  const maxVal = Math.max(...rows.map(r => r.units), 1);
-  document.getElementById('dp-list').innerHTML = rows.map((r, i) =>
-    `<div class="detail-row">
-      <div class="detail-row-rank">${i + 1}</div>
-      <div class="detail-row-info">
-        <div class="detail-row-name">${r.name}</div>
-        <div class="detail-row-meta">${r.meta}</div>
-      </div>
-      <div class="detail-row-bar"><div class="detail-row-bar-fill" style="width:${Math.round(r.units/maxVal*100)}%;background:${color}"></div></div>
-      <div class="detail-row-val">${fmt(r.units)}</div>
-    </div>`
-  ).join('');
-  panel.classList.add('open');
-}
-
 function closeDetail() {
   document.getElementById('detail-panel').classList.remove('open');
-  // Re-render to clear highlights
+  _drillState = null;
   renderView();
 }
 
