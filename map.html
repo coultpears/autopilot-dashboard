@@ -500,7 +500,7 @@ function setPeriod(period) {
 }
 
 function jitter(coords, i) {
-  const a = (i * 137.508) * Math.PI / 180, r = 0.004 + (i % 5) * 0.0015;
+  const a = (i * 137.508) * Math.PI / 180, r = 0.002 + (i % 4) * 0.001;
   return { lat: coords.lat + r * Math.cos(a), lng: coords.lng + r * Math.sin(a) };
 }
 
@@ -998,6 +998,7 @@ function computeFullAggs() {
 function closeDetail() {
   document.getElementById('detail-panel').classList.remove('open');
   _drillState = null;
+  updateLegend(currentView);
   renderView();
 }
 
@@ -1061,11 +1062,11 @@ function renderMarkets() {
 
     bubble.addTo(map); markers.push(bubble);
 
-    // Label inside bubble for larger ones
-    if (sz >= 20) {
+    // Unit count label — show on all but the smallest bubbles
+    if (sz >= 14) {
       const label = L.divIcon({
         className: 'bubble-label',
-        html: `<div style="font-size:${Math.max(9, Math.min(13, sz * 0.35))}px">${data.units}</div>`,
+        html: `<div style="font-size:${Math.max(8, Math.min(13, sz * 0.38))}px">${data.units}</div>`,
         iconSize: [sz * 2, sz], iconAnchor: [sz, sz / 2]
       });
       const lm = L.marker([data.coords.lat, data.coords.lng], { icon: label, interactive: false });
@@ -1113,10 +1114,10 @@ function renderPartners() {
     bubble.addTo(map); markers.push(bubble);
 
     // Unit count label on partner bubble
-    if (sz >= 16) {
+    if (sz >= 12) {
       const label = L.divIcon({
         className: 'bubble-label',
-        html: `<div style="font-size:${Math.max(9, Math.min(13, sz * 0.35))}px">${data.units}</div>`,
+        html: `<div style="font-size:${Math.max(8, Math.min(13, sz * 0.38))}px">${data.units}</div>`,
         iconSize: [sz * 2, sz], iconAnchor: [sz, sz / 2]
       });
       const lm = L.marker([lat, lng], { icon: label, interactive: false });
