@@ -428,10 +428,12 @@ body {
 
 .grid-prop { font-weight: 600; font-size: 0.78rem; }
 .deinstall-flag {
-  display: inline-flex; align-items: center; justify-content: center;
-  margin-left: 5px; width: 14px; height: 14px; border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 2px;
+  margin-left: 6px; padding: 2px 6px; border-radius: 4px;
   background: rgba(220,38,38,0.1); color: #DC2626;
-  font-size: 0.6rem; vertical-align: middle; cursor: help;
+  font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.3px; vertical-align: middle; cursor: help;
+  border: 1px solid rgba(220,38,38,0.15);
 }
 .grid-partner { color: var(--silver); font-size: 0.68rem; }
 .grid-loc { color: var(--silver); font-size: 0.74rem; }
@@ -1837,7 +1839,7 @@ function gridRender() {
 
     html += `<tr class="${isExp ? 'expanded' : ''}" onclick="gridToggleExpand('${gEsc(r.property_name)}')">
       <td><span class="expand-chevron">&#9654;</span></td>
-      <td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' with deinstall scheduled">&#9662;</span>' : ''}</td>
+      <td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : ''}</td>
       <td class="grid-partner">${gEsc(r.partner_name)}</td>
       <td class="grid-loc">${gEsc(r.market_name)}</td>
       <td class="num">${gFmt(units)}</td>
