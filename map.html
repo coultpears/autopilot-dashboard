@@ -1679,6 +1679,8 @@ const _isLocalDev = location.hostname === 'localhost' || location.hostname === '
 const GRID_API = _isLocalDev ? 'http://localhost:5001/api' : '/api';
 let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
 let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
+const _unitCache = {};   // property_name -> units data
+const _resCache = {};    // property_name -> reservations data
 
 function switchMapGrid(mode) {
   activeViewMode = mode;
@@ -1874,10 +1876,20 @@ async function gridDetailTab(name, tab, btn) {
 async function gridLoadUnits(name) {
   const el = document.getElementById('grid-detail-content');
   if (!el) return;
+
+  // Use cache if available
+  if (_unitCache[name]) { renderUnitTable(el, _unitCache[name]); return; }
+
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading units...</div>';
   try {
     const resp = await fetch(GRID_API + '/property-units?name=' + encodeURIComponent(name));
     const units = await resp.json();
+    _unitCache[name] = units;
+    renderUnitTable(el, units);
+  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
+}
+
+function renderUnitTable(el, units) {
     if (!units.length) { el.innerHTML = '<div class="gd-empty">No unit data</div>'; return; }
     let h = `<table class="gd-subtable"><thead><tr>
       <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th><th>Days Vacant</th><th class="num">Base Rent</th><th class="num">Landing Rent</th><th class="num">Markup</th><th class="num">Daily Rev</th><th>Deinstall</th>
@@ -1955,16 +1967,23 @@ async function gridLoadUnits(name) {
     });
     h += '</tbody></table>';
     el.innerHTML = h;
-  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
 async function gridLoadReservations(name) {
   const el = document.getElementById('grid-detail-content');
   if (!el) return;
+  if (_resCache[name]) { renderResTable(el, _resCache[name]); return; }
+
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading reservations...</div>';
   try {
     const resp = await fetch(GRID_API + '/property-reservations?name=' + encodeURIComponent(name));
     const res = await resp.json();
+    _resCache[name] = res;
+    renderResTable(el, res);
+  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
+}
+
+function renderResTable(el, res) {
     if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
     let h = `<table class="gd-subtable"><thead><tr>
       <th style="width:70px">Unit</th>
@@ -2010,7 +2029,6 @@ async function gridLoadReservations(name) {
     if (res.length > 50) h += `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px;font-size:0.72rem">Showing 50 of ${res.length} reservations</td></tr>`;
     h += '</tbody></table>';
     el.innerHTML = h;
-  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
 function gridUpdateStats() {
