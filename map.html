@@ -1683,7 +1683,9 @@ async function init() {
 }
 
 // ─── GRID VIEW ─────────────────────────────────────────────────────
-const GRID_API = 'http://localhost:5001/api';
+// Use Netlify functions in production, localhost for local dev
+const _isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const GRID_API = _isLocalDev ? 'http://localhost:5001/api' : '/api';
 let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
 let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
 
@@ -1723,7 +1725,7 @@ async function loadGrid() {
   const tbody = document.getElementById('grid-body');
   tbody.innerHTML = '<tr><td colspan="14" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data...</td></tr>';
   try {
-    const resp = await fetch(GRID_API + '/grid');
+    const resp = await fetch(GRID_API + '/grid-data');
     if (!resp.ok) throw new Error('API returned ' + resp.status);
     gridData = await resp.json();
     // Update date reference
@@ -1883,7 +1885,7 @@ async function gridLoadUnits(name) {
   if (!el) return;
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading units...</div>';
   try {
-    const resp = await fetch(GRID_API + '/property/' + encodeURIComponent(name) + '/units');
+    const resp = await fetch(GRID_API + '/property-units?name=' + encodeURIComponent(name));
     const units = await resp.json();
     if (!units.length) { el.innerHTML = '<div class="gd-empty">No unit data</div>'; return; }
     let h = `<table class="gd-subtable"><thead><tr>
@@ -1970,7 +1972,7 @@ async function gridLoadReservations(name) {
   if (!el) return;
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading reservations...</div>';
   try {
-    const resp = await fetch(GRID_API + '/property/' + encodeURIComponent(name) + '/reservations');
+    const resp = await fetch(GRID_API + '/property-reservations?name=' + encodeURIComponent(name));
     const res = await resp.json();
     if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
     let h = `<table class="gd-subtable"><thead><tr>
