@@ -1594,21 +1594,12 @@ async function init() {
     lt.textContent = 'Fetching data...';
     lb.style.width = '20%';
 
-    // Fetch deals, deinstalls, and enrichment in parallel (5s timeout for local dev)
-    const _ac = new AbortController();
-    const _to = setTimeout(() => _ac.abort(), 5000);
-    let resp, diResp, enrichResp;
-    try {
-      [resp, diResp, enrichResp] = await Promise.all([
-        fetch(SHEET_CSV, { signal: _ac.signal }),
-        fetch(DEINSTALL_CSV, { signal: _ac.signal }),
-        fetch(MAP_DATA_API, { signal: _ac.signal }).catch(() => null)
-      ]);
-    } catch (e) {
-      clearTimeout(_to);
-      throw new Error('Map data sources timed out — use Grid view');
-    }
-    clearTimeout(_to);
+    // Fetch deals, deinstalls, and enrichment in parallel
+    const [resp, diResp, enrichResp] = await Promise.all([
+      fetch(SHEET_CSV),
+      fetch(DEINSTALL_CSV),
+      fetch(MAP_DATA_API).catch(() => null)
+    ]);
 
     if (!resp.ok) throw new Error(`Deals HTTP ${resp.status}`);
     lb.style.width = '50%';
