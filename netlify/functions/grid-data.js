@@ -165,11 +165,6 @@ exports.handler = async (event) => {
 
     const resFields = [
       'dimproperty.property_name',
-      'dimproperty.property_management_company',
-      'dimdirectpartner.dp_full_name',
-      'dimmarket.market_name',
-      'dimproperty.property_city',
-      'dimproperty.property_state',
       'dimreservation.current_reservation_count',
       'dimreservation.future_reservation_count',
       'dimreservation.count',
@@ -177,15 +172,17 @@ exports.handler = async (event) => {
 
     const date = event.queryStringParameters?.date || 'today';
 
+    // Parallel fetch: occupancy (active only), reservations, and slug cache
     const [occData, resData] = await Promise.all([
       lookerQuery(token, 'tbldailyhomemetrics', occFields,
-        { 'tbldailyhomemetrics.date_date': date },
+        { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0' },
         ['dimproperty.property_name'],
-        50000),
+        5000),
       lookerQuery(token, 'dimreservation', resFields,
-        null,
+        { 'dimreservation.current_reservation_count': '>0' },
         ['dimproperty.property_name'],
-        50000),
+        5000),
+      getSlugCache(),
     ]);
 
     // Clean and aggregate occupancy
@@ -226,7 +223,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600, s-maxage=600' },
       body: JSON.stringify(records),
     };
   } catch (err) {
