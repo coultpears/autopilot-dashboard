@@ -44,11 +44,11 @@ function cleanRow(row) {
   return out;
 }
 
-// Aggregate rows to one per property_name + partner_name + market_name
+// Aggregate rows to one per property_name (keep first partner_name + market_name seen)
 function aggregate(rows) {
   const groups = {};
   for (const r of rows) {
-    const key = `${r.property_name}|||${r.partner_name}|||${r.market_name}`;
+    const key = r.property_name || '';
     if (!groups[key]) {
       groups[key] = { ...r, _count: 1 };
     } else {
