@@ -1967,27 +1967,47 @@ async function gridLoadReservations(name) {
     const res = await resp.json();
     if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
     let h = `<table class="gd-subtable"><thead><tr>
-      <th style="width:80px">Unit</th>
+      <th style="width:70px">Unit</th>
       <th style="width:100px">Check-in</th>
       <th style="width:100px">Check-out</th>
-      <th class="num" style="width:70px">Nights</th>
-      <th style="width:90px">Status</th>
+      <th class="num" style="width:80px">Total Nights</th>
+      <th class="num" style="width:80px">Nights So Far</th>
+      <th style="width:90px">Type</th>
+      <th style="width:80px">Status</th>
     </tr></thead><tbody>`;
     const sorted = res.sort((a, b) => (b.reservation_start_date || '').localeCompare(a.reservation_start_date || ''));
     sorted.slice(0, 50).forEach(r => {
       const isCurr = r.current_reservation_count > 0;
       const isFut = r.future_reservation_count > 0;
       const badge = isCurr ? '<span class="gd-badge-curr">Active</span>' : isFut ? '<span class="gd-badge-future">Upcoming</span>' : '<span style="color:var(--muted);font-size:0.65rem">Past</span>';
-      const nights = r.days_in_reservation != null ? Math.max(0, r.days_in_reservation) : '--';
+
+      // Total nights from reservation_length_raw, or compute from start/end
+      let totalNights = r.reservation_length_raw;
+      if (totalNights == null && r.reservation_start_date && r.reservation_end_date) {
+        const start = new Date(r.reservation_start_date);
+        const end = new Date(r.reservation_end_date);
+        if (!isNaN(start) && !isNaN(end)) totalNights = Math.round((end - start) / 86400000);
+      }
+      const totalStr = totalNights != null ? totalNights.toLocaleString() : '--';
+      const monthsStr = totalNights != null && totalNights >= 28 ? '<span style="color:var(--muted);font-size:0.6rem;margin-left:3px">(' + (totalNights / 30.4).toFixed(1) + 'mo)</span>' : '';
+
+      // Elapsed nights
+      const elapsed = r.days_in_reservation != null ? Math.max(0, r.days_in_reservation) : '--';
+
+      // Reservation type
+      const resType = r.reservation_length || '--';
+
       h += `<tr>
         <td class="gd-unit">${gEsc(r.unit_number)}</td>
-        <td style="font-size:0.72rem">${gEsc(r.reservation_start_date || '--')}</td>
-        <td style="font-size:0.72rem">${gEsc(r.reservation_end_date || '--')}</td>
-        <td class="num" style="font-weight:700">${nights}</td>
+        <td>${gEsc(r.reservation_start_date || '--')}</td>
+        <td>${gEsc(r.reservation_end_date || '--')}</td>
+        <td class="num" style="font-weight:700">${totalStr}${monthsStr}</td>
+        <td class="num">${elapsed}</td>
+        <td><span class="gd-badge-other">${gEsc(resType)}</span></td>
         <td>${badge}</td>
       </tr>`;
     });
-    if (res.length > 50) h += `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:0.72rem">Showing 50 of ${res.length} reservations</td></tr>`;
+    if (res.length > 50) h += `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px;font-size:0.72rem">Showing 50 of ${res.length} reservations</td></tr>`;
     h += '</tbody></table>';
     el.innerHTML = h;
   } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
