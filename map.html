@@ -1679,8 +1679,7 @@ const _isLocalDev = location.hostname === 'localhost' || location.hostname === '
 const GRID_API = _isLocalDev ? 'http://localhost:5001/api' : '/api';
 let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
 let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
-const _unitCache = {};   // property_name -> units data
-const _resCache = {};    // property_name -> reservations data
+const _detailCache = {};  // property_name -> { units, reservations }
 
 function switchMapGrid(mode) {
   activeViewMode = mode;
@@ -1866,26 +1865,48 @@ function gridToggleExpand(name) {
   gridRender();
 }
 
+// Fetch both units + reservations in one call, cache result
+async function fetchPropertyDetail(name) {
+  if (_detailCache[name]) return _detailCache[name];
+  const resp = await fetch(GRID_API + '/property-detail?name=' + encodeURIComponent(name));
+  if (!resp.ok) throw new Error('API returned ' + resp.status);
+  const data = await resp.json();
+  _detailCache[name] = data;
+  return data;
+}
+
 async function gridDetailTab(name, tab, btn) {
   btn.parentElement.querySelectorAll('.gd-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  if (tab === 'units') gridLoadUnits(name);
-  else gridLoadReservations(name);
+  const el = document.getElementById('grid-detail-content');
+  if (!el) return;
+
+  // If cached, render instantly
+  if (_detailCache[name]) {
+    if (tab === 'units') renderUnitTable(el, _detailCache[name].units);
+    else renderResTable(el, _detailCache[name].reservations);
+    return;
+  }
+
+  // Otherwise show loader and fetch
+  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>';
+  try {
+    const data = await fetchPropertyDetail(name);
+    if (tab === 'units') renderUnitTable(el, data.units);
+    else renderResTable(el, data.reservations);
+  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
 async function gridLoadUnits(name) {
   const el = document.getElementById('grid-detail-content');
   if (!el) return;
 
-  // Use cache if available
-  if (_unitCache[name]) { renderUnitTable(el, _unitCache[name]); return; }
+  if (_detailCache[name]) { renderUnitTable(el, _detailCache[name].units); return; }
 
-  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading units...</div>';
+  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>';
   try {
-    const resp = await fetch(GRID_API + '/property-units?name=' + encodeURIComponent(name));
-    const units = await resp.json();
-    _unitCache[name] = units;
-    renderUnitTable(el, units);
+    const data = await fetchPropertyDetail(name);
+    renderUnitTable(el, data.units);
   } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
@@ -1967,20 +1988,6 @@ function renderUnitTable(el, units) {
     });
     h += '</tbody></table>';
     el.innerHTML = h;
-}
-
-async function gridLoadReservations(name) {
-  const el = document.getElementById('grid-detail-content');
-  if (!el) return;
-  if (_resCache[name]) { renderResTable(el, _resCache[name]); return; }
-
-  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading reservations...</div>';
-  try {
-    const resp = await fetch(GRID_API + '/property-reservations?name=' + encodeURIComponent(name));
-    const res = await resp.json();
-    _resCache[name] = res;
-    renderResTable(el, res);
-  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
 function renderResTable(el, res) {

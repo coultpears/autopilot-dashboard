@@ -4,6 +4,13 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = []
+
+[functions."grid-data"]
+  timeout = 30
+
+[functions."property-detail"]
+  timeout = 30
 
 [[redirects]]
   from = "/api/*"
