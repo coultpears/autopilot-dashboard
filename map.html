@@ -335,6 +335,201 @@ body {
 .loading-text { font-family: 'Outfit', sans-serif; font-size: 0.85rem; color: var(--silver); }
 .loading-progress { width: 160px; height: 3px; background: var(--ghost); border-radius: 2px; overflow: hidden; }
 .loading-progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.3s; width: 0%; }
+
+/* ─── VIEW SWITCH (Map/Grid toggle) ─── */
+.view-switch {
+  display: flex; background: var(--navy-light); border-radius: 8px; padding: 3px;
+  border: 1px solid var(--border);
+}
+.vs-btn {
+  font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 600;
+  padding: 5px 14px; border: none; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--muted); transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.vs-btn:hover { color: var(--white); }
+.vs-btn.active { background: var(--blue); color: #fff; box-shadow: 0 1px 4px rgba(37,99,235,0.3); }
+
+/* ─── GRID VIEW ─── */
+.grid-view {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--navy);
+}
+.grid-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; background: var(--navy-mid);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.grid-search-wrap { position: relative; flex: 1; max-width: 360px; }
+.grid-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none;
+}
+.grid-search {
+  width: 100%; padding: 7px 12px 7px 32px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem;
+  background: var(--navy-light); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--white); outline: none; transition: border-color 0.15s;
+}
+.grid-search:focus { border-color: var(--blue); }
+.grid-search::placeholder { color: var(--muted); }
+.grid-active-btn {
+  font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 600;
+  padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; background: var(--navy-light); color: var(--muted);
+  display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+}
+.grid-active-btn.active { border-color: var(--green); color: var(--green); }
+.grid-active-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.grid-stats {
+  display: flex; gap: 16px; margin-left: auto;
+  font-family: 'Outfit', sans-serif; font-size: 0.75rem; color: var(--silver);
+}
+.grid-stat-val { font-weight: 800; color: var(--white); margin-right: 3px; }
+.grid-scroll { flex: 1; overflow: auto; }
+.grid-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.grid-scroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+
+/* ─── GRID TABLE ─── */
+.grid-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+.grid-table thead { position: sticky; top: 0; z-index: 10; }
+.grid-table th {
+  background: #EDEEF2; padding: 8px 12px; text-align: left;
+  font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.6px; color: var(--silver);
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+  user-select: none;
+}
+.grid-table th.sortable { cursor: pointer; transition: color 0.15s; position: relative; padding-right: 18px; }
+.grid-table th.sortable:hover { color: var(--white); }
+.grid-table th.sorted { color: var(--blue); }
+.grid-table th.sortable::after {
+  content: '\2195'; position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  font-size: 0.65rem; opacity: 0.25;
+}
+.grid-table th.sortable:hover::after { opacity: 0.5; }
+.grid-table th.sorted.asc::after { content: '\2191'; opacity: 1; }
+.grid-table th.sorted.desc::after { content: '\2193'; opacity: 1; }
+.grid-table th.num { text-align: right; }
+.col-expand { width: 24px; padding-right: 4px !important; }
+.col-link { width: 40px; text-align: center !important; }
+
+.grid-table td {
+  padding: 7px 12px; border-bottom: 1px solid rgba(0,0,0,0.06);
+  white-space: nowrap; color: var(--white);
+}
+.grid-table td.num { text-align: right; font-family: 'Outfit', sans-serif; font-weight: 600; letter-spacing: -0.3px; }
+.grid-table tbody tr { cursor: pointer; transition: background 0.08s; }
+.grid-table tbody tr:hover { background: rgba(37,99,235,0.05); }
+.grid-table tbody tr.expanded { background: rgba(37,99,235,0.06); }
+.grid-table tbody tr:nth-child(4n+1):not(.expanded):not(:hover) { background: rgba(0,0,0,0.015); }
+
+.grid-prop { font-weight: 600; font-size: 0.78rem; }
+.grid-partner { color: var(--silver); font-size: 0.68rem; }
+.grid-loc { color: var(--silver); font-size: 0.74rem; }
+
+/* ─── Occupancy Bar ─── */
+.occ-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.occ-bar {
+  display: block; width: 60px; height: 8px; background: #D1D5DB; border-radius: 99px;
+  overflow: hidden; flex-shrink: 0; position: relative;
+}
+.occ-fill { display: block; height: 100%; border-radius: 99px; position: absolute; top: 0; left: 0; }
+.occ-val { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.78rem; min-width: 42px; text-align: right; }
+
+/* ─── Status Badge ─── */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.62rem; font-weight: 700; padding: 3px 10px; border-radius: 99px;
+  letter-spacing: 0.3px; white-space: nowrap;
+}
+.status-active { background: var(--green-dim); color: var(--green); }
+.status-red { background: rgba(220,38,38,0.08); color: #DC2626; }
+.status-amber { background: rgba(217,119,6,0.08); color: #D97706; }
+.status-blue { background: var(--blue-dim); color: var(--blue); }
+.status-inactive { background: rgba(0,0,0,0.04); color: var(--muted); }
+
+/* ─── Reservation Chips ─── */
+.res-chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 22px; padding: 2px 8px; border-radius: 5px;
+  font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 700;
+  margin: 0 2px;
+}
+.res-curr { background: var(--green-dim); color: var(--green); }
+.res-fut { background: var(--blue-dim); color: var(--blue); }
+.res-label { font-weight: 500; font-size: 0.55rem; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ─── Unit Status Dots ─── */
+.unit-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.unit-dot-green { background: var(--green); box-shadow: 0 0 6px rgba(5,150,105,0.35); }
+.unit-dot-amber { background: #D97706; box-shadow: 0 0 6px rgba(217,119,6,0.35); }
+.unit-dot-blue { background: var(--blue); box-shadow: 0 0 6px rgba(37,99,235,0.35); }
+.unit-dot-red { background: #DC2626; box-shadow: 0 0 6px rgba(220,38,38,0.35); }
+
+/* ─── Detail Badges ─── */
+.gd-badge-curr { background: var(--green-dim); color: var(--green); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+.gd-badge-future { background: rgba(37,99,235,0.08); color: var(--blue); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+.gd-badge-vacant { background: rgba(220,38,38,0.08); color: #DC2626; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+.gd-badge-standby { background: rgba(139,92,246,0.08); color: #8B5CF6; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+.gd-badge-other { background: rgba(0,0,0,0.04); color: var(--silver); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+
+/* ─── Admin Link ─── */
+.admin-link {
+  color: var(--blue); text-decoration: none; font-weight: 700; font-size: 0.82rem;
+  opacity: 0.6; transition: opacity 0.15s;
+}
+.admin-link:hover { opacity: 1; }
+
+/* ─── Expand Chevron ─── */
+.expand-chevron {
+  display: inline-block; transition: transform 0.15s; color: var(--muted);
+  font-size: 0.6rem;
+}
+tr.expanded .expand-chevron { transform: rotate(90deg); color: var(--blue); }
+
+/* ─── EXPANDED DETAIL ─── */
+.grid-detail-cell { padding: 0 !important; background: #F3F4F8; border-bottom: 2px solid var(--border) !important; }
+.grid-detail {
+  padding: 16px 24px 20px; animation: gridSlideDown 0.2s ease;
+}
+@keyframes gridSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.grid-detail-tabs {
+  display: flex; gap: 0; margin-bottom: 14px;
+  border-bottom: 2px solid var(--border); padding-bottom: 0;
+}
+.gd-tab {
+  font-family: 'Outfit', sans-serif; font-size: 0.7rem; font-weight: 600;
+  padding: 7px 16px; border: none; background: none; cursor: pointer;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all 0.15s;
+}
+.gd-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.gd-tab:hover:not(.active) { color: var(--white); }
+
+.gd-subtable { width: 100%; border-collapse: collapse; font-size: 0.72rem; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.gd-subtable th {
+  text-align: left; padding: 7px 12px;
+  font-family: 'Outfit', sans-serif; font-size: 0.58rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--silver);
+  background: #F8F9FB; border-bottom: 2px solid var(--border);
+}
+.gd-subtable td {
+  padding: 7px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); color: #4B5563;
+}
+.gd-subtable tr:hover { background: rgba(37,99,235,0.03); }
+.gd-subtable th.num, .gd-subtable td.num { text-align: right; }
+.gd-unit { font-weight: 700; color: var(--white); font-family: 'Outfit', sans-serif; }
+.gd-yes { color: var(--green); font-weight: 600; }
+.gd-no { color: #DC2626; font-weight: 600; }
+.gd-empty { text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem; }
+.gd-loading { text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem; }
 </style>
 </head>
 <body>
@@ -347,6 +542,16 @@ body {
   <div class="nav-links">
     <a href="index.html">Dashboard</a>
     <a href="map.html" class="active">Map</a>
+  </div>
+  <div class="view-switch" id="view-switch">
+    <button class="vs-btn active" data-vs="map" onclick="switchMapGrid('map')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
+      Map
+    </button>
+    <button class="vs-btn" data-vs="grid" onclick="switchMapGrid('grid')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Grid
+    </button>
   </div>
 </nav>
 
@@ -394,6 +599,45 @@ body {
 </div>
 
 <div id="map"></div>
+
+<!-- ─── GRID VIEW ─── -->
+<div id="grid-view" class="grid-view" style="display:none">
+  <div class="grid-toolbar">
+    <div class="grid-search-wrap">
+      <svg class="grid-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input class="grid-search" id="grid-search" type="text" placeholder="Search properties, partners, cities..." oninput="gridSearch(this.value)">
+    </div>
+    <button class="grid-active-btn active" id="grid-active-btn" onclick="gridToggleActive()">
+      <span class="grid-active-dot"></span> Active Only
+    </button>
+    <div class="grid-stats" id="grid-stats"></div>
+    <div class="grid-date-ref" id="grid-date-ref" style="font-family:'Outfit',sans-serif;font-size:0.68rem;font-weight:600;color:var(--muted);padding:4px 10px;background:var(--navy-light);border-radius:6px;border:1px solid var(--border);white-space:nowrap"></div>
+  </div>
+  <div class="grid-scroll">
+    <table class="grid-table" id="grid-table">
+      <thead>
+        <tr>
+          <th class="col-expand"></th>
+          <th class="sortable" data-col="property_name">Property</th>
+          <th class="sortable" data-col="partner_name">Partner</th>
+          <th class="sortable" data-col="market_name">Market</th>
+          <th class="sortable num" data-col="home_count">Units</th>
+          <th class="sortable num" data-col="occupancy">Occupancy</th>
+          <th class="sortable num" data-col="home_occupied_count">Occ / Vacant</th>
+          <th class="sortable num" data-col="current_reservation_count">Reservations</th>
+          <th class="sortable num" data-col="home_average_rent_cost">Avg Base Rent</th>
+          <th class="sortable num" data-col="home_daily_rent_revenue">Daily Rev</th>
+          <th class="sortable num" data-col="home_daily_rent_cost_autopilot">Daily AP Cost</th>
+          <th class="sortable num" data-col="all_in_revpah_net">RevPAH</th>
+          <th class="sortable" data-col="status_label">Status</th>
+          <th class="col-link">Admin</th>
+        </tr>
+      </thead>
+      <tbody id="grid-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <div class="bottom-bar" id="bottom-bar"></div>
 
 <div class="loading-overlay" id="loading">
@@ -403,6 +647,10 @@ body {
 </div>
 
 <script>
+// Local dev: hide loading overlay immediately so grid view is accessible
+const _isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if (_isLocal) document.getElementById('loading').classList.add('hidden');
+
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGbdrb1E8-Ctt4eSJ4A_fsth1CgTCw3zdD_cqVcGLAoQiMh2r_5mN5opRvlW0tYTO7aLvkz-IZm3XH/pub?gid=0&single=true&output=csv';
 
 // Pre-computed market coordinates — no runtime geocoding needed
@@ -1346,12 +1594,21 @@ async function init() {
     lt.textContent = 'Fetching data...';
     lb.style.width = '20%';
 
-    // Fetch deals, deinstalls, and enrichment in parallel
-    const [resp, diResp, enrichResp] = await Promise.all([
-      fetch(SHEET_CSV),
-      fetch(DEINSTALL_CSV),
-      fetch(MAP_DATA_API).catch(() => null)
-    ]);
+    // Fetch deals, deinstalls, and enrichment in parallel (5s timeout for local dev)
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 5000);
+    let resp, diResp, enrichResp;
+    try {
+      [resp, diResp, enrichResp] = await Promise.all([
+        fetch(SHEET_CSV, { signal: _ac.signal }),
+        fetch(DEINSTALL_CSV, { signal: _ac.signal }),
+        fetch(MAP_DATA_API, { signal: _ac.signal }).catch(() => null)
+      ]);
+    } catch (e) {
+      clearTimeout(_to);
+      throw new Error('Map data sources timed out — use Grid view');
+    }
+    clearTimeout(_to);
 
     if (!resp.ok) throw new Error(`Deals HTTP ${resp.status}`);
     lb.style.width = '50%';
@@ -1420,11 +1677,347 @@ async function init() {
     applyPeriodFilter(); // sets allData/deinstallData from full arrays, computes aggs, renders
   } catch (err) {
     console.error(err);
-    lt.textContent = 'Failed to load. Check console.';
+    lt.textContent = 'Map data unavailable — switch to Grid view';
+    document.getElementById('loading').classList.add('hidden');
   }
 }
 
-init();
+// ─── GRID VIEW ─────────────────────────────────────────────────────
+const GRID_API = 'http://localhost:5001/api';
+let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
+let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
+
+function switchMapGrid(mode) {
+  activeViewMode = mode;
+  document.querySelectorAll('.vs-btn').forEach(b => b.classList.toggle('active', b.dataset.vs === mode));
+
+  const mapEl = document.getElementById('map');
+  const gridEl = document.getElementById('grid-view');
+  const controls = document.querySelector('.map-controls');
+  const legend = document.getElementById('map-legend');
+  const searchBox = document.querySelector('.search-box');
+  const bottomBar = document.getElementById('bottom-bar');
+  const detailPanel = document.getElementById('detail-panel');
+
+  if (mode === 'grid') {
+    mapEl.style.display = 'none';
+    gridEl.style.display = 'flex';
+    if (controls) controls.style.display = 'none';
+    if (legend) legend.style.display = 'none';
+    if (searchBox) searchBox.style.display = 'none';
+    if (bottomBar) bottomBar.style.display = 'none';
+    if (detailPanel) detailPanel.classList.remove('open');
+    if (!gridData.length) loadGrid();
+  } else {
+    mapEl.style.display = '';
+    gridEl.style.display = 'none';
+    if (controls) controls.style.display = '';
+    if (legend) legend.style.display = '';
+    if (searchBox) searchBox.style.display = '';
+    if (bottomBar) bottomBar.style.display = '';
+    map.invalidateSize();
+  }
+}
+
+async function loadGrid() {
+  const tbody = document.getElementById('grid-body');
+  tbody.innerHTML = '<tr><td colspan="14" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data...</td></tr>';
+  try {
+    const resp = await fetch(GRID_API + '/grid');
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    gridData = await resp.json();
+    // Update date reference
+    const now = new Date();
+    document.getElementById('grid-date-ref').textContent = 'Data as of ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    gridApplyFilters();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="14" class="gd-empty">Failed to load grid data.<br><span style="font-size:0.68rem">Make sure the API server is running: <code>python server.py</code> in landing-internal-data</span></td></tr>`;
+  }
+}
+
+function gridFuzzy(text, q) {
+  if (!q) return true;
+  text = (text || '').toLowerCase().trim();
+  q = q.toLowerCase().trim();
+  if (!q) return true;
+  if (text.includes(q)) return true;
+  return q.split(/\s+/).filter(Boolean).every(t => text.includes(t));
+}
+
+function gridSearch(val) {
+  gridSearchTerm = val;
+  gridApplyFilters();
+}
+
+function gridToggleActive() {
+  gridActiveOnly = !gridActiveOnly;
+  const btn = document.getElementById('grid-active-btn');
+  btn.classList.toggle('active', gridActiveOnly);
+  gridApplyFilters();
+}
+
+function gridApplyFilters() {
+  gridFiltered = gridData.filter(r => {
+    if (gridActiveOnly && (!r.active_property_count || r.active_property_count < 1)) return false;
+    const hay = [r.property_name, r.partner_name, r.market_name].join(' ');
+    return gridFuzzy(hay, gridSearchTerm);
+  });
+  gridRender();
+  gridUpdateStats();
+}
+
+function gridSort(col) {
+  if (gridSortCol === col) gridSortDir = gridSortDir === 'asc' ? 'desc' : 'asc';
+  else { gridSortCol = col; gridSortDir = 'asc'; }
+  gridApplyFilters();
+  document.querySelectorAll('.grid-table th.sortable').forEach(th => {
+    const match = th.dataset.col === gridSortCol;
+    th.classList.toggle('sorted', match);
+    th.classList.toggle('asc', match && gridSortDir === 'asc');
+    th.classList.toggle('desc', match && gridSortDir === 'desc');
+  });
+}
+// Attach sort handlers
+document.querySelectorAll('.grid-table th.sortable').forEach(th => {
+  th.addEventListener('click', () => gridSort(th.dataset.col));
+});
+
+function gridSorted(data) {
+  return [...data].sort((a, b) => {
+    let va = a[gridSortCol], vb = b[gridSortCol];
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return gridSortDir === 'asc' ? va - vb : vb - va;
+    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+    return gridSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+}
+
+function gFmt(n) { return n == null ? '--' : Number(n).toLocaleString(); }
+function gPct(v) { return v == null ? '--' : (v * 100).toFixed(1) + '%'; }
+function gOccColor(v) {
+  if (v == null) return 'var(--muted)';
+  if (v >= 0.85) return 'var(--green)';
+  if (v >= 0.6) return '#D97706';
+  return '#DC2626';
+}
+function gEsc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function statusHtml(r) {
+  const lbl = r.status_label || 'Unknown';
+  const colorMap = {
+    green: 'status-active',
+    red: 'status-red',
+    amber: 'status-amber',
+    blue: 'status-blue',
+    neutral: 'status-inactive',
+  };
+  const cls = colorMap[r.status_color] || 'status-inactive';
+  return `<span class="status-badge ${cls}"><span class="grid-active-dot"></span>${gEsc(lbl)}</span>`;
+}
+
+function gridRender() {
+  const tbody = document.getElementById('grid-body');
+  const sorted = gridSorted(gridFiltered);
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="gd-empty">No properties match your search</td></tr>';
+    return;
+  }
+  let html = '';
+  sorted.forEach(r => {
+    const occ = r.occupancy;
+    const occW = occ != null ? Math.round(occ * 100) : 0;
+    const isExp = gridExpandedProp === r.property_name;
+    const adminUrl = r.admin_url || '#';
+    const units = r.home_count || 0;
+    const occupied = r.home_occupied_count || 0;
+    const vacant = units - occupied;
+    const currRes = r.current_reservation_count || 0;
+    const futRes = r.future_reservation_count || 0;
+
+    html += `<tr class="${isExp ? 'expanded' : ''}" onclick="gridToggleExpand('${gEsc(r.property_name)}')">
+      <td><span class="expand-chevron">&#9654;</span></td>
+      <td class="grid-prop">${gEsc(r.property_name)}</td>
+      <td class="grid-partner">${gEsc(r.partner_name)}</td>
+      <td class="grid-loc">${gEsc(r.market_name)}</td>
+      <td class="num">${gFmt(units)}</td>
+      <td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>
+      <td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#DC2626' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>
+      <td class="num"><span class="res-chip res-curr">${currRes} <span class="res-label">now</span></span><span class="res-chip res-fut">${futRes} <span class="res-label">upcoming</span></span></td>
+      <td class="num">${r.home_average_rent_cost != null ? '$' + Math.round(r.home_average_rent_cost).toLocaleString() : '--'}</td>
+      <td class="num" style="color:var(--green);font-weight:700">${r.home_daily_rent_revenue != null ? '$' + Math.round(r.home_daily_rent_revenue).toLocaleString() : '--'}</td>
+      <td class="num">${r.home_daily_rent_cost_autopilot != null ? '$' + Math.round(r.home_daily_rent_cost_autopilot).toLocaleString() : '--'}</td>
+      <td class="num" style="font-weight:700">${r.all_in_revpah_net != null ? '$' + r.all_in_revpah_net.toFixed(2) : '--'}</td>
+      <td>${statusHtml(r)}</td>
+      <td><a href="${gEsc(adminUrl)}" target="_blank" class="admin-link" onclick="event.stopPropagation()">&#8599;</a></td>
+    </tr>`;
+
+    if (isExp) {
+      html += `<tr><td colspan="14" class="grid-detail-cell"><div class="grid-detail">
+        <div class="grid-detail-tabs">
+          <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','units',this)">Units &amp; Status</button>
+          <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','reservations',this)">Reservations</button>
+        </div>
+        <div id="grid-detail-content" class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>
+      </div></td></tr>`;
+    }
+  });
+  tbody.innerHTML = html;
+  if (gridExpandedProp) gridLoadUnits(gridExpandedProp);
+}
+
+function gridToggleExpand(name) {
+  gridExpandedProp = gridExpandedProp === name ? null : name;
+  gridRender();
+}
+
+async function gridDetailTab(name, tab, btn) {
+  btn.parentElement.querySelectorAll('.gd-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'units') gridLoadUnits(name);
+  else gridLoadReservations(name);
+}
+
+async function gridLoadUnits(name) {
+  const el = document.getElementById('grid-detail-content');
+  if (!el) return;
+  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading units...</div>';
+  try {
+    const resp = await fetch(GRID_API + '/property/' + encodeURIComponent(name) + '/units');
+    const units = await resp.json();
+    if (!units.length) { el.innerHTML = '<div class="gd-empty">No unit data</div>'; return; }
+    let h = `<table class="gd-subtable"><thead><tr>
+      <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th><th>Days Vacant</th><th class="num">Base Rent</th><th class="num">Landing Rent</th><th class="num">Markup</th><th class="num">Daily Rev</th><th>Deinstall</th>
+    </tr></thead><tbody>`;
+    units.forEach(u => {
+      // Status indicator — use installed + reservation status as the real signals
+      const installed = u.home_is_installed === 'Yes';
+      const resStatus = (u.home_reservation_status || '').toLowerCase();
+      const hasRes = resStatus && !resStatus.includes('not reserved') && resStatus !== '';
+      let statusIcon, statusTip;
+      if (installed && hasRes) { statusIcon = '<span class="unit-dot unit-dot-green" title="Installed & Occupied"></span>'; statusTip = 'Occupied'; }
+      else if (installed && !hasRes) { statusIcon = '<span class="unit-dot unit-dot-amber" title="Installed, No Reservation"></span>'; statusTip = 'Available'; }
+      else if (!installed && u.deinstall_date) { statusIcon = '<span class="unit-dot unit-dot-red" title="Deinstalled"></span>'; statusTip = 'Deinstalled'; }
+      else if (!installed) { statusIcon = '<span class="unit-dot unit-dot-blue" title="Not Installed"></span>'; statusTip = 'Not Installed'; }
+      else { statusIcon = '<span class="unit-dot unit-dot-red"></span>'; statusTip = 'Inactive'; }
+
+      // Reservation status badge
+      const resStatusRaw = u.home_reservation_status;
+      let resBadge = '<span style="color:var(--muted)">--</span>';
+      if (resStatusRaw) {
+        const rsLower = resStatusRaw.toLowerCase();
+        if (rsLower.includes('extended') || rsLower.includes('occupied')) resBadge = `<span class="gd-badge-curr">${gEsc(resStatusRaw)}</span>`;
+        else if (rsLower.includes('vacant')) resBadge = `<span class="gd-badge-vacant">${gEsc(resStatusRaw)}</span>`;
+        else if (rsLower.includes('standby')) resBadge = `<span class="gd-badge-standby">${gEsc(resStatusRaw)}</span>`;
+        else resBadge = `<span class="gd-badge-other">${gEsc(resStatusRaw)}</span>`;
+      }
+
+      // Rent
+      const baseRent = u.rent_cost != null ? '$' + Number(u.rent_cost).toLocaleString() : '--';
+      const hasLandingRent = u.landing_rent != null;
+      const isEstimated = u.rent_source === 'estimated';
+      const estTag = isEstimated ? '<span style="color:var(--muted);font-size:0.55rem;margin-left:2px" title="Estimated from daily AP cost">~</span>' : '';
+      const landingRent = hasLandingRent ? '$' + Number(u.landing_rent).toLocaleString() + estTag : '<span style="color:var(--muted);font-size:0.62rem">--</span>';
+      const markupVal = u.computed_markup != null ? u.computed_markup : u.markup;
+      const markupStr = markupVal != null ? (markupVal * 100).toFixed(1) + '%' + estTag : '--';
+      const markupColor = markupVal != null ? (markupVal > 0 ? 'var(--green)' : markupVal < 0 ? '#DC2626' : 'var(--muted)') : 'var(--muted)';
+      const rev = u.home_daily_rent_revenue != null ? '$' + Number(u.home_daily_rent_revenue).toFixed(0) : '--';
+
+      // Vacancy
+      const daysVacant = u.days_vacant_standard;
+      let vacantHtml = '<span style="color:var(--muted)">--</span>';
+      if (daysVacant != null) {
+        const vc = daysVacant > 30 ? '#DC2626' : daysVacant > 14 ? '#D97706' : 'var(--green)';
+        vacantHtml = `<span style="color:${vc};font-weight:700">${daysVacant}d</span>`;
+        if (u.vacant_since_date) vacantHtml += ` <span style="color:var(--muted);font-size:0.62rem">since ${gEsc(u.vacant_since_date)}</span>`;
+      }
+
+      // Current reservation dates
+      let currRes = '<span style="color:var(--muted)">--</span>';
+      if (u.current_reservation_start_date_raw_date) {
+        currRes = `${gEsc(u.current_reservation_start_date_raw_date)} &rarr; ${gEsc(u.current_reservation_end_raw_date || '?')}`;
+      }
+
+      // Deinstall
+      let deinstallHtml = '<span style="color:var(--muted)">--</span>';
+      if (u.deinstall_date) {
+        deinstallHtml = `<span style="color:#DC2626;font-weight:600">${gEsc(u.deinstall_date)}</span>`;
+        if (u.home_deinstall_reason) deinstallHtml += `<br><span style="color:var(--muted);font-size:0.6rem">${gEsc(u.home_deinstall_reason)}</span>`;
+      } else if (u.expected_deinstall_date) {
+        deinstallHtml = `<span style="color:#D97706">${gEsc(u.expected_deinstall_date)}</span> <span style="color:var(--muted);font-size:0.6rem">(expected)</span>`;
+      }
+
+      h += `<tr>
+        <td class="gd-unit">${gEsc(u.unit_number)}</td>
+        <td>${statusIcon} <span style="font-size:0.68rem">${statusTip}</span></td>
+        <td>${resBadge}</td>
+        <td style="font-size:0.7rem">${currRes}</td>
+        <td>${vacantHtml}</td>
+        <td class="num" style="text-align:right">${baseRent}</td>
+        <td class="num" style="text-align:right;font-weight:700">${landingRent}</td>
+        <td class="num" style="text-align:right;color:${markupColor};font-weight:700">${markupStr}</td>
+        <td class="num" style="text-align:right;color:var(--green)">${rev}</td>
+        <td style="max-width:160px;white-space:normal;line-height:1.3">${deinstallHtml}</td>
+      </tr>`;
+    });
+    h += '</tbody></table>';
+    el.innerHTML = h;
+  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
+}
+
+async function gridLoadReservations(name) {
+  const el = document.getElementById('grid-detail-content');
+  if (!el) return;
+  el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading reservations...</div>';
+  try {
+    const resp = await fetch(GRID_API + '/property/' + encodeURIComponent(name) + '/reservations');
+    const res = await resp.json();
+    if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
+    let h = `<table class="gd-subtable"><thead><tr>
+      <th style="width:80px">Unit</th>
+      <th style="width:100px">Check-in</th>
+      <th style="width:100px">Check-out</th>
+      <th class="num" style="width:70px">Nights</th>
+      <th style="width:90px">Status</th>
+    </tr></thead><tbody>`;
+    const sorted = res.sort((a, b) => (b.reservation_start_date || '').localeCompare(a.reservation_start_date || ''));
+    sorted.slice(0, 50).forEach(r => {
+      const isCurr = r.current_reservation_count > 0;
+      const isFut = r.future_reservation_count > 0;
+      const badge = isCurr ? '<span class="gd-badge-curr">Active</span>' : isFut ? '<span class="gd-badge-future">Upcoming</span>' : '<span style="color:var(--muted);font-size:0.65rem">Past</span>';
+      const nights = r.days_in_reservation != null ? Math.max(0, r.days_in_reservation) : '--';
+      h += `<tr>
+        <td class="gd-unit">${gEsc(r.unit_number)}</td>
+        <td style="font-size:0.72rem">${gEsc(r.reservation_start_date || '--')}</td>
+        <td style="font-size:0.72rem">${gEsc(r.reservation_end_date || '--')}</td>
+        <td class="num" style="font-weight:700">${nights}</td>
+        <td>${badge}</td>
+      </tr>`;
+    });
+    if (res.length > 50) h += `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:0.72rem">Showing 50 of ${res.length} reservations</td></tr>`;
+    h += '</tbody></table>';
+    el.innerHTML = h;
+  } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
+}
+
+function gridUpdateStats() {
+  const d = gridFiltered;
+  const units = d.reduce((s, r) => s + (r.home_count || 0), 0);
+  const occRows = d.filter(r => r.occupancy != null);
+  const avgOcc = occRows.length ? occRows.reduce((s, r) => s + r.occupancy, 0) / occRows.length : null;
+  document.getElementById('grid-stats').innerHTML =
+    `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
+    `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
+    `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
+}
+
+if (_isLocal) {
+  // Local dev: default to grid, load map data in background
+  switchMapGrid('grid');
+  init().catch(() => {});
+} else {
+  init();
+}
 </script>
 </body>
 </html>
