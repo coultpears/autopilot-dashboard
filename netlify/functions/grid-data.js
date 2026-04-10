@@ -172,14 +172,19 @@ exports.handler = async (event) => {
 
     const date = event.queryStringParameters?.date || 'today';
 
-    // Parallel fetch: occupancy (active only), reservations, and slug cache
-    const [occData, resData] = await Promise.all([
+    // Parallel fetch: occupancy, reservations, deinstall flags, and slug cache
+    const [occData, resData, deinstallData] = await Promise.all([
       lookerQuery(token, 'tbldailyhomemetrics', occFields,
         { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0' },
         ['dimproperty.property_name'],
         5000),
       lookerQuery(token, 'dimreservation', resFields,
         { 'dimreservation.current_reservation_count': '>0' },
+        ['dimproperty.property_name'],
+        5000),
+      lookerQuery(token, 'tbldailyhomemetrics',
+        ['dimproperty.property_name', 'dimhome.deinstall_date', 'tbldailyhomemetrics.home_count'],
+        { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
         ['dimproperty.property_name'],
         5000),
       getSlugCache(),
@@ -203,6 +208,14 @@ exports.handler = async (event) => {
       resLookup[name].count += r.count || 0;
     }
 
+    // Build deinstall lookup — count deinstalls per property
+    const deinstallLookup = {};
+    for (const raw of deinstallData) {
+      const name = raw['dimproperty.property_name'];
+      if (!name) continue;
+      deinstallLookup[name] = (deinstallLookup[name] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
+    }
+
     // Build slug cache for admin links
     const cache = await getSlugCache();
 
@@ -211,11 +224,13 @@ exports.handler = async (event) => {
       const res = resLookup[r.property_name] || {};
       const slug = cache[r.property_name?.trim().toLowerCase()] || r.property_name?.toLowerCase().replace(/\s+/g, '-') || '';
       const status = computeStatus({ ...r, ...res });
+      const deinstalls = deinstallLookup[r.property_name] || 0;
       return {
         ...r,
         current_reservation_count: res.current_reservation_count || null,
         future_reservation_count: res.future_reservation_count || null,
         count: res.count || null,
+        deinstall_count: deinstalls,
         admin_url: `${ADMIN_BASE}/properties/${slug}`,
         ...status,
       };

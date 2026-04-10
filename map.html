@@ -427,6 +427,10 @@ body {
 .grid-table tbody tr:nth-child(4n+1):not(.expanded):not(:hover) { background: rgba(0,0,0,0.015); }
 
 .grid-prop { font-weight: 600; font-size: 0.78rem; }
+.deinstall-flag {
+  display: inline-block; margin-left: 4px; color: #DC2626; font-size: 0.55rem;
+  vertical-align: middle; opacity: 0.6; cursor: help;
+}
 .grid-partner { color: var(--silver); font-size: 0.68rem; }
 .grid-loc { color: var(--silver); font-size: 0.74rem; }
 
@@ -1831,7 +1835,7 @@ function gridRender() {
 
     html += `<tr class="${isExp ? 'expanded' : ''}" onclick="gridToggleExpand('${gEsc(r.property_name)}')">
       <td><span class="expand-chevron">&#9654;</span></td>
-      <td class="grid-prop">${gEsc(r.property_name)}</td>
+      <td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' with deinstall scheduled">&#9662;</span>' : ''}</td>
       <td class="grid-partner">${gEsc(r.partner_name)}</td>
       <td class="grid-loc">${gEsc(r.market_name)}</td>
       <td class="num">${gFmt(units)}</td>
