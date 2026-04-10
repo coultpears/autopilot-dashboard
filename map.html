@@ -2051,9 +2051,13 @@ function gridUpdateStats() {
   const units = d.reduce((s, r) => s + (r.home_count || 0), 0);
   const occRows = d.filter(r => r.occupancy != null);
   const avgOcc = occRows.length ? occRows.reduce((s, r) => s + r.occupancy, 0) / occRows.length : null;
+  const occupied = d.reduce((s, r) => s + (r.home_occupied_count || 0), 0);
+  const available = units - occupied;
   document.getElementById('grid-stats').innerHTML =
     `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
     `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
+    `<span><span class="grid-stat-val" style="color:var(--green)">${occupied.toLocaleString()}</span>Occupied</span>` +
+    `<span><span class="grid-stat-val" style="color:#D97706">${available.toLocaleString()}</span>Available</span>` +
     `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
 }
 
