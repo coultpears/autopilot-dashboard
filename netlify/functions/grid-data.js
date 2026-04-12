@@ -1,8 +1,8 @@
 // Netlify serverless function: Grid view data for AP dashboard
-// Fetches occupancy + reservation summary from Looker, aggregates to property level
+// Optimized: 1 auth + 3 parallel Looker queries, no Admin API calls
+// Edge-cached with stale-while-revalidate for instant subsequent loads
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
-const ADMIN_BASE = 'https://admin.hellolanding.com';
 
 async function getLookerToken() {
   const resp = await fetch(`${LOOKER_BASE}/api/4.0/login`, {
@@ -11,11 +11,10 @@ async function getLookerToken() {
     body: `client_id=${process.env.LANDING_CLIENT_ID}&client_secret=${process.env.LANDING_CLIENT_SECRET}`,
   });
   if (!resp.ok) throw new Error(`Looker auth failed: ${resp.status}`);
-  const data = await resp.json();
-  return data.access_token;
+  return (await resp.json()).access_token;
 }
 
-async function lookerQuery(token, view, fields, filters, sorts, limit = 50000) {
+async function lookerQuery(token, view, fields, filters, sorts, limit = 5000) {
   const body = { model: 'landing', view, fields, limit: String(limit) };
   if (filters) body.filters = filters;
   if (sorts) body.sorts = sorts;
@@ -24,18 +23,13 @@ async function lookerQuery(token, view, fields, filters, sorts, limit = 50000) {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`Looker query failed: ${resp.status} ${await resp.text().catch(() => '')}`);
+  if (!resp.ok) throw new Error(`Looker query failed (${view}): ${resp.status}`);
   return resp.json();
 }
 
-function cleanKey(k) { return k.includes('.') ? k.split('.').pop() : k; }
-
 function cleanRow(row) {
   const out = {};
-  for (const [k, v] of Object.entries(row)) {
-    out[cleanKey(k)] = v;
-  }
-  // Resolve partner: management company first, then direct partner
+  for (const [k, v] of Object.entries(row)) out[k.includes('.') ? k.split('.').pop() : k] = v;
   const mgmt = (out.property_management_company || '').trim();
   const dp = (out.dp_full_name || '').trim();
   out.partner_name = mgmt || dp || null;
@@ -44,7 +38,7 @@ function cleanRow(row) {
   return out;
 }
 
-// Aggregate rows to one per property_name (keep first partner_name + market_name seen)
+// Aggregate to one row per property_name
 function aggregate(rows) {
   const groups = {};
   for (const r of rows) {
@@ -54,11 +48,9 @@ function aggregate(rows) {
     } else {
       const g = groups[key];
       g._count++;
-      // Sum
       for (const f of ['home_count', 'home_occupied_count', 'active_property_count', 'home_daily_rent_revenue', 'home_daily_rent_cost_autopilot']) {
         if (r[f] != null) g[f] = (g[f] || 0) + r[f];
       }
-      // Average
       for (const f of ['all_in_revpah_net', 'markup', 'home_average_rent_cost']) {
         if (r[f] != null) {
           g[`_sum_${f}`] = (g[`_sum_${f}`] || g[f] || 0) + r[f];
@@ -67,21 +59,13 @@ function aggregate(rows) {
       }
     }
   }
-
   const results = [];
   for (const g of Object.values(groups)) {
-    // Finalize averages
     for (const f of ['all_in_revpah_net', 'markup', 'home_average_rent_cost']) {
-      if (g[`_sum_${f}`] != null) {
-        g[f] = g[`_sum_${f}`] / g[`_cnt_${f}`];
-      }
-      delete g[`_sum_${f}`];
-      delete g[`_cnt_${f}`];
+      if (g[`_sum_${f}`] != null) g[f] = g[`_sum_${f}`] / g[`_cnt_${f}`];
+      delete g[`_sum_${f}`]; delete g[`_cnt_${f}`];
     }
-    // Recalculate occupancy
-    if (g.home_count > 0) {
-      g.occupancy = g.home_occupied_count / g.home_count;
-    }
+    if (g.home_count > 0) g.occupancy = g.home_occupied_count / g.home_count;
     delete g._count;
     results.push(g);
   }
@@ -89,156 +73,94 @@ function aggregate(rows) {
 }
 
 function computeStatus(r) {
-  const occ = r.occupancy;
-  const units = r.home_count || 0;
-  const occupied = r.home_occupied_count || 0;
-  const active = r.active_property_count || 0;
-  const futureRes = r.future_reservation_count || 0;
-
+  const occ = r.occupancy, units = r.home_count || 0, occupied = r.home_occupied_count || 0;
+  const active = r.active_property_count || 0, futRes = r.future_reservation_count || 0;
   if (active < 1) return { status_label: 'Inactive', status_color: 'neutral' };
-  if (units > 0 && occupied === 0 && futureRes > 0) return { status_label: 'Pre-Launch', status_color: 'blue' };
-  if (units > 0 && occupied === 0 && futureRes === 0) return { status_label: 'Vacant', status_color: 'red' };
+  if (units > 0 && occupied === 0 && futRes > 0) return { status_label: 'Pre-Launch', status_color: 'blue' };
+  if (units > 0 && occupied === 0) return { status_label: 'Vacant', status_color: 'red' };
   if (occ != null && occ >= 0.85) return { status_label: 'Strong', status_color: 'green' };
   if (occ != null && occ >= 0.6) return { status_label: 'Moderate', status_color: 'amber' };
   if (occ != null && occ > 0) return { status_label: 'Low', status_color: 'red' };
-  if (occ != null && occ === 0) {
-    return futureRes > 0
-      ? { status_label: 'Pre-Launch', status_color: 'blue' }
-      : { status_label: 'Vacant', status_color: 'red' };
-  }
+  if (occ === 0) return futRes > 0 ? { status_label: 'Pre-Launch', status_color: 'blue' } : { status_label: 'Vacant', status_color: 'red' };
   return { status_label: 'Active', status_color: 'green' };
 }
 
-// Slug cache (lives for duration of function invocation — fine for serverless)
-let slugCache = null;
-async function getSlugCache() {
-  if (slugCache) return slugCache;
-  slugCache = {};
-  try {
-    const resp = await fetch(`${ADMIN_BASE}/api/v2/properties`, {
-      headers: {
-        'X-Client-Id': process.env.LANDING_CLIENT_ID,
-        'X-Client-Secret': process.env.LANDING_CLIENT_SECRET,
-      },
-    });
-    if (resp.ok) {
-      const props = await resp.json();
-      for (const p of props) {
-        slugCache[p.name.trim().toLowerCase()] = p.slug;
-      }
-    }
-  } catch (e) { console.warn('Slug cache failed:', e.message); }
-  return slugCache;
-}
-
-async function resolveSlug(name) {
-  const cache = await getSlugCache();
-  return cache[name.trim().toLowerCase()] || name.toLowerCase().replace(/\s+/g, '-');
-}
-
 exports.handler = async (event) => {
-  const clientId = process.env.LANDING_CLIENT_ID;
-  const clientSecret = process.env.LANDING_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'LANDING_CLIENT_ID/SECRET not configured' }) };
+  if (!process.env.LANDING_CLIENT_ID || !process.env.LANDING_CLIENT_SECRET) {
+    return { statusCode: 500, body: JSON.stringify({ error: 'Credentials not configured' }) };
   }
 
   try {
     const token = await getLookerToken();
-
-    const occFields = [
-      'dimproperty.property_name',
-      'dimproperty.property_management_company',
-      'dimdirectpartner.dp_full_name',
-      'dimmarket.market_name',
-      'tbldailyhomemetrics.home_count',
-      'tbldailyhomemetrics.home_occupied_count',
-      'tbldailyhomemetrics.occupancy',
-      'tbldailyhomemetrics.actionable_vacancy_pct',
-      'tbldailyhomemetrics.active_property_count',
-      'dimhome.home_average_rent_cost',
-      'tbldailyhomemetrics.home_daily_rent_revenue',
-      'tbldailyhomemetrics.home_daily_rent_cost_autopilot',
-      'tbldailyhomemetrics.all_in_revpah_net',
-      'tbldailyhomemetrics.markup',
-    ];
-
-    const resFields = [
-      'dimproperty.property_name',
-      'dimreservation.current_reservation_count',
-      'dimreservation.future_reservation_count',
-      'dimreservation.count',
-    ];
-
     const date = event.queryStringParameters?.date || 'today';
 
-    // Parallel fetch: occupancy, reservations, deinstall flags, and slug cache
+    // 3 Looker queries in parallel — no Admin API calls on this path
     const [occData, resData, deinstallData] = await Promise.all([
-      lookerQuery(token, 'tbldailyhomemetrics', occFields,
-        { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0' },
-        ['dimproperty.property_name'],
-        5000),
-      lookerQuery(token, 'dimreservation', resFields,
-        { 'dimreservation.current_reservation_count': '>0' },
-        ['dimproperty.property_name'],
-        5000),
-      lookerQuery(token, 'tbldailyhomemetrics',
-        ['dimproperty.property_name', 'dimhome.deinstall_date', 'tbldailyhomemetrics.home_count'],
-        { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
-        ['dimproperty.property_name'],
-        5000),
-      getSlugCache(),
+      lookerQuery(token, 'tbldailyhomemetrics', [
+        'dimproperty.property_name', 'dimproperty.property_management_company',
+        'dimdirectpartner.dp_full_name', 'dimmarket.market_name',
+        'tbldailyhomemetrics.home_count', 'tbldailyhomemetrics.home_occupied_count',
+        'tbldailyhomemetrics.occupancy', 'tbldailyhomemetrics.actionable_vacancy_pct',
+        'tbldailyhomemetrics.active_property_count', 'dimhome.home_average_rent_cost',
+        'tbldailyhomemetrics.home_daily_rent_revenue', 'tbldailyhomemetrics.home_daily_rent_cost_autopilot',
+        'tbldailyhomemetrics.all_in_revpah_net', 'tbldailyhomemetrics.markup',
+      ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0' },
+      ['dimproperty.property_name'], 5000),
+
+      lookerQuery(token, 'dimreservation', [
+        'dimproperty.property_name',
+        'dimreservation.current_reservation_count', 'dimreservation.future_reservation_count', 'dimreservation.count',
+      ], { 'dimreservation.current_reservation_count': '>0' },
+      ['dimproperty.property_name'], 5000),
+
+      lookerQuery(token, 'tbldailyhomemetrics', [
+        'dimproperty.property_name', 'dimhome.deinstall_date', 'tbldailyhomemetrics.home_count',
+      ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
+      ['dimproperty.property_name'], 5000),
     ]);
 
-    // Clean and aggregate occupancy
-    const occClean = occData.map(cleanRow);
-    const occAgg = aggregate(occClean);
+    // Aggregate occupancy
+    const occAgg = aggregate(occData.map(cleanRow));
 
-    // Clean reservation summary — build lookup by property_name
+    // Reservation lookup
     const resLookup = {};
     for (const raw of resData) {
-      const r = cleanRow(raw);
-      const name = r.property_name;
+      const name = raw['dimproperty.property_name'];
       if (!name) continue;
-      if (!resLookup[name]) {
-        resLookup[name] = { current_reservation_count: 0, future_reservation_count: 0, count: 0 };
-      }
-      resLookup[name].current_reservation_count += r.current_reservation_count || 0;
-      resLookup[name].future_reservation_count += r.future_reservation_count || 0;
-      resLookup[name].count += r.count || 0;
+      if (!resLookup[name]) resLookup[name] = { current_reservation_count: 0, future_reservation_count: 0, count: 0 };
+      resLookup[name].current_reservation_count += raw['dimreservation.current_reservation_count'] || 0;
+      resLookup[name].future_reservation_count += raw['dimreservation.future_reservation_count'] || 0;
+      resLookup[name].count += raw['dimreservation.count'] || 0;
     }
 
-    // Build deinstall lookup — count deinstalls per property
+    // Deinstall lookup
     const deinstallLookup = {};
     for (const raw of deinstallData) {
       const name = raw['dimproperty.property_name'];
-      if (!name) continue;
-      deinstallLookup[name] = (deinstallLookup[name] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
+      if (name) deinstallLookup[name] = (deinstallLookup[name] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
     }
 
-    // Build slug cache for admin links
-    const cache = await getSlugCache();
-
-    // Merge and enrich
+    // Merge
     const records = occAgg.map(r => {
       const res = resLookup[r.property_name] || {};
-      const slug = cache[r.property_name?.trim().toLowerCase()] || r.property_name?.toLowerCase().replace(/\s+/g, '-') || '';
       const status = computeStatus({ ...r, ...res });
-      const deinstalls = deinstallLookup[r.property_name] || 0;
       return {
         ...r,
         current_reservation_count: res.current_reservation_count || null,
         future_reservation_count: res.future_reservation_count || null,
         count: res.count || null,
-        deinstall_count: deinstalls,
-        admin_url: `${ADMIN_BASE}/properties/${slug}`,
+        deinstall_count: deinstallLookup[r.property_name] || 0,
         ...status,
       };
     });
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600, s-maxage=600' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=120, stale-while-revalidate=600',
+        'Netlify-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
+      },
       body: JSON.stringify(records),
     };
   } catch (err) {

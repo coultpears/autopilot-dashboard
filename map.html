@@ -1830,7 +1830,7 @@ function gridRender() {
     const occ = r.occupancy;
     const occW = occ != null ? Math.round(occ * 100) : 0;
     const isExp = gridExpandedProp === r.property_name;
-    const adminUrl = r.admin_url || '#';
+    const adminUrl = 'https://admin.hellolanding.com/properties/' + encodeURIComponent((r.property_name || '').toLowerCase().replace(/\s+/g, '-'));
     const units = r.home_count || 0;
     const occupied = r.home_occupied_count || 0;
     const vacant = units - occupied;
@@ -2061,8 +2061,10 @@ function gridUpdateStats() {
     `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
 }
 
+// Prefetch grid data immediately — will be ready by the time user clicks Grid
+loadGrid();
+
 if (_isLocal) {
-  // Local dev: default to grid, load map data in background
   switchMapGrid('grid');
   init().catch(() => {});
 } else {
