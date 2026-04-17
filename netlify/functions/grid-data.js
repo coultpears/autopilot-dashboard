@@ -1,17 +1,24 @@
 // Netlify serverless function: Grid view data for AP dashboard
-// Optimized: 1 auth + 3 parallel Looker queries, no Admin API calls
-// Edge-cached with stale-while-revalidate for instant subsequent loads
+// Optimized: cached Looker auth + 3 parallel queries, aggressive CDN caching
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 
+// Module-level token cache — survives across warm Lambda invocations (saves ~300ms)
+let _cachedToken = null;
+let _tokenExpiry = 0;
+
 async function getLookerToken() {
+  if (_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
   const resp = await fetch(`${LOOKER_BASE}/api/4.0/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `client_id=${process.env.LANDING_CLIENT_ID}&client_secret=${process.env.LANDING_CLIENT_SECRET}`,
   });
   if (!resp.ok) throw new Error(`Looker auth failed: ${resp.status}`);
-  return (await resp.json()).access_token;
+  const data = await resp.json();
+  _cachedToken = data.access_token;
+  _tokenExpiry = Date.now() + (data.expires_in ? (data.expires_in - 60) * 1000 : 3000000); // expire 1 min early
+  return _cachedToken;
 }
 
 async function lookerQuery(token, view, fields, filters, sorts, limit = 5000) {
@@ -32,6 +39,9 @@ function cleanRow(row) {
   for (const [k, v] of Object.entries(row)) out[k.includes('.') ? k.split('.').pop() : k] = v;
   const mgmt = (out.property_management_company || '').trim();
   const dp = (out.dp_full_name || '').trim();
+  out.pmc_name = mgmt || null;
+  out.dp_name = dp || null;
+  // partner_name kept for backward compat: PMC preferred, DP fallback
   out.partner_name = mgmt || dp || null;
   delete out.property_management_company;
   delete out.dp_full_name;
@@ -96,15 +106,15 @@ exports.handler = async (event) => {
 
     // 3 Looker queries in parallel — no Admin API calls on this path
     const [occData, resData, deinstallData] = await Promise.all([
+      // Main occupancy query: ONLY installed homes — gives accurate unit counts
       lookerQuery(token, 'tbldailyhomemetrics', [
         'dimproperty.property_name', 'dimproperty.property_management_company',
         'dimdirectpartner.dp_full_name', 'dimmarket.market_name',
         'tbldailyhomemetrics.home_count', 'tbldailyhomemetrics.home_occupied_count',
-        'tbldailyhomemetrics.occupancy', 'tbldailyhomemetrics.actionable_vacancy_pct',
         'tbldailyhomemetrics.active_property_count', 'dimhome.home_average_rent_cost',
         'tbldailyhomemetrics.home_daily_rent_revenue', 'tbldailyhomemetrics.home_daily_rent_cost_autopilot',
         'tbldailyhomemetrics.all_in_revpah_net', 'tbldailyhomemetrics.markup',
-      ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0' },
+      ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'tbldailyhomemetrics.home_is_installed': 'Yes' },
       ['dimproperty.property_name'], 5000),
 
       lookerQuery(token, 'dimreservation', [
@@ -113,8 +123,9 @@ exports.handler = async (event) => {
       ], { 'dimreservation.current_reservation_count': '>0' },
       ['dimproperty.property_name'], 5000),
 
+      // Deinstalled units specifically (for DI badge) — installed=No AND has deinstall_date
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name', 'dimhome.deinstall_date', 'tbldailyhomemetrics.home_count',
+        'dimproperty.property_name', 'tbldailyhomemetrics.home_count',
       ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
       ['dimproperty.property_name'], 5000),
     ]);
@@ -133,23 +144,28 @@ exports.handler = async (event) => {
       resLookup[name].count += raw['dimreservation.count'] || 0;
     }
 
-    // Deinstall lookup
+    // Deinstall lookup (for DI badge display only — unit counts already correct from installed-only query)
     const deinstallLookup = {};
     for (const raw of deinstallData) {
       const name = raw['dimproperty.property_name'];
       if (name) deinstallLookup[name] = (deinstallLookup[name] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
     }
 
-    // Merge
+    // Merge — home_count already reflects installed-only from the Looker query
     const records = occAgg.map(r => {
       const res = resLookup[r.property_name] || {};
+      const di = deinstallLookup[r.property_name] || 0;
+
+      // Recompute occupancy from installed counts
+      r.occupancy = r.home_count > 0 ? r.home_occupied_count / r.home_count : 0;
+
       const status = computeStatus({ ...r, ...res });
       return {
         ...r,
         current_reservation_count: res.current_reservation_count || null,
         future_reservation_count: res.future_reservation_count || null,
         count: res.count || null,
-        deinstall_count: deinstallLookup[r.property_name] || 0,
+        deinstall_count: di,
         ...status,
       };
     });
@@ -158,8 +174,8 @@ exports.handler = async (event) => {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=120, stale-while-revalidate=600',
-        'Netlify-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=1800',
+        'Netlify-CDN-Cache-Control': 'public, max-age=1800, stale-while-revalidate=7200',
       },
       body: JSON.stringify(records),
     };

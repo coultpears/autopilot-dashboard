@@ -131,8 +131,10 @@ exports.handler = async () => {
     async function fetchPitchesInRange(gteStr, lteStr) {
       // Search with stage filter — HubSpot IN operator requires filterGroups per stage
       // Instead, fetch from all pipeline deals with pitch date in range, then filter stages client-side
-      const gteMs = new Date(gteStr + 'T00:00:00-06:00').getTime(); // CT approx
-      const lteMs = new Date(lteStr + 'T23:59:59-05:00').getTime();
+      // HubSpot date-type properties are stored at 00:00 UTC, so filter against UTC midnight.
+      // Using a CT offset here pushes GTE to 06:00 UTC and silently drops deals whose pitch date == gteStr.
+      const gteMs = new Date(gteStr + 'T00:00:00Z').getTime();
+      const lteMs = new Date(lteStr + 'T23:59:59Z').getTime();
       const results = await searchDeals(token, [
         { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
         { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
@@ -217,8 +219,8 @@ exports.handler = async () => {
       const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
       const lastDay = new Date(year, month + 1, 0).getDate();
       const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
-      const gteMs = new Date(mStartStr + 'T00:00:00-06:00').getTime();
-      const lteMs = new Date(mEndStr + 'T23:59:59-05:00').getTime();
+      const gteMs = new Date(mStartStr + 'T00:00:00Z').getTime();
+      const lteMs = new Date(mEndStr + 'T23:59:59Z').getTime();
       const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

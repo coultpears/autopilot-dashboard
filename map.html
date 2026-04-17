@@ -17,17 +17,18 @@
   --navy-mid: #FFFFFF;
   --navy-light: #F1F3F7;
   --panel: rgba(255,255,255,0.92);
-  --blue: #2563EB;
-  --blue-dim: rgba(37,99,235,0.08);
-  --green: #059669;
-  --green-dim: rgba(5,150,105,0.08);
-  --orange: #EA580C;
-  --orange-dim: rgba(234,88,12,0.06);
-  --white: #1F2937;
-  --silver: #6B7280;
-  --muted: #9CA3AF;
+  --blue: #1A61D9;
+  --blue-dim: rgba(26,97,217,0.08);
+  --green: #08786C;
+  --green-dim: rgba(8,120,108,0.08);
+  --orange: #B95B00;
+  --orange-dim: rgba(185,91,0,0.06);
+  --red: #EE533D;
+  --white: #262626;
+  --silver: #7D7A78;
+  --muted: #A2A09B;
   --ghost: rgba(0,0,0,0.04);
-  --border: rgba(0,0,0,0.08);
+  --border: rgba(21,25,45,0.08);
   --radius: 12px;
 }
 
@@ -150,7 +151,8 @@ body {
 .type-partner { background: var(--blue-dim); color: var(--blue); }
 .type-market { background: rgba(124,58,237,0.1); color: #7C3AED; }
 .type-property { background: var(--green-dim); color: var(--green); }
-.type-target { background: rgba(220,38,38,0.08); color: #DC2626; }
+.type-target { background: rgba(238,83,61,0.08); color: #EE533D; }
+.type-location { background: rgba(185,91,0,0.08); color: #B95B00; }
 
 /* ─── DEINSTALL TOGGLE ─── */
 .overlay-toggle {
@@ -162,8 +164,8 @@ body {
   transition: all 0.15s; user-select: none;
 }
 .overlay-toggle:hover { color: var(--white); background: var(--ghost); }
-.overlay-toggle.active { color: #DC2626; }
-.overlay-toggle input { accent-color: #DC2626; cursor: pointer; margin: 0; }
+.overlay-toggle.active { color: #EE533D; }
+.overlay-toggle input { accent-color: #EE533D; cursor: pointer; margin: 0; }
 
 /* ─── TIME PERIOD PILLS ─── */
 .period-pills {
@@ -248,9 +250,9 @@ body {
   font-weight: 600; white-space: nowrap;
 }
 .detail-metric.units { background: var(--blue-dim); color: var(--blue); }
-.detail-metric.vacant { background: rgba(220,38,38,0.08); color: #DC2626; }
-.detail-metric.concession { background: rgba(217,119,6,0.08); color: #D97706; }
-.detail-metric.target-badge { background: rgba(220,38,38,0.08); color: #DC2626; }
+.detail-metric.vacant { background: rgba(220,38,38,0.08); color: #EE533D; }
+.detail-metric.concession { background: rgba(217,119,6,0.08); color: #B95B00; }
+.detail-metric.target-badge { background: rgba(220,38,38,0.08); color: #EE533D; }
 .detail-metric.lease-up { background: rgba(139,92,246,0.08); color: #8B5CF6; }
 .detail-close {
   position: absolute; top: 10px; right: 10px;
@@ -396,7 +398,7 @@ body {
 .grid-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
 .grid-table thead { position: sticky; top: 0; z-index: 10; }
 .grid-table th {
-  background: #EDEEF2; padding: 8px 12px; text-align: left;
+  background: #E7EFFB; padding: 8px 12px; text-align: left;
   font-family: 'Outfit', sans-serif; font-size: 0.62rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.6px; color: var(--silver);
   border-bottom: 2px solid var(--border); white-space: nowrap;
@@ -422,26 +424,27 @@ body {
 }
 .grid-table td.num { text-align: right; font-family: 'Outfit', sans-serif; font-weight: 600; letter-spacing: -0.3px; }
 .grid-table tbody tr { cursor: pointer; transition: background 0.08s; }
-.grid-table tbody tr:hover { background: rgba(37,99,235,0.05); }
-.grid-table tbody tr.expanded { background: rgba(37,99,235,0.06); }
-.grid-table tbody tr:nth-child(4n+1):not(.expanded):not(:hover) { background: rgba(0,0,0,0.015); }
+.grid-table tbody tr:hover { background: rgba(26,97,217,0.05); }
+.grid-table tbody tr.expanded { background: rgba(26,97,217,0.06); font-weight: 500; }
+.grid-table tbody tr:nth-child(even):not(.expanded):not(:hover) { background: rgba(0,0,0,0.018); }
 
-.grid-prop { font-weight: 600; font-size: 0.78rem; }
+.grid-prop { font-weight: 700; font-size: 0.78rem; letter-spacing: -0.2px; }
 .deinstall-flag {
   display: inline-flex; align-items: center; gap: 2px;
   margin-left: 6px; padding: 2px 6px; border-radius: 4px;
-  background: rgba(220,38,38,0.1); color: #DC2626;
-  font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 700;
+  background: rgba(238,83,61,0.08); color: #EE533D;
+  font-family: 'Outfit', sans-serif; font-size: 0.58rem; font-weight: 700;
   letter-spacing: 0.3px; vertical-align: middle; cursor: help;
-  border: 1px solid rgba(220,38,38,0.15);
+  border: 1px solid rgba(238,83,61,0.12);
 }
-.grid-partner { color: var(--silver); font-size: 0.68rem; }
-.grid-loc { color: var(--silver); font-size: 0.74rem; }
+.grid-partner { color: var(--silver); font-size: 0.7rem; }
+.grid-partner-sub { color: var(--muted); font-size: 0.62rem; margin-top: 1px; font-style: italic; }
+.grid-loc { color: var(--silver); font-size: 0.74rem; font-weight: 500; }
 
 /* ─── Occupancy Bar ─── */
 .occ-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .occ-bar {
-  display: block; width: 60px; height: 8px; background: #D1D5DB; border-radius: 99px;
+  display: block; width: 60px; height: 8px; background: #E5E5E3; border-radius: 99px;
   overflow: hidden; flex-shrink: 0; position: relative;
 }
 .occ-fill { display: block; height: 100%; border-radius: 99px; position: absolute; top: 0; left: 0; }
@@ -455,8 +458,8 @@ body {
   letter-spacing: 0.3px; white-space: nowrap;
 }
 .status-active { background: var(--green-dim); color: var(--green); }
-.status-red { background: rgba(220,38,38,0.08); color: #DC2626; }
-.status-amber { background: rgba(217,119,6,0.08); color: #D97706; }
+.status-red { background: rgba(238,83,61,0.08); color: #EE533D; }
+.status-amber { background: rgba(185,91,0,0.08); color: #B95B00; }
 .status-blue { background: var(--blue-dim); color: var(--blue); }
 .status-inactive { background: rgba(0,0,0,0.04); color: var(--muted); }
 
@@ -473,17 +476,17 @@ body {
 
 /* ─── Unit Status Dots ─── */
 .unit-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-.unit-dot-green { background: var(--green); box-shadow: 0 0 6px rgba(5,150,105,0.35); }
-.unit-dot-amber { background: #D97706; box-shadow: 0 0 6px rgba(217,119,6,0.35); }
-.unit-dot-blue { background: var(--blue); box-shadow: 0 0 6px rgba(37,99,235,0.35); }
-.unit-dot-red { background: #DC2626; box-shadow: 0 0 6px rgba(220,38,38,0.35); }
+.unit-dot-green { background: var(--green); box-shadow: 0 0 6px rgba(8,120,108,0.35); }
+.unit-dot-amber { background: #B95B00; box-shadow: 0 0 6px rgba(185,91,0,0.35); }
+.unit-dot-blue { background: var(--blue); box-shadow: 0 0 6px rgba(26,97,217,0.35); }
+.unit-dot-red { background: #EE533D; box-shadow: 0 0 6px rgba(238,83,61,0.35); }
 
 /* ─── Detail Badges ─── */
-.gd-badge-curr { background: var(--green-dim); color: var(--green); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
-.gd-badge-future { background: rgba(37,99,235,0.08); color: var(--blue); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
-.gd-badge-vacant { background: rgba(220,38,38,0.08); color: #DC2626; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
-.gd-badge-standby { background: rgba(139,92,246,0.08); color: #8B5CF6; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
-.gd-badge-other { background: rgba(0,0,0,0.04); color: var(--silver); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; }
+.gd-badge-curr { background: var(--green-dim); color: var(--green); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
+.gd-badge-future { background: var(--blue-dim); color: var(--blue); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
+.gd-badge-vacant { background: rgba(238,83,61,0.08); color: #EE533D; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
+.gd-badge-standby { background: rgba(139,92,246,0.08); color: #8B5CF6; padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
+.gd-badge-other { background: rgba(0,0,0,0.04); color: var(--silver); padding: 2px 8px; border-radius: 5px; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
 
 /* ─── Admin Link ─── */
 .admin-link {
@@ -500,9 +503,9 @@ body {
 tr.expanded .expand-chevron { transform: rotate(90deg); color: var(--blue); }
 
 /* ─── EXPANDED DETAIL ─── */
-.grid-detail-cell { padding: 0 !important; background: #F3F4F8; border-bottom: 2px solid var(--border) !important; }
+.grid-detail-cell { padding: 0 !important; background: #F5F7FA; border-bottom: 2px solid var(--border) !important; border-left: 3px solid var(--blue); }
 .grid-detail {
-  padding: 16px 24px 20px; animation: gridSlideDown 0.2s ease;
+  padding: 14px 24px 18px; animation: gridSlideDown 0.15s ease;
 }
 @keyframes gridSlideDown {
   from { opacity: 0; transform: translateY(-6px); }
@@ -521,21 +524,21 @@ tr.expanded .expand-chevron { transform: rotate(90deg); color: var(--blue); }
 .gd-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
 .gd-tab:hover:not(.active) { color: var(--white); }
 
-.gd-subtable { width: 100%; border-collapse: collapse; font-size: 0.72rem; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.gd-subtable { width: 100%; border-collapse: collapse; font-size: 0.7rem; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
 .gd-subtable th {
   text-align: left; padding: 7px 12px;
   font-family: 'Outfit', sans-serif; font-size: 0.58rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.5px; color: var(--silver);
-  background: #F8F9FB; border-bottom: 2px solid var(--border);
+  background: #E7EFFB; border-bottom: 2px solid var(--border);
 }
 .gd-subtable td {
   padding: 7px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); color: #4B5563;
 }
-.gd-subtable tr:hover { background: rgba(37,99,235,0.03); }
+.gd-subtable tbody tr:hover { background: rgba(26,97,217,0.04); }
 .gd-subtable th.num, .gd-subtable td.num { text-align: right; }
 .gd-unit { font-weight: 700; color: var(--white); font-family: 'Outfit', sans-serif; }
 .gd-yes { color: var(--green); font-weight: 600; }
-.gd-no { color: #DC2626; font-weight: 600; }
+.gd-no { color: #EE533D; font-weight: 600; }
 .gd-empty { text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem; }
 .gd-loading { text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem; }
 </style>
@@ -717,8 +720,8 @@ const LOOKER_MARKET_MAP = {
 
 // ─── STATUS COLORS ───
 const STATUS_COLORS = {
-  green: '#059669', amber: '#D97706', red: '#DC2626',
-  blue: '#2563EB', neutral: '#9CA3AF'
+  green: '#08786C', amber: '#B95B00', red: '#EE533D',
+  blue: '#1A61D9', neutral: '#A2A09B'
 };
 
 // ─── STATE ───
@@ -837,14 +840,14 @@ function updateLegend(view) {
   } else if (view === 'markets') {
     el.innerHTML = `
       <div class="legend-title">Market Occupancy</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#059669"></div>High (&gt;85%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#D97706"></div>Moderate (60-85%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div>Low (&lt;60%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#08786C"></div>High (&gt;85%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#B95B00"></div>Moderate (60-85%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EE533D"></div>Low (&lt;60%)</div>
       <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
   } else if (view === 'targets') {
     el.innerHTML = `
       <div class="legend-title">Target Signals</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div>Vacancy + concessions</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EE533D"></div>Vacancy + concessions</div>
       <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>Vacancy or concessions</div>
       <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div>Lease-up signal</div>
       <div class="legend-item"><div class="legend-dot" style="background:#9CA3AF"></div>No enrichment yet</div>
@@ -886,7 +889,7 @@ function onSearch(q) {
   activeGridData().forEach(d => {
     const key = 'prop:' + d.property_name + ':' + d.market_name;
     if (seen.has(key)) return;
-    const hay = [d.property_name, d.partner_name, d.market_name].join(' ').toLowerCase();
+    const hay = [d.property_name, d.partner_name, d.pmc_name, d.dp_name, d.market_name].filter(Boolean).join(' ').toLowerCase();
     if (hay.includes(q) || q.split(/\s+/).filter(Boolean).every(t => hay.includes(t))) {
       seen.add(key);
       results.push({ id: key, name: d.property_name, type: 'property', meta: `${d.partner_name} · ${d.market_name} · ${d.home_count || 0}u`, sort: d.home_count || 0 });
@@ -902,16 +905,59 @@ function onSearch(q) {
 
   results.sort((a, b) => b.sort - a.sort);
   const top = results.slice(0, 15);
-  if (!top.length) { el.classList.remove('open'); return; }
 
+  // Show local results immediately, then async geocode if few matches
   window._searchResults = top;
-  el.innerHTML = top.map((r, i) => `
-    <div class="search-result" onmousedown="selectSearchIdx(${i})">
-      <div class="search-result-name">${r.name}<span class="search-result-type type-${r.type}">${r.type}</span></div>
-      <div class="search-result-meta">${r.meta}</div>
-    </div>
-  `).join('');
-  el.classList.add('open');
+  if (top.length) {
+    el.innerHTML = top.map((r, i) => `
+      <div class="search-result" onmousedown="selectSearchIdx(${i})">
+        <div class="search-result-name">${r.name}<span class="search-result-type type-${r.type}">${r.type}</span></div>
+        <div class="search-result-meta">${r.meta}</div>
+      </div>
+    `).join('');
+    el.classList.add('open');
+  }
+
+  // Geocode address search if query looks like an address (3+ chars, few local results)
+  if (q.length >= 4 && top.length < 5) {
+    _geoSearch(q, el, top);
+  } else if (!top.length) {
+    el.classList.remove('open');
+  }
+}
+
+// Debounced geocoding via Nominatim (OpenStreetMap) — free, no API key
+let _geoTimer = null;
+function _geoSearch(q, el, existing) {
+  clearTimeout(_geoTimer);
+  _geoTimer = setTimeout(async () => {
+    try {
+      const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=3&q=' + encodeURIComponent(q), {
+        headers: { 'User-Agent': 'LandingAPDashboard/1.0' }
+      });
+      if (!resp.ok) return;
+      const places = await resp.json();
+      const geoResults = places.map(p => ({
+        id: 'geo:' + p.place_id,
+        name: p.display_name.split(',').slice(0, 3).join(','),
+        type: 'location',
+        meta: 'Go to this location on map',
+        sort: -1,
+        lat: parseFloat(p.lat),
+        lng: parseFloat(p.lon)
+      }));
+      if (!geoResults.length) return;
+      const combined = [...existing, ...geoResults];
+      window._searchResults = combined;
+      el.innerHTML = combined.map((r, i) => `
+        <div class="search-result" onmousedown="selectSearchIdx(${i})">
+          <div class="search-result-name">${r.name}<span class="search-result-type type-${r.type}">${r.type}</span></div>
+          <div class="search-result-meta">${r.meta}</div>
+        </div>
+      `).join('');
+      el.classList.add('open');
+    } catch (e) { /* geocode failed, ignore */ }
+  }, 350);
 }
 
 function closeSearch() { document.getElementById('search-results').classList.remove('open'); }
@@ -939,6 +985,10 @@ function selectSearchIdx(idx) {
     if (!d?.coords) return;
     map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
     showHighlightPin(d.coords, targetTooltipContent(d));
+  } else if (r.type === 'location') {
+    // Geocoded address — fly to coordinates
+    map.setView([r.lat, r.lng], 14, { animate: true });
+    showHighlightPin({ lat: r.lat, lng: r.lng }, `<div style="font-family:Outfit,sans-serif;font-size:0.75rem;font-weight:600">${r.name}</div>`);
   } else {
     // Property
     setView('portfolio', true);
@@ -953,7 +1003,7 @@ function selectSearchIdx(idx) {
 
 function showHighlightPin(coords, tooltipContent) {
   const highlight = L.circleMarker([coords.lat, coords.lng], {
-    radius: 16, fillColor: '#2563EB', color: '#fff', weight: 3, fillOpacity: 0.9
+    radius: 16, fillColor: '#1A61D9', color: '#fff', weight: 3, fillOpacity: 0.9
   });
   highlight.addTo(map);
   markers.push(highlight);
@@ -980,7 +1030,7 @@ function zoomToPin(key) {
   setTimeout(() => {
     const origRadius = pin.getRadius();
     pin.setRadius(origRadius + 6);
-    pin.setStyle({ weight: 3, color: '#2563EB' });
+    pin.setStyle({ weight: 3, color: '#1A61D9' });
     pin.openTooltip();
     _activeHighlight = { pin, r: origRadius };
   }, 300);
@@ -991,8 +1041,8 @@ function propertyTooltip(d) {
   const occ = d.occupancy != null ? (d.occupancy * 100).toFixed(0) : null;
   const occBar = occ != null
     ? `<div style="margin:4px 0;display:flex;align-items:center;gap:6px">
-        <div style="flex:1;height:6px;background:#D1D5DB;border-radius:3px;overflow:hidden"><div style="width:${occ}%;height:100%;background:${d.occupancy >= 0.85 ? '#059669' : d.occupancy >= 0.6 ? '#D97706' : '#DC2626'};border-radius:3px"></div></div>
-        <span style="font-weight:700;font-size:0.72rem;color:${d.occupancy >= 0.85 ? '#059669' : d.occupancy >= 0.6 ? '#D97706' : '#DC2626'}">${occ}%</span>
+        <div style="flex:1;height:6px;background:#E5E5E3;border-radius:3px;overflow:hidden"><div style="width:${occ}%;height:100%;background:${d.occupancy >= 0.85 ? '#08786C' : d.occupancy >= 0.6 ? '#B95B00' : '#EE533D'};border-radius:3px"></div></div>
+        <span style="font-weight:700;font-size:0.72rem;color:${d.occupancy >= 0.85 ? '#08786C' : d.occupancy >= 0.6 ? '#B95B00' : '#EE533D'}">${occ}%</span>
       </div>`
     : '';
   const statusColor = STATUS_COLORS[d.status_color] || STATUS_COLORS.neutral;
@@ -1000,7 +1050,7 @@ function propertyTooltip(d) {
     ? `<span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:0.65rem;font-weight:700;background:${statusColor}20;color:${statusColor}">${d.status_label}</span>`
     : '';
   const rev = d.home_daily_rent_revenue != null ? '$' + Math.round(d.home_daily_rent_revenue).toLocaleString() : '--';
-  const deinstallFlag = d.deinstall_count > 0 ? `<div style="margin-top:4px;color:#DC2626;font-size:0.72rem;font-weight:600">${d.deinstall_count} unit${d.deinstall_count > 1 ? 's' : ''} deinstalling</div>` : '';
+  const deinstallFlag = d.deinstall_count > 0 ? `<div style="margin-top:4px;color:#EE533D;font-size:0.72rem;font-weight:600">${d.deinstall_count} unit${d.deinstall_count > 1 ? 's' : ''} deinstalling</div>` : '';
 
   return `<div class="tt-name">${d.property_name}</div>
     <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner_name}</span></div>
@@ -1020,16 +1070,16 @@ function marketTooltipContent(name, data) {
   return `<div class="tt-name">${name}</div>
     <div class="tt-row"><span class="tt-dim">Properties</span><span class="tt-val">${data.props.length}</span></div>
     <div class="tt-row"><span class="tt-dim">Units</span><span class="tt-val">${fmt(data.units)}</span></div>
-    <div class="tt-row"><span class="tt-dim">Occupancy</span><span class="tt-val" style="color:${avgOcc >= 0.85 ? '#059669' : avgOcc >= 0.6 ? '#D97706' : '#DC2626'}">${occPct}%</span></div>
+    <div class="tt-row"><span class="tt-dim">Occupancy</span><span class="tt-val" style="color:${avgOcc >= 0.85 ? '#08786C' : avgOcc >= 0.6 ? '#B95B00' : '#EE533D'}">${occPct}%</span></div>
     <div class="tt-row"><span class="tt-dim">Daily Revenue</span><span class="tt-val" style="color:var(--green)">$${fmt(Math.round(data.revenue))}</span></div>`;
 }
 
 function targetTooltipContent(d) {
   const signals = [];
-  if (d.vacant) signals.push(`<span style="color:#DC2626;font-weight:600">${d.vacant} vacant</span>`);
+  if (d.vacant) signals.push(`<span style="color:#EE533D;font-weight:600">${d.vacant} vacant</span>`);
   if (d.available) signals.push(`${d.available} total units`);
   if (d.vacancy) signals.push(`${d.vacancy}% vacancy`);
-  if (d.concessions) signals.push(`<span style="color:#D97706">${d.concessions.slice(0, 80)}</span>`);
+  if (d.concessions) signals.push(`<span style="color:#B95B00">${d.concessions.slice(0, 80)}</span>`);
   if (d.leaseUp) signals.push(`<span style="color:#8B5CF6;font-weight:600">Lease-up signal</span>`);
   return `<div class="tt-name">${d.name}</div>
     <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner}</span></div>
@@ -1141,12 +1191,14 @@ function renderPropertyDetailUnits(el, units) {
     if (installed && hasRes) { statusDot = 'unit-dot-green'; statusLabel = 'Occupied'; }
     else if (installed && !hasRes) { statusDot = 'unit-dot-amber'; statusLabel = 'Available'; }
     else if (!installed && u.deinstall_date) { statusDot = 'unit-dot-red'; statusLabel = 'Deinstalled'; }
-    else { statusDot = 'unit-dot-blue'; statusLabel = 'Not Installed'; }
+    else { statusDot = 'unit-dot-blue'; statusLabel = 'Unactivated'; }
 
     const rev = u.home_daily_rent_revenue != null ? '$' + Number(u.home_daily_rent_revenue).toFixed(0) : '--';
     const deinstallHtml = u.deinstall_date
-      ? `<span style="color:#DC2626;font-size:0.62rem;font-weight:600">DI ${u.deinstall_date}</span>`
-      : '';
+      ? `<span style="color:#EE533D;font-size:0.62rem;font-weight:600">DI ${u.deinstall_date}</span>`
+      : (u.expected_deinstall_date && !installed)
+        ? `<span style="color:#B95B00;font-size:0.62rem">${u.expected_deinstall_date} (exp)</span>`
+        : '';
 
     html += `<div class="detail-row" style="cursor:default">
       <div class="detail-row-info">
@@ -1341,7 +1393,7 @@ function renderPortfolio() {
     <div class="bb-stat"><div class="bb-val">${fmt(data.length)}</div><div class="bb-label">Properties</div></div>
     <div class="bb-stat"><div class="bb-val">${fmt(units)}</div><div class="bb-label">Units</div></div>
     <div class="bb-stat"><div class="bb-val" style="color:var(--green)">${fmt(occupied)}</div><div class="bb-label">Occupied</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#D97706">${fmt(available)}</div><div class="bb-label">Available</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#B95B00">${fmt(available)}</div><div class="bb-label">Available</div></div>
     <div class="bb-stat"><div class="bb-val">${avgOcc != null ? pct(avgOcc) : '--'}</div><div class="bb-label">Avg Occ</div></div>
   `;
 }
@@ -1359,11 +1411,11 @@ function renderMarkets() {
     // Color by average occupancy
     let fillColor, strokeColor, glowColor;
     if (avgOcc >= 0.85) {
-      fillColor = '#059669'; strokeColor = 'rgba(5,150,105,0.5)'; glowColor = 'rgba(5,150,105,0.12)';
+      fillColor = '#08786C'; strokeColor = 'rgba(8,120,108,0.5)'; glowColor = 'rgba(8,120,108,0.12)';
     } else if (avgOcc >= 0.6) {
-      fillColor = '#D97706'; strokeColor = 'rgba(217,119,6,0.5)'; glowColor = 'rgba(217,119,6,0.12)';
+      fillColor = '#B95B00'; strokeColor = 'rgba(217,119,6,0.5)'; glowColor = 'rgba(217,119,6,0.12)';
     } else {
-      fillColor = '#DC2626'; strokeColor = 'rgba(220,38,38,0.5)'; glowColor = 'rgba(220,38,38,0.12)';
+      fillColor = '#EE533D'; strokeColor = 'rgba(220,38,38,0.5)'; glowColor = 'rgba(220,38,38,0.12)';
     }
 
     // Glow ring
@@ -1425,7 +1477,7 @@ function renderTargets() {
     const hasVacancy = d.vacant > 0 || d.vacancy > 0;
     const hasConcessions = !!d.concessions;
     let color = '#9CA3AF';
-    if (hasVacancy && hasConcessions) color = '#DC2626';
+    if (hasVacancy && hasConcessions) color = '#EE533D';
     else if (hasVacancy || hasConcessions) color = '#F59E0B';
     else if (d.leaseUp) color = '#8B5CF6';
 
@@ -1447,9 +1499,9 @@ function renderTargets() {
   document.getElementById('bottom-bar').innerHTML = `
     <div class="bb-stat"><div class="bb-val">${fmt(totalTargets)}</div><div class="bb-label">Targets</div></div>
     <div class="bb-stat"><div class="bb-val">${fmt(targetMarkets)}</div><div class="bb-label">Markets</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#DC2626">${hotTargets}</div><div class="bb-label">Hot (Vac + Conc)</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#EE533D">${hotTargets}</div><div class="bb-label">Hot (Vac + Conc)</div></div>
     <div class="bb-stat"><div class="bb-val" style="color:#F59E0B">${withVacancy}</div><div class="bb-label">Vacancy Signal</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#D97706">${withConcessions}</div><div class="bb-label">Concessions</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#B95B00">${withConcessions}</div><div class="bb-label">Concessions</div></div>
   `;
 }
 
@@ -1482,16 +1534,16 @@ function renderDeinstallOverlay() {
     const sz = Math.max(6, Math.min(22, 4 + Math.sqrt(data.count) * 2.5));
 
     const ring = L.circleMarker([data.coords.lat, data.coords.lng], {
-      radius: sz + 4, fillColor: 'rgba(220,38,38,0.12)', color: '#DC2626',
+      radius: sz + 4, fillColor: 'rgba(220,38,38,0.12)', color: '#EE533D',
       weight: 2, fillOpacity: 0.4, dashArray: '4 3'
     });
 
     const topProps = data.properties.sort((a, b) => b.count - a.count).slice(0, 5)
-      .map(p => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${p.name}</span><span class="tt-val" style="font-size:0.72rem;color:#DC2626">${p.count}</span></div>`).join('');
+      .map(p => `<div class="tt-row"><span class="tt-dim" style="font-size:0.72rem">${p.name}</span><span class="tt-val" style="font-size:0.72rem;color:#EE533D">${p.count}</span></div>`).join('');
 
     ring.bindTooltip(`
-      <div class="tt-name" style="color:#DC2626">Deinstalls: ${mkt}</div>
-      <div class="tt-row"><span class="tt-dim">Units Deinstalling</span><span class="tt-val" style="color:#DC2626">${data.count}</span></div>
+      <div class="tt-name" style="color:#EE533D">Deinstalls: ${mkt}</div>
+      <div class="tt-row"><span class="tt-dim">Units Deinstalling</span><span class="tt-val" style="color:#EE533D">${data.count}</span></div>
       ${topProps ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px"><div style="font-size:0.65rem;color:var(--silver);font-weight:600;margin-bottom:2px">BY PROPERTY</div>' + topProps + '</div>' : ''}
     `, { direction: 'top', offset: [0, -sz - 4] });
 
@@ -1655,7 +1707,7 @@ function gridToggleActive() {
 function gridApplyFilters() {
   gridFiltered = gridData.filter(r => {
     if (gridActiveOnly && (!r.active_property_count || r.active_property_count < 1)) return false;
-    const hay = [r.property_name, r.partner_name, r.market_name].join(' ');
+    const hay = [r.property_name, r.partner_name, r.pmc_name, r.dp_name, r.market_name].filter(Boolean).join(' ');
     return gridFuzzy(hay, gridSearchTerm);
   });
   gridRender();
@@ -1694,8 +1746,8 @@ function gPct(v) { return v == null ? '--' : (v * 100).toFixed(1) + '%'; }
 function gOccColor(v) {
   if (v == null) return 'var(--muted)';
   if (v >= 0.85) return 'var(--green)';
-  if (v >= 0.6) return '#D97706';
-  return '#DC2626';
+  if (v >= 0.6) return '#B95B00';
+  return '#EE533D';
 }
 function gEsc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
@@ -1731,14 +1783,14 @@ function gridRender() {
     const currRes = r.current_reservation_count || 0;
     const futRes = r.future_reservation_count || 0;
 
-    html += `<tr class="${isExp ? 'expanded' : ''}" onclick="gridToggleExpand('${gEsc(r.property_name)}')">
+    html += `<tr class="${isExp ? 'expanded' : ''}" data-prop="${gEsc(r.property_name)}" onclick="gridToggleExpand('${gEsc(r.property_name)}')" onmouseenter="gridPrefetch('${gEsc(r.property_name)}')">
       <td><span class="expand-chevron">&#9654;</span></td>
       <td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : ''}</td>
-      <td class="grid-partner">${gEsc(r.partner_name)}</td>
+      <td class="grid-partner">${gEsc(r.pmc_name || r.partner_name || '')}${r.dp_name && r.dp_name !== r.pmc_name ? '<div class="grid-partner-sub">' + gEsc(r.dp_name) + '</div>' : ''}</td>
       <td class="grid-loc">${gEsc(r.market_name)}</td>
       <td class="num">${gFmt(units)}</td>
       <td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>
-      <td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#DC2626' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>
+      <td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#EE533D' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>
       <td class="num"><span class="res-chip res-curr">${currRes} <span class="res-label">now</span></span><span class="res-chip res-fut">${futRes} <span class="res-label">upcoming</span></span></td>
       <td class="num">${r.home_average_rent_cost != null ? '$' + Math.round(r.home_average_rent_cost).toLocaleString() : '--'}</td>
       <td class="num" style="color:var(--green);font-weight:700">${r.home_daily_rent_revenue != null ? '$' + Math.round(r.home_daily_rent_revenue).toLocaleString() : '--'}</td>
@@ -1748,33 +1800,73 @@ function gridRender() {
       <td><a href="${gEsc(adminUrl)}" target="_blank" class="admin-link" onclick="event.stopPropagation()">&#8599;</a></td>
     </tr>`;
 
-    if (isExp) {
-      html += `<tr><td colspan="14" class="grid-detail-cell"><div class="grid-detail">
-        <div class="grid-detail-tabs">
-          <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','units',this)">Units &amp; Status</button>
-          <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','reservations',this)">Reservations</button>
-        </div>
-        <div id="grid-detail-content" class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>
-      </div></td></tr>`;
-    }
   });
   tbody.innerHTML = html;
-  if (gridExpandedProp) gridLoadUnits(gridExpandedProp);
+  // If a property was expanded, re-inject the detail row via targeted DOM
+  if (gridExpandedProp) gridToggleExpand(gridExpandedProp);
 }
 
 function gridToggleExpand(name) {
-  gridExpandedProp = gridExpandedProp === name ? null : name;
-  gridRender();
+  const tbody = document.getElementById('grid-body');
+  const prev = gridExpandedProp;
+  gridExpandedProp = prev === name ? null : name;
+
+  // Targeted DOM: remove old detail row + un-expand old row
+  if (prev) {
+    const oldDetail = document.getElementById('grid-detail-row');
+    if (oldDetail) oldDetail.remove();
+    // Remove 'expanded' class from old row
+    for (const tr of tbody.querySelectorAll('tr.expanded')) tr.classList.remove('expanded');
+  }
+
+  if (gridExpandedProp) {
+    // Find the clicked row and insert detail after it
+    const rows = tbody.querySelectorAll('tr');
+    for (const tr of rows) {
+      if (tr.getAttribute('data-prop') === gridExpandedProp) {
+        tr.classList.add('expanded');
+        const r = gridFiltered.find(d => d.property_name === gridExpandedProp);
+        if (!r) break;
+        const detailTr = document.createElement('tr');
+        detailTr.id = 'grid-detail-row';
+        detailTr.innerHTML = `<td colspan="14" class="grid-detail-cell"><div class="grid-detail">
+          <div class="grid-detail-tabs">
+            <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','units',this)">Units &amp; Status</button>
+            <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','reservations',this)">Reservations</button>
+          </div>
+          <div id="grid-detail-content" class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>
+        </div></td>`;
+        tr.after(detailTr);
+        gridLoadUnits(gridExpandedProp);
+        break;
+      }
+    }
+  }
 }
 
-// Fetch both units + reservations in one call, cache result
+// Fetch both units + reservations in one call, cache with 10-min TTL
+const DETAIL_TTL = 600000; // 10 minutes
 async function fetchPropertyDetail(name) {
-  if (_detailCache[name]) return _detailCache[name];
+  const cached = _detailCache[name];
+  if (cached && (Date.now() - cached._ts) < DETAIL_TTL) return cached;
   const resp = await fetch(GRID_API + '/property-detail?name=' + encodeURIComponent(name));
   if (!resp.ok) throw new Error('API returned ' + resp.status);
   const data = await resp.json();
+  data._ts = Date.now();
   _detailCache[name] = data;
   return data;
+}
+
+// Prefetch on hover — cache-warms so click is instant
+let _prefetchTimer = null;
+function gridPrefetch(name) {
+  clearTimeout(_prefetchTimer);
+  _prefetchTimer = setTimeout(() => {
+    const cached = _detailCache[name];
+    if (!cached || (Date.now() - cached._ts) >= DETAIL_TTL) {
+      fetchPropertyDetail(name).catch(() => {}); // fire-and-forget
+    }
+  }, 150);
 }
 
 async function gridDetailTab(name, tab, btn) {
@@ -1783,10 +1875,11 @@ async function gridDetailTab(name, tab, btn) {
   const el = document.getElementById('grid-detail-content');
   if (!el) return;
 
-  // If cached, render instantly
-  if (_detailCache[name]) {
-    if (tab === 'units') renderUnitTable(el, _detailCache[name].units);
-    else renderResTable(el, _detailCache[name].reservations);
+  // If cached and fresh, render instantly
+  const cached = _detailCache[name];
+  if (cached && (Date.now() - cached._ts) < DETAIL_TTL) {
+    if (tab === 'units') renderUnitTable(el, cached.units);
+    else renderResTable(el, cached.reservations, cached.units);
     return;
   }
 
@@ -1795,7 +1888,7 @@ async function gridDetailTab(name, tab, btn) {
   try {
     const data = await fetchPropertyDetail(name);
     if (tab === 'units') renderUnitTable(el, data.units);
-    else renderResTable(el, data.reservations);
+    else renderResTable(el, data.reservations, data.units);
   } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
@@ -1803,7 +1896,8 @@ async function gridLoadUnits(name) {
   const el = document.getElementById('grid-detail-content');
   if (!el) return;
 
-  if (_detailCache[name]) { renderUnitTable(el, _detailCache[name].units); return; }
+  const c = _detailCache[name];
+  if (c && (Date.now() - c._ts) < DETAIL_TTL) { renderUnitTable(el, c.units); return; }
 
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>';
   try {
@@ -1814,10 +1908,50 @@ async function gridLoadUnits(name) {
 
 function renderUnitTable(el, units) {
     if (!units.length) { el.innerHTML = '<div class="gd-empty">No unit data</div>'; return; }
-    let h = `<table class="gd-subtable"><thead><tr>
+
+    // Quick counts for summary bar
+    let cntOccupied = 0, cntAvailable = 0, cntDeinstalled = 0, cntNotInstalled = 0;
+    for (const u of units) {
+      const inst = u.home_is_installed === 'Yes';
+      const rs = (u.home_reservation_status || '').toLowerCase();
+      const hasRes = rs && !rs.includes('not reserved') && rs !== '';
+      if (inst && hasRes) cntOccupied++;
+      else if (inst && !hasRes) cntAvailable++;
+      else if (u.deinstall_date) cntDeinstalled++;
+      else cntNotInstalled++;
+    }
+    const activeUnits = cntOccupied + cntAvailable;
+
+    // Sort: occupied first, then available (by days vacant desc), then deinstalled, then not-installed
+    const sorted = [...units].sort((a, b) => {
+      function rank(u) {
+        const inst = u.home_is_installed === 'Yes';
+        const rs = (u.home_reservation_status || '').toLowerCase();
+        const hasRes = rs && !rs.includes('not reserved') && rs !== '';
+        if (inst && hasRes) return 0;   // occupied
+        if (inst && !hasRes) return 1;  // available
+        if (u.deinstall_date) return 3; // deinstalled
+        return 2;                       // unactivated
+      }
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      // Within available: sort by days vacant desc (worst first)
+      if (ra === 1) return (b.days_vacant_standard || 0) - (a.days_vacant_standard || 0);
+      // Otherwise sort by unit number
+      return String(a.unit_number || '').localeCompare(String(b.unit_number || ''), undefined, { numeric: true });
+    });
+
+    let h = `<div style="display:flex;gap:14px;margin-bottom:10px;font-family:Outfit,sans-serif;font-size:0.7rem;color:var(--silver)">
+      <span><b style="color:var(--white);font-weight:800">${activeUnits}</b> active</span>
+      <span><span class="unit-dot unit-dot-green"></span><b style="color:var(--green)">${cntOccupied}</b> occupied</span>
+      <span><span class="unit-dot unit-dot-amber"></span><b style="color:#B95B00">${cntAvailable}</b> available</span>
+      ${cntDeinstalled ? '<span><span class="unit-dot unit-dot-red"></span><b style="color:#EE533D">' + cntDeinstalled + '</b> deinstalled</span>' : ''}
+      ${cntNotInstalled ? '<span><span class="unit-dot unit-dot-blue"></span><b style="color:var(--blue)">' + cntNotInstalled + '</b> unactivated</span>' : ''}
+    </div>
+    <table class="gd-subtable"><thead><tr>
       <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th><th>Days Vacant</th><th class="num">Base Rent</th><th class="num">Landing Rent</th><th class="num">Markup</th><th class="num">Daily Rev</th><th>Deinstall</th>
     </tr></thead><tbody>`;
-    units.forEach(u => {
+    sorted.forEach(u => {
       // Status indicator — use installed + reservation status as the real signals
       const installed = u.home_is_installed === 'Yes';
       const resStatus = (u.home_reservation_status || '').toLowerCase();
@@ -1826,7 +1960,7 @@ function renderUnitTable(el, units) {
       if (installed && hasRes) { statusIcon = '<span class="unit-dot unit-dot-green" title="Installed & Occupied"></span>'; statusTip = 'Occupied'; }
       else if (installed && !hasRes) { statusIcon = '<span class="unit-dot unit-dot-amber" title="Installed, No Reservation"></span>'; statusTip = 'Available'; }
       else if (!installed && u.deinstall_date) { statusIcon = '<span class="unit-dot unit-dot-red" title="Deinstalled"></span>'; statusTip = 'Deinstalled'; }
-      else if (!installed) { statusIcon = '<span class="unit-dot unit-dot-blue" title="Not Installed"></span>'; statusTip = 'Not Installed'; }
+      else if (!installed) { statusIcon = '<span class="unit-dot unit-dot-blue" title="Never activated with Landing"></span>'; statusTip = 'Unactivated'; }
       else { statusIcon = '<span class="unit-dot unit-dot-red"></span>'; statusTip = 'Inactive'; }
 
       // Reservation status badge
@@ -1848,14 +1982,14 @@ function renderUnitTable(el, units) {
       const landingRent = hasLandingRent ? '$' + Number(u.landing_rent).toLocaleString() + estTag : '<span style="color:var(--muted);font-size:0.62rem">--</span>';
       const markupVal = u.computed_markup != null ? u.computed_markup : u.markup;
       const markupStr = markupVal != null ? (markupVal * 100).toFixed(1) + '%' + estTag : '--';
-      const markupColor = markupVal != null ? (markupVal > 0 ? 'var(--green)' : markupVal < 0 ? '#DC2626' : 'var(--muted)') : 'var(--muted)';
+      const markupColor = markupVal != null ? (markupVal > 0 ? 'var(--green)' : markupVal < 0 ? '#EE533D' : 'var(--muted)') : 'var(--muted)';
       const rev = u.home_daily_rent_revenue != null ? '$' + Number(u.home_daily_rent_revenue).toFixed(0) : '--';
 
       // Vacancy
       const daysVacant = u.days_vacant_standard;
       let vacantHtml = '<span style="color:var(--muted)">--</span>';
       if (daysVacant != null) {
-        const vc = daysVacant > 30 ? '#DC2626' : daysVacant > 14 ? '#D97706' : 'var(--green)';
+        const vc = daysVacant > 30 ? '#EE533D' : daysVacant > 14 ? '#B95B00' : 'var(--green)';
         vacantHtml = `<span style="color:${vc};font-weight:700">${daysVacant}d</span>`;
         if (u.vacant_since_date) vacantHtml += ` <span style="color:var(--muted);font-size:0.62rem">since ${gEsc(u.vacant_since_date)}</span>`;
       }
@@ -1866,13 +2000,13 @@ function renderUnitTable(el, units) {
         currRes = `${gEsc(u.current_reservation_start_date_raw_date)} &rarr; ${gEsc(u.current_reservation_end_raw_date || '?')}`;
       }
 
-      // Deinstall
+      // Deinstall — only show expected dates on non-installed units (stale expected dates on active units are noise)
       let deinstallHtml = '<span style="color:var(--muted)">--</span>';
       if (u.deinstall_date) {
-        deinstallHtml = `<span style="color:#DC2626;font-weight:600">${gEsc(u.deinstall_date)}</span>`;
+        deinstallHtml = `<span style="color:#EE533D;font-weight:600">${gEsc(u.deinstall_date)}</span>`;
         if (u.home_deinstall_reason) deinstallHtml += `<br><span style="color:var(--muted);font-size:0.6rem">${gEsc(u.home_deinstall_reason)}</span>`;
-      } else if (u.expected_deinstall_date) {
-        deinstallHtml = `<span style="color:#D97706">${gEsc(u.expected_deinstall_date)}</span> <span style="color:var(--muted);font-size:0.6rem">(expected)</span>`;
+      } else if (u.expected_deinstall_date && !installed) {
+        deinstallHtml = `<span style="color:#B95B00">${gEsc(u.expected_deinstall_date)}</span> <span style="color:var(--muted);font-size:0.6rem">(expected)</span>`;
       }
 
       h += `<tr>
@@ -1892,8 +2026,29 @@ function renderUnitTable(el, units) {
     el.innerHTML = h;
 }
 
-function renderResTable(el, res) {
+function renderResTable(el, res, units) {
     if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
+
+    // Build deinstall lookup from units data
+    const diMap = {};
+    if (units) {
+      for (const u of units) {
+        if (u.deinstall_date && u.unit_number != null) diMap[String(u.unit_number)] = u.deinstall_date;
+      }
+    }
+
+    // Sort: Active first, then Upcoming, then Past. Within each group, newest start date first.
+    const sorted = [...res].sort((a, b) => {
+      function rank(r) {
+        if (r.current_reservation_count > 0) return 0; // active
+        if (r.future_reservation_count > 0) return 1;  // upcoming
+        return 2; // past
+      }
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      return (b.reservation_start_date || '').localeCompare(a.reservation_start_date || '');
+    });
+
     let h = `<table class="gd-subtable"><thead><tr>
       <th style="width:70px">Unit</th>
       <th style="width:100px">Check-in</th>
@@ -1903,11 +2058,15 @@ function renderResTable(el, res) {
       <th style="width:90px">Type</th>
       <th style="width:80px">Status</th>
     </tr></thead><tbody>`;
-    const sorted = res.sort((a, b) => (b.reservation_start_date || '').localeCompare(a.reservation_start_date || ''));
     sorted.slice(0, 50).forEach(r => {
       const isCurr = r.current_reservation_count > 0;
       const isFut = r.future_reservation_count > 0;
       const badge = isCurr ? '<span class="gd-badge-curr">Active</span>' : isFut ? '<span class="gd-badge-future">Upcoming</span>' : '<span style="color:var(--muted);font-size:0.65rem">Past</span>';
+
+      // Deinstall indicator for this unit
+      const unitKey = String(r.unit_number || '');
+      const isDI = diMap[unitKey];
+      const diTag = isDI ? ' <span style="color:#EE533D;font-size:0.6rem;font-weight:700" title="Deinstalled ' + gEsc(isDI) + '">DI</span>' : '';
 
       // Total nights from reservation_length_raw, or compute from start/end
       let totalNights = r.reservation_length_raw;
@@ -1925,8 +2084,8 @@ function renderResTable(el, res) {
       // Reservation type
       const resType = r.reservation_length || '--';
 
-      h += `<tr>
-        <td class="gd-unit">${gEsc(r.unit_number)}</td>
+      h += `<tr${isDI ? ' style="opacity:0.6"' : ''}>
+        <td class="gd-unit">${gEsc(r.unit_number)}${diTag}</td>
         <td>${gEsc(r.reservation_start_date || '--')}</td>
         <td>${gEsc(r.reservation_end_date || '--')}</td>
         <td class="num" style="font-weight:700">${totalStr}${monthsStr}</td>
@@ -1943,15 +2102,15 @@ function renderResTable(el, res) {
 function gridUpdateStats() {
   const d = gridFiltered;
   const units = d.reduce((s, r) => s + (r.home_count || 0), 0);
-  const occRows = d.filter(r => r.occupancy != null);
-  const avgOcc = occRows.length ? occRows.reduce((s, r) => s + r.occupancy, 0) / occRows.length : null;
+  // Weighted avg occupancy — each unit counts equally, not each property
+  const avgOcc = units > 0 ? occupied / units : null;
   const occupied = d.reduce((s, r) => s + (r.home_occupied_count || 0), 0);
   const available = units - occupied;
   document.getElementById('grid-stats').innerHTML =
     `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
     `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
     `<span><span class="grid-stat-val" style="color:var(--green)">${occupied.toLocaleString()}</span>Occupied</span>` +
-    `<span><span class="grid-stat-val" style="color:#D97706">${available.toLocaleString()}</span>Available</span>` +
+    `<span><span class="grid-stat-val" style="color:#B95B00">${available.toLocaleString()}</span>Available</span>` +
     `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
 }
 
