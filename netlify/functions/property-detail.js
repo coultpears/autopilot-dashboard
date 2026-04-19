@@ -78,25 +78,35 @@ exports.handler = async (event) => {
         'dimreservation.days_in_reservation', 'dimreservation.reservation_length_raw',
         'dimreservation.reservation_length', 'dimreservation.stay_commitment_type',
         'dimreservation.current_reservation_count', 'dimreservation.future_reservation_count',
-        'dimreservation.count',
+        'dimreservation.count', 'dimreservation.reservation_monthly_rent',
       ], { 'dimproperty.property_name': name },
       ['dimproperty.property_name', 'dimreservation.reservation_start_date']),
     ]);
 
-    // Process units — use Looker rent data only (no Admin API)
+    const reservations = resData.map(cleanRow);
+
+    // Build unit-level Landing rent lookup from CURRENT reservations only
+    const currentRentByUnit = {};
+    for (const r of reservations) {
+      if (r.current_reservation_count > 0 && r.unit_number != null && r.reservation_monthly_rent) {
+        currentRentByUnit[String(r.unit_number)] = r.reservation_monthly_rent;
+      }
+    }
+
+    // Process units — Landing rent comes from the active reservation, not estimation
     const units = unitsData.map(cleanRow);
     for (const r of units) {
       const base = r.rent_cost;
-      if (r.home_daily_rent_cost_autopilot > 0) {
-        r.landing_rent = Math.round(r.home_daily_rent_cost_autopilot * 30.4);
-        r.rent_source = 'estimated';
+      const actualRent = currentRentByUnit[String(r.unit_number || '')];
+      if (actualRent) {
+        r.landing_rent = Math.round(actualRent);
+        r.rent_source = 'reservation';
       }
+      // No estimated fallback — if there's no active reservation, there's no Landing rent
       if (r.landing_rent && base && base > 0) {
         r.computed_markup = Math.round(((r.landing_rent - base) / base) * 10000) / 10000;
       }
     }
-
-    const reservations = resData.map(cleanRow);
 
     return {
       statusCode: 200,

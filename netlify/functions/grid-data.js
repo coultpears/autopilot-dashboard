@@ -104,18 +104,24 @@ exports.handler = async (event) => {
     const token = await getLookerToken();
     const date = event.queryStringParameters?.date || 'today';
 
-    // 3 Looker queries in parallel — no Admin API calls on this path
-    const [occData, resData, deinstallData] = await Promise.all([
-      // Main occupancy query: ONLY installed homes — gives accurate unit counts
+    // 4 Looker queries in parallel — core + financials split to halve the critical path
+    const installedFilter = { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'tbldailyhomemetrics.home_is_installed': 'Yes' };
+    const [coreData, finData, resData, deinstallData] = await Promise.all([
+      // Core: identity + counts (fast, ~2s)
       lookerQuery(token, 'tbldailyhomemetrics', [
         'dimproperty.property_name', 'dimproperty.property_management_company',
         'dimdirectpartner.dp_full_name', 'dimmarket.market_name',
         'tbldailyhomemetrics.home_count', 'tbldailyhomemetrics.home_occupied_count',
-        'tbldailyhomemetrics.active_property_count', 'dimhome.home_average_rent_cost',
+        'tbldailyhomemetrics.active_property_count',
+      ], installedFilter, ['dimproperty.property_name'], 5000),
+
+      // Financials: rent/revenue/markup (slower fields isolated, ~2s)
+      lookerQuery(token, 'tbldailyhomemetrics', [
+        'dimproperty.property_name',
+        'dimhome.home_average_rent_cost',
         'tbldailyhomemetrics.home_daily_rent_revenue', 'tbldailyhomemetrics.home_daily_rent_cost_autopilot',
         'tbldailyhomemetrics.all_in_revpah_net', 'tbldailyhomemetrics.markup',
-      ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'tbldailyhomemetrics.home_is_installed': 'Yes' },
-      ['dimproperty.property_name'], 5000),
+      ], installedFilter, ['dimproperty.property_name'], 5000),
 
       lookerQuery(token, 'dimreservation', [
         'dimproperty.property_name',
@@ -123,15 +129,27 @@ exports.handler = async (event) => {
       ], { 'dimreservation.current_reservation_count': '>0' },
       ['dimproperty.property_name'], 5000),
 
-      // Deinstalled units specifically (for DI badge) — installed=No AND has deinstall_date
+      // Deinstalled units specifically (for DI badge)
       lookerQuery(token, 'tbldailyhomemetrics', [
         'dimproperty.property_name', 'tbldailyhomemetrics.home_count',
       ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
       ['dimproperty.property_name'], 5000),
     ]);
 
+    // Merge financial fields into core rows by property_name before aggregation
+    const finLookup = {};
+    for (const raw of finData) {
+      const name = raw['dimproperty.property_name'];
+      if (name) finLookup[name] = raw;
+    }
+    const mergedOcc = coreData.map(row => {
+      const name = row['dimproperty.property_name'];
+      const fin = finLookup[name] || {};
+      return { ...row, ...fin };
+    });
+
     // Aggregate occupancy
-    const occAgg = aggregate(occData.map(cleanRow));
+    const occAgg = aggregate(mergedOcc.map(cleanRow));
 
     // Reservation lookup
     const resLookup = {};

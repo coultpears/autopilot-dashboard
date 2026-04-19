@@ -1,11 +1,50 @@
-// Netlify serverless function: fetches enrichment + expansion target data for AP Supply Map
-// Returns: enrichment (vacancy/concessions per property) + expansion targets (net new opportunities)
-// Partner names resolved via deal company_name field + HubSpot company associations
+// Netlify serverless function: CoStar-sourced targets for AP Supply Map
+// Replaces the old expansion-pipeline target feed.
+// Targets = AP pipeline deals with `costar_last_synced` set, active stages only.
 
 const AP_PIPELINE = '64402505';
-const EXPANSION_PIPELINE = '877479748';
-const BATCH_SIZE = 200;
+const BATCH_SIZE = 100;
 const MAX_PAGES = 30;
+
+// AP pipeline stage id → human label (fetched dynamically from HubSpot, fallback to this map)
+const STAGE_LABELS = {
+  '126194574': 'New Opportunities',
+  '128203694': 'Contacted',
+  '185461262': 'Defining Call Schedule',
+  '126194575': 'Call Scheduled',
+  '1225117962': 'IC Review / Proforma Request',
+  '126194576': 'Active Opportunities',
+  '126194577': 'Late Stage Opportunities',
+  '128915635': 'Contract Discussions',
+  '126194578': 'Contract Redline',
+  '126194579': 'Closed Won',
+  '1321371563': 'Email Campaign - Needs Assignment',
+  '1343039756': 'Test Stage (CoStar)',
+  '1327025670': 'Diamond Deals',
+  '1083859809': 'Existing Opportunity Follow Up',
+  '128917623': 'Pilot',
+  '131692473': 'Request for housing / Coho',
+  // Closed stages (excluded from targets)
+  '1097165102': 'Lost Deal',
+  '129423023': 'Not Qualified Lead',
+  '138986106': "Doesn't Meet Landing Standards",
+  '1009548619': 'Not Reached',
+  '126194580': '(Old) Closed Lost',
+};
+
+// Dealstages that disqualify a deal as a "target" (all closed stages — won or lost)
+const EXCLUDED_STAGES = new Set([
+  '126194579', // Closed Won
+  '1097165102', // Lost Deal
+  '129423023', // Not Qualified Lead
+  '138986106', // Doesn't Meet Landing Standards
+  '1009548619', // Not Reached
+  '126194580', // (Old) Closed Lost
+]);
+
+// Looker token cache (identical pattern to grid-data.js)
+let _cachedToken = null;
+let _tokenExpiry = 0;
 
 async function fetchWithRetry(url, opts, retries = 3) {
   for (let i = 0; i < retries; i++) {
@@ -49,11 +88,8 @@ async function searchDeals(token, filters, properties) {
   return results;
 }
 
-// Batch fetch deal→company associations
-// HubSpot v4 batch: POST /crm/v4/associations/deals/companies/batch/read
 async function batchGetCompanyAssociations(token, dealIds) {
-  const map = {}; // dealId -> companyId
-  // Process in chunks of 100
+  const map = {};
   for (let i = 0; i < dealIds.length; i += 100) {
     const chunk = dealIds.slice(i, i + 100);
     const data = await hsApi(token, 'POST', '/crm/v4/associations/deals/companies/batch/read', {
@@ -71,9 +107,8 @@ async function batchGetCompanyAssociations(token, dealIds) {
   return map;
 }
 
-// Batch fetch company names
 async function batchGetCompanyNames(token, companyIds) {
-  const map = {}; // companyId -> name
+  const map = {};
   const unique = [...new Set(companyIds)];
   for (let i = 0; i < unique.length; i += 100) {
     const chunk = unique.slice(i, i + 100);
@@ -91,6 +126,27 @@ async function batchGetCompanyNames(token, companyIds) {
   return map;
 }
 
+async function fetchAllOwners(token) {
+  // GET /crm/v3/owners paginated
+  const map = {};
+  let after = null;
+  for (let pages = 0; pages < 20; pages++) {
+    const path = '/crm/v3/owners' + (after ? `?after=${after}&limit=500` : '?limit=500');
+    const data = await hsApi(token, 'GET', path);
+    if (!data?.results) break;
+    for (const o of data.results) {
+      const name = [o.firstName, o.lastName].filter(Boolean).join(' ').trim() || o.email || '';
+      if (o.id && name) map[o.id] = name;
+    }
+    if (data.paging?.next?.after) after = data.paging.next.after;
+    else break;
+  }
+  return map;
+}
+
+// Geocoding happens client-side (Nominatim in browser + localStorage cache)
+// so the function returns fast and doesn't block on Netlify's timeout.
+
 exports.handler = async () => {
   const token = process.env.HUBSPOT_TOKEN;
   if (!token) {
@@ -99,131 +155,136 @@ exports.handler = async () => {
 
   try {
     const props = [
-      'dealname', 'property_name', 'property_city', 'property_state',
-      'vacant_units', 'available_units', 'concession_notes', 'vacancy__',
-      'total_units__expansion_', 'pipeline', 'dealstage', 'hubspot_owner_id',
-      'partner_company', 'company_name', 'deal_category', 'lease_up_signal',
-      'last_enriched_date'
+      'dealname', 'property_name',
+      'property_street_address', 'property_city', 'property_state', 'property_zip',
+      'dealstage', 'hubspot_owner_id', 'company_name',
+      'costar_total_units', 'costar_asking_rent_per_unit',
+      'costar_year_built', 'costar_year_renovated', 'costar_star_rating',
+      'costar_market_segment', 'costar_recorded_owner', 'costar_true_owner_contact',
+      'costar_property_notes', 'costar_last_synced',
+      'costar_leasing_company_website',
+      'vacancy__', 'vacant_units', 'asset_class', 'lease_up_signal',
+      'property_website',
     ];
 
-    const [apDeals, expDeals] = await Promise.all([
-      searchDeals(token, [
-        { propertyName: 'pipeline', operator: 'EQ', value: AP_PIPELINE }
-      ], props),
-      searchDeals(token, [
-        { propertyName: 'pipeline', operator: 'EQ', value: EXPANSION_PIPELINE }
-      ], props)
+    // Query: AP pipeline + costar_last_synced set
+    const filters = [
+      { propertyName: 'pipeline', operator: 'EQ', value: AP_PIPELINE },
+      { propertyName: 'costar_last_synced', operator: 'HAS_PROPERTY' },
+    ];
+
+    const [deals, owners] = await Promise.all([
+      searchDeals(token, filters, props),
+      fetchAllOwners(token),
     ]);
 
-    // --- Resolve partner names for expansion deals ---
-    // Step 1: Use company_name or partner_company deal property where available
-    const needsAssociation = []; // deal IDs that still need partner name
-    const dealPartnerMap = {}; // dealId -> partner name
+    // Filter out closed stages
+    const activeDeals = deals.filter(d => {
+      const stageId = d.properties?.dealstage || '';
+      const label = (STAGE_LABELS[stageId] || '').toLowerCase();
+      if (EXCLUDED_STAGES.has(stageId)) return false;
+      if (label.includes('closed lost') || label.includes('disqualified')) return false;
+      return true;
+    });
 
-    for (const deal of expDeals) {
+    // Resolve partner names: prefer costar_true_owner_contact / recorded_owner / company_name
+    // Only fetch company associations for deals still missing partner after property-level lookup
+    const dealPartnerMap = {};
+    const needsAssoc = [];
+    for (const deal of activeDeals) {
       const p = deal.properties;
-      const partner = (p.company_name || p.partner_company || '').trim();
-      if (partner) {
-        dealPartnerMap[deal.id] = partner;
-      } else {
-        needsAssociation.push(deal.id);
-      }
+      const partner = (p.costar_true_owner_contact || p.costar_recorded_owner || p.company_name || '').trim();
+      if (partner) dealPartnerMap[deal.id] = partner;
+      else needsAssoc.push(deal.id);
     }
-
-    // Step 2: Batch fetch company associations for deals missing partner name
-    if (needsAssociation.length > 0) {
-      const assocMap = await batchGetCompanyAssociations(token, needsAssociation);
+    if (needsAssoc.length > 0) {
+      const assocMap = await batchGetCompanyAssociations(token, needsAssoc);
       const companyIds = Object.values(assocMap);
-
-      if (companyIds.length > 0) {
+      if (companyIds.length) {
         const nameMap = await batchGetCompanyNames(token, companyIds);
         for (const [dealId, companyId] of Object.entries(assocMap)) {
-          if (nameMap[companyId]) {
-            dealPartnerMap[dealId] = nameMap[companyId];
-          }
+          if (nameMap[companyId]) dealPartnerMap[dealId] = nameMap[companyId];
         }
       }
     }
 
-    // Enrichment map
-    const enrichment = {};
-    for (const deal of [...apDeals, ...expDeals]) {
+    // Build targets (pre-geocoding)
+    const targets = activeDeals.map(deal => {
       const p = deal.properties;
       const name = (p.property_name || p.dealname || '').trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
+      if (!name) return null;
 
-      const vacant = parseInt(p.vacant_units) || 0;
-      const available = parseInt(p.available_units) || 0;
-      const vacancy = parseFloat(p.vacancy__) || 0;
-      const concessions = (p.concession_notes || '').trim();
-
-      if (!enrichment[key] || vacant > (enrichment[key].vacant || 0)) {
-        enrichment[key] = {
-          name,
-          vacant: vacant || enrichment[key]?.vacant || 0,
-          available: available || enrichment[key]?.available || 0,
-          vacancy: vacancy || enrichment[key]?.vacancy || 0,
-          concessions: concessions || enrichment[key]?.concessions || '',
-          pipeline: p.pipeline === EXPANSION_PIPELINE ? 'expansion' : 'ap'
-        };
-      }
-    }
-
-    // Existing AP property names
-    const existingProperties = new Set();
-    for (const deal of apDeals) {
-      const name = (deal.properties.property_name || deal.properties.dealname || '').trim().toLowerCase();
-      if (name) existingProperties.add(name);
-    }
-
-    // Expansion targets: not already in AP
-    const targets = [];
-    for (const deal of expDeals) {
-      const p = deal.properties;
-      const name = (p.property_name || p.dealname || '').trim();
-      if (!name) continue;
-      if (existingProperties.has(name.toLowerCase())) continue;
-
+      const street = (p.property_street_address || '').trim();
       const city = (p.property_city || '').trim();
       const state = (p.property_state || '').trim();
+      const zip = (p.property_zip || '').trim();
       const market = city && state ? `${city}, ${state}` : city || state || '';
+      const addrParts = [street, city, state, zip].filter(Boolean);
+      const address = addrParts.length >= 2 ? addrParts.join(', ') : '';
 
-      targets.push({
+      const stageId = p.dealstage || '';
+
+      const totalUnits = parseInt(p.costar_total_units) || 0;
+      const vacancyPct = parseFloat(p.vacancy__) || 0;
+      let vacantUnits = parseInt(p.vacant_units) || 0;
+      let vacantEstimated = false;
+      // Fallback: calculate vacant units from vacancy% * totalUnits when first-hand count missing
+      if (!vacantUnits && vacancyPct > 0 && totalUnits > 0) {
+        vacantUnits = Math.round((vacancyPct / 100) * totalUnits);
+        vacantEstimated = true;
+      }
+
+      return {
+        dealId: deal.id,
         name,
+        address,
         market,
+        coords: null,          // filled in below
+        coordsSource: null,
         partner: dealPartnerMap[deal.id] || '—',
-        stage: p.dealstage || '',
-        vacant: parseInt(p.vacant_units) || 0,
-        available: parseInt(p.available_units) || 0,
-        totalUnits: parseInt(p.total_units__expansion_) || 0,
-        vacancy: parseFloat(p.vacancy__) || 0,
-        concessions: (p.concession_notes || '').trim(),
+        rep: owners[p.hubspot_owner_id] || '',
+        stage: STAGE_LABELS[stageId] || stageId,
+        stageId,
+        totalUnits: totalUnits || parseInt(p.vacant_units) || 0,
+        vacancy: vacancyPct,
+        vacantUnits,
+        vacantEstimated,
+        askingRent: parseFloat(p.costar_asking_rent_per_unit) || null,
+        yearBuilt: parseInt(p.costar_year_built) || null,
+        yearRenovated: parseInt(p.costar_year_renovated) || null,
+        assetClass: (p.asset_class || '').trim(),
+        starRating: parseFloat(p.costar_star_rating) || null,
+        marketSegment: (p.costar_market_segment || '').trim(),
+        notes: (p.costar_property_notes || '').trim(),
         leaseUp: p.lease_up_signal === 'true',
-        lastEnriched: p.last_enriched_date || '',
-        dealId: deal.id
-      });
-    }
+        lastSynced: p.costar_last_synced ? parseInt(p.costar_last_synced) : null,
+        // Prefer the curated property_website; fall back to leasing company site so every target has a link
+        website: (p.property_website || '').trim() || (p.costar_leasing_company_website || '').trim() || null,
+        websiteSource: (p.property_website || '').trim() ? 'property' : ((p.costar_leasing_company_website || '').trim() ? 'leasing_company' : null),
+      };
+    }).filter(Boolean);
 
-    const withPartner = targets.filter(t => t.partner !== '—').length;
+    // No server-side geocoding — client handles it with localStorage cache.
+    // Client reads t.address and asynchronously resolves coords on demand.
 
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600'
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=1800',
+        'Netlify-CDN-Cache-Control': 'public, max-age=1800, stale-while-revalidate=7200',
       },
       body: JSON.stringify({
-        enrichment,
         targets,
-        count: Object.keys(enrichment).length,
         targetCount: targets.length,
-        targetsWithPartner: withPartner,
-        apDeals: apDeals.length,
-        expDeals: expDeals.length
+        marketCount: new Set(targets.map(t => t.market).filter(Boolean)).size,
+        // Legacy fields kept empty for backward compat with map.html
+        enrichment: {},
+        count: 0,
       })
     };
   } catch (err) {
+    console.error(err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };

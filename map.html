@@ -13,22 +13,31 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  /* Landing 2.0 Brand Palette */
+  --landing-navy: #15192D;       /* Primary brand */
+  --landing-tonal: #2D3654;      /* Tonal blue */
+  --landing-blue: #1A61D9;       /* Bright blue / CTA */
+  --landing-baby: #E7EFFB;       /* Baby blue background */
+  --landing-white: #F0F0F0;      /* Light background */
+  --landing-teal: #156082;       /* Cool teal-blue */
+
+  /* App tokens (mapped to brand) */
   --navy: #F8F9FB;
   --navy-mid: #FFFFFF;
-  --navy-light: #F1F3F7;
-  --panel: rgba(255,255,255,0.92);
-  --blue: #1A61D9;
+  --navy-light: var(--landing-baby);
+  --panel: rgba(255,255,255,0.94);
+  --blue: var(--landing-blue);
   --blue-dim: rgba(26,97,217,0.08);
   --green: #08786C;
   --green-dim: rgba(8,120,108,0.08);
   --orange: #B95B00;
   --orange-dim: rgba(185,91,0,0.06);
   --red: #EE533D;
-  --white: #262626;
+  --white: var(--landing-navy);  /* primary text uses brand navy */
   --silver: #7D7A78;
   --muted: #A2A09B;
-  --ghost: rgba(0,0,0,0.04);
-  --border: rgba(21,25,45,0.08);
+  --ghost: rgba(21,25,45,0.04);
+  --border: rgba(21,25,45,0.10);
   --radius: 12px;
 }
 
@@ -43,27 +52,27 @@ body {
 
 /* ─── NAV ─── */
 .topnav {
-  z-index: 1000; height: 52px; flex-shrink: 0;
-  background: var(--panel); backdrop-filter: blur(24px);
+  z-index: 1000; height: 56px; flex-shrink: 0;
+  background: #fff;
   border-bottom: 1px solid var(--border);
   padding: 0 20px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.topnav-left { display: flex; align-items: center; gap: 10px; }
+.topnav-left { display: flex; align-items: center; gap: 12px; }
 .logo-mark {
-  width: 30px; height: 30px; background: var(--blue); border-radius: 8px;
+  width: 32px; height: 32px; background: var(--landing-blue); border-radius: 8px;
   display: grid; place-items: center;
-  font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1rem; color: #fff !important;
+  font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.05rem; color: #fff !important;
 }
-.topnav h1 { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; }
+.topnav h1 { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--landing-navy); }
 .topnav h1 span { color: var(--silver); font-weight: 400; margin-left: 6px; }
 .nav-links { display: flex; gap: 4px; }
 .nav-links a {
   color: var(--silver); text-decoration: none; font-size: 0.78rem; font-weight: 500;
-  padding: 5px 12px; border-radius: 6px; transition: all 0.15s;
+  padding: 6px 14px; border-radius: 6px; transition: all 0.15s;
 }
-.nav-links a:hover { color: var(--white); background: var(--ghost); }
-.nav-links a.active { color: #fff !important; background: var(--blue); }
+.nav-links a:hover { color: var(--landing-navy); background: var(--ghost); }
+.nav-links a.active { color: #fff !important; background: var(--landing-blue); }
 
 /* ─── CONTROLS OVERLAY ─── */
 /* ─── CONTROL PANEL (top-left) ─── */
@@ -152,6 +161,8 @@ body {
 .type-market { background: rgba(124,58,237,0.1); color: #7C3AED; }
 .type-property { background: var(--green-dim); color: var(--green); }
 .type-target { background: rgba(238,83,61,0.08); color: #EE533D; }
+.type-target-owner { background: rgba(26,97,217,0.08); color: var(--blue); }
+.type-target-rep { background: rgba(8,120,108,0.08); color: var(--green); }
 .type-location { background: rgba(185,91,0,0.08); color: #B95B00; }
 
 /* ─── DEINSTALL TOGGLE ─── */
@@ -314,6 +325,22 @@ body {
 .leaflet-tooltip::before { border-top-color: #fff !important; }
 .leaflet-tooltip-top::before { border-top-color: #fff !important; }
 .leaflet-tooltip-bottom::before { border-bottom-color: #fff !important; }
+.target-highlight-popup .leaflet-popup-content-wrapper {
+  background: #fff; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 4px;
+}
+.target-highlight-popup .leaflet-popup-content {
+  margin: 10px 14px; font-family: 'DM Sans', sans-serif; font-size: 0.78rem; color: var(--white);
+}
+.target-highlight-popup .leaflet-popup-tip { background: #fff; }
+.target-highlight-ring {
+  animation: targetPulse 1.4s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes targetPulse {
+  0%, 100% { stroke-opacity: 1; stroke-width: 4; }
+  50% { stroke-opacity: 0.5; stroke-width: 6; }
+}
 .tt-dim { color: #6B7280 !important; }
 .tt-val { color: #1F2937 !important; }
 .tt-name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.85rem; margin-bottom: 2px; }
@@ -340,17 +367,17 @@ body {
 
 /* ─── VIEW SWITCH (Map/Grid toggle) ─── */
 .view-switch {
-  display: flex; background: var(--navy-light); border-radius: 8px; padding: 3px;
+  display: flex; background: var(--landing-baby); border-radius: 8px; padding: 3px;
   border: 1px solid var(--border);
 }
 .vs-btn {
   font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 600;
   padding: 5px 14px; border: none; border-radius: 6px; cursor: pointer;
-  background: transparent; color: var(--muted); transition: all 0.15s;
+  background: transparent; color: var(--silver); transition: all 0.15s;
   display: flex; align-items: center; gap: 5px;
 }
-.vs-btn:hover { color: var(--white); }
-.vs-btn.active { background: var(--blue); color: #fff; box-shadow: 0 1px 4px rgba(37,99,235,0.3); }
+.vs-btn:hover { color: var(--landing-navy); }
+.vs-btn.active { background: var(--landing-blue); color: #fff; box-shadow: 0 1px 4px rgba(26,97,217,0.3); }
 
 /* ─── GRID VIEW ─── */
 .grid-view {
@@ -584,6 +611,19 @@ tr.expanded .expand-chevron { transform: rotate(90deg); color: var(--blue); }
     <button class="period-pill" data-period="12m" onclick="setPeriod('12m')">12M</button>
     <button class="period-pill" data-period="all" onclick="setPeriod('all')">All</button>
   </div>
+  <div class="control-group" id="targets-filter-group" style="display:none">
+    <div style="position:relative">
+      <input id="owner-filter-input" list="owner-filter-list" placeholder="True Owner..." oninput="debouncedOwnerFilter(this.value)" style="width:180px;padding:6px 22px 6px 10px;font-family:'DM Sans',sans-serif;font-size:0.74rem;background:#fff;border:1px solid var(--border);border-radius:8px;color:var(--white);outline:none">
+      <datalist id="owner-filter-list"></datalist>
+      <span id="owner-filter-clear" onclick="clearOwnerFilter()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:0.9rem;padding:0 4px">&times;</span>
+    </div>
+    <div style="position:relative">
+      <input id="rep-filter-input" list="rep-filter-list" placeholder="Rep..." oninput="debouncedRepFilter(this.value)" style="width:150px;padding:6px 22px 6px 10px;font-family:'DM Sans',sans-serif;font-size:0.74rem;background:#fff;border:1px solid var(--border);border-radius:8px;color:var(--white);outline:none">
+      <datalist id="rep-filter-list"></datalist>
+      <span id="rep-filter-clear" onclick="clearRepFilter()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:0.9rem;padding:0 4px">&times;</span>
+    </div>
+    <div style="color:var(--silver);font-size:0.68rem;padding:0 4px;display:flex;align-items:center" id="filter-summary"></div>
+  </div>
 </div>
 
 <div class="search-box">
@@ -736,6 +776,8 @@ let gridDataPromise = new Promise(resolve => { gridDataReady = resolve; });
 
 // ─── MAP INIT ───
 map = L.map('map', { center: [39.0, -96.0], zoom: 5, zoomControl: false, attributionControl: false });
+// SVG renderer keeps tooltips + click-to-highlight working reliably; overhead is negligible
+// with <200 pins per drill-in.
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
   maxZoom: 18, subdomains: 'abcd'
@@ -775,6 +817,64 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r
 function fmt(n) { return n.toLocaleString(); }
 function pct(v) { return v == null ? '--' : (v * 100).toFixed(1) + '%'; }
 
+// State-level fallback so unmapped suburbs still get pinned to their state center
+const STATE_COORDS = {
+  AL:{lat:32.806671,lng:-86.79113},AK:{lat:61.370716,lng:-152.404419},AZ:{lat:33.729759,lng:-111.431221},AR:{lat:34.969704,lng:-92.373123},
+  CA:{lat:36.116203,lng:-119.681564},CO:{lat:39.059811,lng:-105.311104},CT:{lat:41.597782,lng:-72.755371},DE:{lat:39.318523,lng:-75.507141},
+  FL:{lat:27.766279,lng:-81.686783},GA:{lat:33.040619,lng:-83.643074},HI:{lat:21.094318,lng:-157.498337},ID:{lat:44.240459,lng:-114.478828},
+  IL:{lat:40.349457,lng:-88.986137},IN:{lat:39.849426,lng:-86.258278},IA:{lat:42.011539,lng:-93.210526},KS:{lat:38.5266,lng:-96.726486},
+  KY:{lat:37.66814,lng:-84.670067},LA:{lat:31.169546,lng:-91.867805},ME:{lat:44.693947,lng:-69.381927},MD:{lat:39.063946,lng:-76.802101},
+  MA:{lat:42.230171,lng:-71.530106},MI:{lat:43.326618,lng:-84.536095},MN:{lat:45.694454,lng:-93.900192},MS:{lat:32.741646,lng:-89.678696},
+  MO:{lat:38.456085,lng:-92.288368},MT:{lat:46.921925,lng:-110.454353},NE:{lat:41.12537,lng:-98.268082},NV:{lat:38.313515,lng:-117.055374},
+  NH:{lat:43.452492,lng:-71.563896},NJ:{lat:40.298904,lng:-74.521011},NM:{lat:34.840515,lng:-106.248482},NY:{lat:42.165726,lng:-74.948051},
+  NC:{lat:35.630066,lng:-79.806419},ND:{lat:47.528912,lng:-99.784012},OH:{lat:40.388783,lng:-82.764915},OK:{lat:35.565342,lng:-96.928917},
+  OR:{lat:44.572021,lng:-122.070938},PA:{lat:40.590752,lng:-77.209755},RI:{lat:41.680893,lng:-71.51178},SC:{lat:33.856892,lng:-80.945007},
+  SD:{lat:44.299782,lng:-99.438828},TN:{lat:35.747845,lng:-86.692345},TX:{lat:31.054487,lng:-97.563461},UT:{lat:40.150032,lng:-111.862434},
+  VT:{lat:44.045876,lng:-72.710686},VA:{lat:37.769337,lng:-78.169968},WA:{lat:47.400902,lng:-121.490494},WV:{lat:38.491226,lng:-80.954453},
+  WI:{lat:44.268543,lng:-89.616508},WY:{lat:42.755966,lng:-107.30249},DC:{lat:38.897438,lng:-77.026817}
+};
+
+// Major-metro suburb resolver — maps known suburbs to their metro for tighter pin placement than state-level
+const SUBURB_METRO = {
+  // Denver metro
+  'Castle Pines, CO':'Denver, CO','Castle Rock, CO':'Denver, CO','Lone Tree, CO':'Denver, CO','Greenwood Village, CO':'Denver, CO',
+  'Englewood, CO':'Denver, CO','Lakewood, CO':'Denver, CO','Highlands Ranch, CO':'Denver, CO','Aurora, CO':'Denver, CO',
+  'Arvada, CO':'Denver, CO','Wheat Ridge, CO':'Denver, CO','Longmont, CO':'Denver, CO','Broomfield, CO':'Denver, CO','Superior, CO':'Denver, CO',
+  // DFW metro
+  'Plano, TX':'Dallas, TX','Frisco, TX':'Dallas, TX','Allen, TX':'Dallas, TX','McKinney, TX':'Dallas, TX','Prosper, TX':'Dallas, TX',
+  'Richardson, TX':'Dallas, TX','Garland, TX':'Dallas, TX','Irving, TX':'Dallas, TX','Grapevine, TX':'Dallas, TX','Euless, TX':'Dallas, TX',
+  'Flower Mound, TX':'Dallas, TX','Lewisville, TX':'Dallas, TX','The Colony, TX':'Dallas, TX','Little Elm, TX':'Dallas, TX',
+  'Denton, TX':'Dallas, TX','Arlington, TX':'Dallas, TX','Grand Prairie, TX':'Dallas, TX','Farmers Branch, TX':'Dallas, TX',
+  'Haltom City, TX':'Fort Worth, TX','North Richland Hills, TX':'Fort Worth, TX','Trophy Club, TX':'Fort Worth, TX','Fairview, TX':'Dallas, TX',
+  'Corinth, TX':'Dallas, TX','Waxahachie, TX':'Dallas, TX',
+  // Austin metro
+  'Pflugerville, TX':'Austin, TX','Manor, TX':'Austin, TX',
+  // South FL (Miami / Fort Lauderdale)
+  'Hollywood, FL':'Fort Lauderdale, FL','Plantation, FL':'Fort Lauderdale, FL','Pembroke Pines, FL':'Fort Lauderdale, FL',
+  'Davie, FL':'Fort Lauderdale, FL','Sunrise, FL':'Fort Lauderdale, FL','Margate, FL':'Fort Lauderdale, FL','Lauderhill, FL':'Fort Lauderdale, FL',
+  'Lauderdale Lakes, FL':'Fort Lauderdale, FL','Coconut Creek, FL':'Fort Lauderdale, FL','Coral Springs, FL':'Fort Lauderdale, FL',
+  'Cooper City, FL':'Fort Lauderdale, FL','Parkland, FL':'Fort Lauderdale, FL','Tamarac, FL':'Fort Lauderdale, FL','Weston, FL':'Fort Lauderdale, FL',
+  'Hallandale Beach, FL':'Fort Lauderdale, FL','Dania Beach, FL':'Fort Lauderdale, FL','Miramar, FL':'Fort Lauderdale, FL',
+  'Pompano Beach, FL':'Fort Lauderdale, FL',
+  'Hialeah, FL':'Miami, FL','Doral, FL':'Miami, FL','Coral Gables, FL':'Miami, FL','Miami Lakes, FL':'Miami, FL','Miami Beach, FL':'Miami, FL',
+  'South Miami, FL':'Miami, FL','North Miami, FL':'Miami, FL','North Miami Beach, FL':'Miami, FL','Miami Gardens, FL':'Miami, FL',
+  'Aventura, FL':'Miami, FL','Coconut Grove, FL':'Miami, FL','Homestead, FL':'Miami, FL','Goulds, FL':'Miami, FL',
+  'Florida City, FL':'Miami, FL','Naranja, FL':'Miami, FL','Princeton, FL':'Miami, FL',
+  // West Palm Beach metro
+  'Boca Raton, FL':'West Palm Beach, FL','Wellington, FL':'West Palm Beach, FL','Jupiter, FL':'West Palm Beach, FL',
+  'Lake Worth, FL':'West Palm Beach, FL','Lake Worth Beach, FL':'West Palm Beach, FL','Palm Beach Gardens, FL':'West Palm Beach, FL',
+  'Boynton Beach, FL':'West Palm Beach, FL','Lantana, FL':'West Palm Beach, FL','Delray Beach, FL':'West Palm Beach, FL',
+  'Palm Springs, FL':'West Palm Beach, FL',
+  // Orlando metro
+  'Kissimmee, FL':'Orlando, FL','Maitland, FL':'Orlando, FL','Winter Park, FL':'Orlando, FL','Winter Garden, FL':'Orlando, FL',
+  'Winter Springs, FL':'Orlando, FL','Casselberry, FL':'Orlando, FL','Longwood, FL':'Orlando, FL','Lake Mary, FL':'Orlando, FL',
+  'Altamonte Springs, FL':'Orlando, FL','Champions Gate, FL':'Orlando, FL','Sanford, FL':'Orlando, FL','Apopka, FL':'Orlando, FL',
+  'Ocoee, FL':'Orlando, FL','Windermere, FL':'Orlando, FL','Oviedo, FL':'Orlando, FL','Celebration, FL':'Orlando, FL',
+  'Davenport, FL':'Orlando, FL',
+  // Misc
+  'Vero Beach, FL':'Vero Beach, FL',
+};
+
 function resolveMarketCoords(marketName) {
   if (!marketName) return null;
   // Direct match in MARKET_COORDS
@@ -782,6 +882,12 @@ function resolveMarketCoords(marketName) {
   // Via LOOKER_MARKET_MAP
   const mapped = LOOKER_MARKET_MAP[marketName];
   if (mapped && MARKET_COORDS[mapped]) return MARKET_COORDS[mapped];
+  // Via SUBURB_METRO
+  const metro = SUBURB_METRO[marketName];
+  if (metro && MARKET_COORDS[metro]) return MARKET_COORDS[metro];
+  // State-level fallback (parse "City, ST" format)
+  const stateMatch = marketName.match(/,\s*([A-Z]{2})\s*$/);
+  if (stateMatch && STATE_COORDS[stateMatch[1]]) return STATE_COORDS[stateMatch[1]];
   return null;
 }
 
@@ -846,12 +952,13 @@ function updateLegend(view) {
       <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Bubble size = total units</div>`;
   } else if (view === 'targets') {
     el.innerHTML = `
-      <div class="legend-title">Target Signals</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#EE533D"></div>Vacancy + concessions</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>Vacancy or concessions</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div>Lease-up signal</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#9CA3AF"></div>No enrichment yet</div>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">Not in current AP portfolio</div>`;
+      <div class="legend-title">Vacant Units</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#08786C"></div>10+ vacant</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EAB308"></div>5-9 vacant</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EE533D"></div>1-4 vacant</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#A2A09B"></div>None / unknown</div>
+      <div class="legend-item" style="margin-top:4px"><div class="legend-dot" style="background:#A2A09B;border:2px solid #000;box-sizing:border-box"></div>Asking rent &lt; $1,450/u</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--silver)">CoStar-sourced AP targets</div>`;
   }
 }
 
@@ -896,10 +1003,53 @@ function onSearch(q) {
     }
   });
 
-  // Targets
+  // Target owners (groups of CoStar targets under the same True Owner)
+  const targetOwnerAgg = {};
   targetData.forEach(d => {
-    if (d.name.toLowerCase().includes(q) || (d.partner && d.partner.toLowerCase().includes(q)) || d.market.toLowerCase().includes(q)) {
-      results.push({ id: 't:' + d.dealId, name: d.name, type: 'target', meta: `${d.partner} · ${d.market}${d.vacant ? ' · ' + d.vacant + ' vacant' : ''}`, sort: d.totalUnits || d.available || 0 });
+    if (!d.partner || d.partner === '—') return;
+    if (!targetOwnerAgg[d.partner]) targetOwnerAgg[d.partner] = { targets: 0, units: 0, markets: new Set() };
+    targetOwnerAgg[d.partner].targets++;
+    targetOwnerAgg[d.partner].units += d.totalUnits || 0;
+    if (d.market) targetOwnerAgg[d.partner].markets.add(d.market);
+  });
+  Object.entries(targetOwnerAgg).forEach(([name, data]) => {
+    if (name.toLowerCase().includes(q)) {
+      results.push({
+        id: 'to:' + name,
+        name,
+        type: 'target-owner',
+        meta: `${data.targets} target${data.targets === 1 ? '' : 's'} · ${data.markets.size} market${data.markets.size === 1 ? '' : 's'} · ${fmt(data.units)} units`,
+        sort: data.units + 800000   // ranked just below partner, above individual target
+      });
+    }
+  });
+
+  // Target reps
+  const targetRepAgg = {};
+  targetData.forEach(d => {
+    if (!d.rep) return;
+    if (!targetRepAgg[d.rep]) targetRepAgg[d.rep] = { targets: 0, units: 0 };
+    targetRepAgg[d.rep].targets++;
+    targetRepAgg[d.rep].units += d.totalUnits || 0;
+  });
+  Object.entries(targetRepAgg).forEach(([name, data]) => {
+    if (name.toLowerCase().includes(q)) {
+      results.push({
+        id: 'tr:' + name,
+        name,
+        type: 'target-rep',
+        meta: `${data.targets} target${data.targets === 1 ? '' : 's'} assigned · ${fmt(data.units)} units`,
+        sort: data.units + 700000
+      });
+    }
+  });
+
+  // Individual targets
+  targetData.forEach(d => {
+    const hay = [d.name, d.partner, d.rep, d.market, d.address].filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q) || q.split(/\s+/).filter(Boolean).every(t => hay.includes(t))) {
+      const meta = [d.rep, d.market, (d.totalUnits ? d.totalUnits + 'u' : '')].filter(Boolean).join(' · ');
+      results.push({ id: 't:' + d.dealId, name: d.name, type: 'target', meta, sort: d.totalUnits || 0 });
     }
   });
 
@@ -979,12 +1129,26 @@ function selectSearchIdx(idx) {
     // For partner search, go to portfolio and zoom to their properties
     setView('portfolio', true);
     drillIntoPartnerFromSearch(r.name);
+  } else if (r.type === 'target-owner') {
+    setView('targets', true);
+    // Apply owner filter + zoom to fit all of this owner's targets
+    const input = document.getElementById('owner-filter-input');
+    if (input) input.value = r.name;
+    applyOwnerFilter(r.name);
+    zoomToActiveTargets();
+  } else if (r.type === 'target-rep') {
+    setView('targets', true);
+    const input = document.getElementById('rep-filter-input');
+    if (input) input.value = r.name;
+    applyRepFilter(r.name);
+    zoomToActiveTargets();
   } else if (r.type === 'target') {
     setView('targets', true);
     const d = targetData.find(t => t.name === r.name);
     if (!d?.coords) return;
-    map.setView([d.coords.lat, d.coords.lng], 12, { animate: true });
-    showHighlightPin(d.coords, targetTooltipContent(d));
+    // Drill into its market first, then highlight the specific pin
+    if (d.market) drillIntoTargetMarket(d.market);
+    setTimeout(() => highlightTargetPin(d), 450);
   } else if (r.type === 'location') {
     // Geocoded address — fly to coordinates
     map.setView([r.lat, r.lng], 14, { animate: true });
@@ -1074,17 +1238,59 @@ function marketTooltipContent(name, data) {
     <div class="tt-row"><span class="tt-dim">Daily Revenue</span><span class="tt-val" style="color:var(--green)">$${fmt(Math.round(data.revenue))}</span></div>`;
 }
 
+// Return a direct link to the property's website, or null if we don't have one.
+// Priority: property_website (curated in HS) > costar_leasing_company_website (from CoStar ingest).
+function resolveWebsiteLink(d) {
+  if (!d.website) return null;
+  let url = d.website;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (d.websiteSource === 'property') {
+    return { url, label: 'Website', title: 'Property marketing website' };
+  }
+  return { url, label: 'Leasing Co.', title: 'Leasing company site' };
+}
+
 function targetTooltipContent(d) {
-  const signals = [];
-  if (d.vacant) signals.push(`<span style="color:#EE533D;font-weight:600">${d.vacant} vacant</span>`);
-  if (d.available) signals.push(`${d.available} total units`);
-  if (d.vacancy) signals.push(`${d.vacancy}% vacancy`);
-  if (d.concessions) signals.push(`<span style="color:#B95B00">${d.concessions.slice(0, 80)}</span>`);
-  if (d.leaseUp) signals.push(`<span style="color:#8B5CF6;font-weight:600">Lease-up signal</span>`);
-  return `<div class="tt-name">${d.name}</div>
-    <div class="tt-row"><span class="tt-dim">Partner</span><span class="tt-val">${d.partner}</span></div>
-    <div class="tt-row"><span class="tt-dim">Market</span><span class="tt-val">${d.market}</span></div>
-    ${signals.length ? '<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-size:0.72rem;line-height:1.6">' + signals.join('<br>') + '</div>' : ''}`;
+  const stars = d.starRating ? ' <span style="color:#B95B00;font-size:0.72rem">' + '★'.repeat(Math.round(d.starRating)) + '</span>' : '';
+  const rows = [];
+  if (d.address) rows.push(`<div style="color:var(--silver);font-size:0.68rem;margin-bottom:3px">${d.address}${d.assetClass ? ' · ' + d.assetClass : ''}</div>`);
+  const kpi = [];
+  if (d.totalUnits) kpi.push(`<b>${d.totalUnits}u</b>`);
+  if (d.vacantUnits > 0) {
+    const v = d.vacantUnits;
+    const vc = v >= 10 ? '#08786C' : v >= 5 ? '#EAB308' : '#EE533D';
+    const est = d.vacantEstimated ? '<span style="font-size:0.6rem;opacity:0.8" title="Estimated from vacancy %">~</span>' : '';
+    kpi.push(`<span style="color:${vc};font-weight:600">${v}${est} vacant</span>`);
+  } else if (d.vacancy > 0) {
+    kpi.push(`<span style="color:#EE533D">${d.vacancy.toFixed(1)}% vac</span>`);
+  }
+  if (d.askingRent) kpi.push(`$${Math.round(d.askingRent).toLocaleString()}/u`);
+  if (kpi.length) rows.push(`<div style="font-size:0.72rem;margin-bottom:4px">${kpi.join(' · ')}</div>`);
+  if (d.partner && d.partner !== '—') rows.push(`<div class="tt-row"><span class="tt-dim">Owner</span><span class="tt-val">${d.partner}</span></div>`);
+  if (d.rep) rows.push(`<div class="tt-row"><span class="tt-dim">Rep</span><span class="tt-val">${d.rep}</span></div>`);
+  if (d.stage) rows.push(`<div class="tt-row"><span class="tt-dim">Stage</span><span class="tt-val" style="color:var(--blue);font-weight:600">${d.stage}</span></div>`);
+  const ago = syncedAgo(d.lastSynced);
+  if (ago) rows.push(`<div style="margin-top:4px;font-size:0.62rem;color:var(--muted);text-align:right">Synced ${ago}</div>`);
+  if (d.leaseUp) rows.push(`<div style="color:#8B5CF6;font-weight:600;font-size:0.68rem">Lease-up signal</div>`);
+
+  // Quick-action links: Website + HubSpot deal + Google Maps
+  const links = [];
+  // Website link — only rendered if a URL was curated in HubSpot or captured by the ingest
+  const webInfo = resolveWebsiteLink(d);
+  if (webInfo) {
+    links.push(`<a href="${webInfo.url}" target="_blank" rel="noopener" title="${webInfo.title}" style="color:#2D3654;font-weight:600;font-size:0.7rem;text-decoration:none;padding:4px 10px;border-radius:6px;background:rgba(45,54,84,0.08);display:inline-flex;align-items:center;gap:4px">${webInfo.label} &#8599;</a>`);
+  }
+  if (d.dealId) {
+    links.push(`<a href="https://app.hubspot.com/contacts/20754835/record/0-3/${d.dealId}" target="_blank" rel="noopener" style="color:var(--landing-blue);font-weight:600;font-size:0.7rem;text-decoration:none;padding:4px 10px;border-radius:6px;background:var(--landing-baby);display:inline-flex;align-items:center;gap:4px">HubSpot &#8599;</a>`);
+  }
+  if (d.address) {
+    // Include property name so Google Maps lands on the named place, not just the street address
+    const q = encodeURIComponent([d.name, d.address].filter(Boolean).join(' '));
+    links.push(`<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener" style="color:var(--landing-teal);font-weight:600;font-size:0.7rem;text-decoration:none;padding:4px 10px;border-radius:6px;background:rgba(21,96,130,0.08);display:inline-flex;align-items:center;gap:4px">Google Maps &#8599;</a>`);
+  }
+  if (links.length) rows.push(`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${links.join('')}</div>`);
+
+  return `<div class="tt-name">${d.name}${stars}</div>${rows.join('')}`;
 }
 
 // ─── DETAIL PANEL ───
@@ -1127,6 +1333,26 @@ function detailClick(idx) {
 
 // ─── PROPERTY DETAIL PANEL ───
 function openPropertyDetail(d) {
+  // Pan map to the property's pin and highlight it (was missing — felt "broken")
+  const key = 'prop:' + d.property_name + ':' + d.market_name;
+  const pin = _pinRegistry[key];
+  if (pin) {
+    map.stop();
+    const ll = pin.getLatLng();
+    map.flyTo([ll.lat, ll.lng], Math.max(map.getZoom(), 11), { animate: true, duration: 0.4 });
+    // Restore previous highlight then pump up this pin
+    if (_selectedPortfolioPin && _selectedPortfolioOrig) {
+      try { _selectedPortfolioPin.setStyle(_selectedPortfolioOrig); _selectedPortfolioPin.setRadius(_selectedPortfolioOrig._radius); } catch(e) {}
+    }
+    _selectedPortfolioOrig = {
+      color: pin.options.color, weight: pin.options.weight, fillOpacity: pin.options.fillOpacity, _radius: pin.getRadius()
+    };
+    pin.setStyle({ color: '#1A61D9', weight: 5, fillOpacity: 1 });
+    pin.setRadius(_selectedPortfolioOrig._radius + 6);
+    pin.bringToFront();
+    _selectedPortfolioPin = pin;
+  }
+
   const panel = document.getElementById('detail-panel');
   document.getElementById('dp-title').textContent = d.property_name;
   document.getElementById('dp-subtitle').textContent = `${d.partner_name} — ${d.market_name}`;
@@ -1459,50 +1685,507 @@ function renderMarkets() {
   `;
 }
 
-// ─── RENDER: TARGETS (kept from HubSpot /api/map-data) ───
+// ─── TARGETS: aggregate by market (respects True Owner filter) ───
+function buildTargetMarketAgg() {
+  const agg = {};
+  for (const t of activeTargetData()) {
+    if (!t.market) continue;
+    const key = t.market;
+    if (!agg[key]) {
+      agg[key] = { name: key, targets: [], units: 0, vacancySum: 0, vacancyCount: 0, freshCount: 0, coords: null };
+    }
+    agg[key].targets.push(t);
+    agg[key].units += t.totalUnits || 0;
+    if (t.vacancy > 0) { agg[key].vacancySum += t.vacancy; agg[key].vacancyCount++; }
+    if (t.lastSynced && (Date.now()/1000 - t.lastSynced) < 7 * 86400) agg[key].freshCount++;
+    // Market-level coords: first target's market coords (via lookup)
+    if (!agg[key].coords) {
+      const mk = MARKET_COORDS[key] || (LOOKER_MARKET_MAP[key] ? MARKET_COORDS[LOOKER_MARKET_MAP[key]] : null);
+      if (mk) agg[key].coords = mk;
+      else if (t.coords) agg[key].coords = t.coords; // fallback: first geocoded target
+    }
+  }
+  return agg;
+}
+
+function daysSince(epochSec) {
+  if (!epochSec) return null;
+  return Math.floor((Date.now()/1000 - epochSec) / 86400);
+}
+
+function syncedAgo(epochSec) {
+  const d = daysSince(epochSec);
+  if (d == null) return '';
+  if (d === 0) return 'today';
+  if (d === 1) return '1d ago';
+  if (d < 7) return d + 'd ago';
+  if (d < 30) return Math.floor(d/7) + 'w ago';
+  return Math.floor(d/30) + 'mo ago';
+}
+
+// Color by vacant-unit bucket: green=10+ (high opportunity), yellow=5-9, red=1-4, gray=0
+function targetPinColor(d) {
+  const v = d.vacantUnits || 0;
+  if (v >= 10) return '#08786C'; // green
+  if (v >= 5) return '#EAB308';  // yellow
+  if (v >= 1) return '#EE533D';  // red
+  return '#A2A09B';              // gray — no known vacancy
+}
+
+// ─── RENDER: TARGETS (aggregated market bubbles by default) ───
 function renderTargets() {
   clearMap();
-  const withCoords = targetData.filter(d => d.coords);
+  const mktAgg = buildTargetMarketAgg();
+  const entries = Object.entries(mktAgg).filter(([, v]) => v.coords);
 
-  if (!withCoords.length) {
+  if (!entries.length) {
     document.getElementById('bottom-bar').innerHTML = `
-      <div class="bb-stat"><div class="bb-val">0</div><div class="bb-label">Targets</div></div>
-      <div class="bb-stat" style="padding:0 16px"><div class="bb-label" style="font-size:0.75rem;color:var(--silver)">Expansion targets load from HubSpot after deploy</div></div>
+      <div class="bb-stat"><div class="bb-val">0</div><div class="bb-label">CoStar Targets</div></div>
+      <div class="bb-stat" style="padding:0 16px"><div class="bb-label" style="font-size:0.75rem;color:var(--silver)">No CoStar-synced deals found</div></div>
     `;
     return;
   }
 
-  withCoords.forEach((d, i) => {
-    const pos = jitter(d.coords, i);
-    const hasVacancy = d.vacant > 0 || d.vacancy > 0;
-    const hasConcessions = !!d.concessions;
-    let color = '#9CA3AF';
-    if (hasVacancy && hasConcessions) color = '#EE533D';
-    else if (hasVacancy || hasConcessions) color = '#F59E0B';
-    else if (d.leaseUp) color = '#8B5CF6';
+  entries.forEach(([name, data]) => {
+    const sz = Math.max(14, Math.min(44, 10 + Math.sqrt(data.units || data.targets.length) * 3));
+    const avgVacancy = data.vacancyCount > 0 ? data.vacancySum / data.vacancyCount : 0;
+    const freshRatio = data.targets.length > 0 ? data.freshCount / data.targets.length : 0;
 
-    const sz = Math.max(5, Math.min(16, 4 + Math.sqrt(d.totalUnits || d.available || 1) * 1.5));
-    const pin = L.circleMarker([pos.lat, pos.lng], {
-      radius: sz, fillColor: color, color: color.replace(')', ',0.5)').replace('rgb', 'rgba'),
-      weight: 2, fillOpacity: 0.8
+    // Color by aggregate signal: high avg vacancy = red, fresh = blue, otherwise amber/gray
+    let fillColor, strokeColor, glowColor;
+    if (avgVacancy > 10) {
+      fillColor = '#EE533D'; strokeColor = 'rgba(238,83,61,0.5)'; glowColor = 'rgba(238,83,61,0.12)';
+    } else if (avgVacancy > 5) {
+      fillColor = '#B95B00'; strokeColor = 'rgba(185,91,0,0.5)'; glowColor = 'rgba(185,91,0,0.12)';
+    } else if (freshRatio > 0.5) {
+      fillColor = '#1A61D9'; strokeColor = 'rgba(26,97,217,0.5)'; glowColor = 'rgba(26,97,217,0.12)';
+    } else {
+      fillColor = '#08786C'; strokeColor = 'rgba(8,120,108,0.5)'; glowColor = 'rgba(8,120,108,0.12)';
+    }
+
+    const glow = L.circleMarker([data.coords.lat, data.coords.lng], {
+      radius: sz + 6, fillColor: glowColor, color: 'transparent', weight: 0, fillOpacity: 1
     });
-    pin.bindTooltip(targetTooltipContent(d), { direction: 'top', offset: [0, -sz] });
-    pin.addTo(map); markers.push(pin);
+    glow.addTo(map); markers.push(glow);
+
+    const bubble = L.circleMarker([data.coords.lat, data.coords.lng], {
+      radius: sz, fillColor: fillColor, color: strokeColor, weight: 2, fillOpacity: 0.85
+    });
+    bubble.bindTooltip(targetMarketTooltipContent(name, data), { direction: 'top', offset: [0, -sz] });
+    bubble.on('click', () => drillIntoTargetMarket(name));
+    bubble.addTo(map); markers.push(bubble);
+
+    if (sz >= 14) {
+      const label = L.divIcon({
+        className: 'bubble-label',
+        html: `<div style="font-size:${Math.max(8, Math.min(13, sz * 0.38))}px">${data.targets.length}</div>`,
+        iconSize: [sz*2, sz*2], iconAnchor: [sz, sz]
+      });
+      const lblMarker = L.marker([data.coords.lat, data.coords.lng], { icon: label, interactive: false });
+      lblMarker.addTo(map); markers.push(lblMarker);
+    }
   });
 
-  const totalTargets = withCoords.length;
-  const withVacancy = withCoords.filter(d => d.vacant > 0).length;
-  const withConcessions = withCoords.filter(d => d.concessions).length;
-  const hotTargets = withCoords.filter(d => (d.vacant > 0 || d.vacancy > 0) && d.concessions).length;
-  const targetMarkets = new Set(withCoords.map(d => d.market)).size;
+  // Bottom bar — all-markets level (respects owner filter)
+  const active = activeTargetData();
+  const totalTargets = active.length;
+  const totalUnits = active.reduce((s, t) => s + (t.totalUnits || 0), 0);
+  const avgVacancy = (() => {
+    const vals = active.filter(t => t.vacancy > 0).map(t => t.vacancy);
+    return vals.length ? vals.reduce((s,v) => s+v, 0) / vals.length : 0;
+  })();
+  const freshCount = active.filter(t => daysSince(t.lastSynced) != null && daysSince(t.lastSynced) < 7).length;
 
   document.getElementById('bottom-bar').innerHTML = `
-    <div class="bb-stat"><div class="bb-val">${fmt(totalTargets)}</div><div class="bb-label">Targets</div></div>
-    <div class="bb-stat"><div class="bb-val">${fmt(targetMarkets)}</div><div class="bb-label">Markets</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#EE533D">${hotTargets}</div><div class="bb-label">Hot (Vac + Conc)</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#F59E0B">${withVacancy}</div><div class="bb-label">Vacancy Signal</div></div>
-    <div class="bb-stat"><div class="bb-val" style="color:#B95B00">${withConcessions}</div><div class="bb-label">Concessions</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalTargets)}</div><div class="bb-label">CoStar Targets</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(entries.length)}</div><div class="bb-label">Markets</div></div>
+    <div class="bb-stat"><div class="bb-val">${fmt(totalUnits)}</div><div class="bb-label">Total Units</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:#B95B00">${avgVacancy.toFixed(1)}%</div><div class="bb-label">Avg Vacancy</div></div>
+    <div class="bb-stat"><div class="bb-val" style="color:var(--landing-blue)">${freshCount}</div><div class="bb-label">Fresh (&lt;7d)</div></div>
   `;
+}
+
+function targetMarketTooltipContent(name, data) {
+  const avgVacancy = data.vacancyCount > 0 ? data.vacancySum / data.vacancyCount : 0;
+  return `<div class="tt-name">${name}</div>
+    <div class="tt-row"><span class="tt-dim">Targets</span><span class="tt-val">${data.targets.length}</span></div>
+    <div class="tt-row"><span class="tt-dim">Total Units</span><span class="tt-val">${fmt(data.units)}</span></div>
+    <div class="tt-row"><span class="tt-dim">Avg Vacancy</span><span class="tt-val">${avgVacancy.toFixed(1)}%</span></div>
+    <div class="tt-row"><span class="tt-dim">Fresh (&lt;7d)</span><span class="tt-val">${data.freshCount}</span></div>
+    <div style="margin-top:6px;font-size:0.65rem;color:var(--muted);text-align:center">Click to drill in</div>`;
+}
+
+// ─── TARGETS: single market drilldown ───
+function drillIntoTargetMarket(marketName) {
+  const mktAgg = buildTargetMarketAgg();
+  const mk = mktAgg[marketName];
+  if (!mk?.coords) return;
+
+  _drillState = { title: marketName, type: 'target-market', targets: mk.targets, coords: mk.coords };
+
+  const panel = document.getElementById('detail-panel');
+  document.getElementById('dp-title').textContent = marketName;
+  document.getElementById('dp-subtitle').textContent = `${mk.targets.length} CoStar targets`;
+
+  const avgVacancy = mk.vacancyCount > 0 ? mk.vacancySum / mk.vacancyCount : 0;
+  document.getElementById('dp-kpis').innerHTML = [
+    { val: fmt(mk.units), label: 'Total Units' },
+    { val: avgVacancy.toFixed(1) + '%', label: 'Avg Vacancy' },
+    { val: mk.freshCount, label: 'Fresh (<7d)' }
+  ].map(k =>
+    `<div class="detail-kpi"><div class="detail-kpi-val">${k.val}</div><div class="detail-kpi-label">${k.label}</div></div>`
+  ).join('');
+
+  document.getElementById('dp-back').style.display = '';
+  document.getElementById('dp-tabs').innerHTML = `
+    <button class="detail-tab active">Properties (${mk.targets.length})</button>
+  `;
+
+  renderTargetPropertyList(mk.targets);
+  panel.classList.add('open');
+
+  // For targets without coords yet, assign the market center so they show up immediately
+  for (const t of mk.targets) {
+    if (!t.coords) { t.coords = mk.coords; t.coordsSource = 'market'; }
+  }
+
+  // Clear map + any lingering highlight/tooltip
+  clearMapTooltips();
+  clearMap();
+  plotTargetPins(mk.targets);
+  // Zoom to market center — pins use jitter around market coords so they spread cleanly
+  map.setView([mk.coords.lat, mk.coords.lng], 11, { animate: true, duration: 0.3 });
+  // NOTE: client-side per-address geocoding intentionally disabled — it caused 20s
+  // of stuttering re-renders after drill-in. Re-enable once a server-side cache exists.
+}
+
+// Client-side geocoding with localStorage cache — lazy, batched on market drill-in
+const GEO_CACHE_KEY = 'landingTargetGeoCache_v1';
+let _geoCache = null;
+function loadGeoCache() {
+  if (_geoCache) return _geoCache;
+  try { _geoCache = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || '{}'); }
+  catch (e) { _geoCache = {}; }
+  return _geoCache;
+}
+function saveGeoCache() {
+  try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(_geoCache || {})); }
+  catch (e) { /* quota full, ignore */ }
+}
+async function geocodeClient(address) {
+  if (!address || address.length < 5) return null;
+  const cache = loadGeoCache();
+  if (cache[address] !== undefined) return cache[address]; // null or {lat,lng}
+  try {
+    const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=1&q=' + encodeURIComponent(address));
+    if (!resp.ok) { cache[address] = null; saveGeoCache(); return null; }
+    const arr = await resp.json();
+    if (!Array.isArray(arr) || !arr.length) { cache[address] = null; saveGeoCache(); return null; }
+    const coords = { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+    cache[address] = coords;
+    saveGeoCache();
+    return coords;
+  } catch (e) { return null; }
+}
+
+async function geocodeTargetsInMarket(targets) {
+  // Resolve address-level coords for each target, one at a time (respects Nominatim rate limit)
+  // Returns count of newly geocoded addresses
+  let count = 0;
+  for (const t of targets) {
+    if (t.coords && t.coordsSource === 'address') continue; // already have address-level
+    if (!t.address) continue;
+    const coords = await geocodeClient(t.address);
+    if (coords) {
+      t.coords = coords;
+      t.coordsSource = 'address';
+      count++;
+      // Progressive render: update the pin if still viewing this market
+      if (_drillState?.type === 'target-market') {
+        updateTargetPin(t);
+      }
+    }
+    // 1 req/sec max for Nominatim
+    await new Promise(r => setTimeout(r, 1100));
+  }
+  return count;
+}
+
+function updateTargetPin(d) {
+  // Find the existing pin for this target and move it to new coords
+  const existing = markers.find(m => m._targetDealId === d.dealId);
+  if (existing) {
+    existing.setLatLng([d.coords.lat, d.coords.lng]);
+  }
+}
+
+function plotTargetPins(targets) {
+  const LOW_RENT_THRESHOLD = 1450;
+  targets.forEach((d, i) => {
+    if (!d.coords) return;
+    const pos = jitter(d.coords, i);
+    d._pinPos = pos;  // store jittered position for highlight click
+    const color = targetPinColor(d);
+    const sz = Math.max(6, Math.min(18, 5 + Math.sqrt(d.totalUnits || 1) * 1.5));
+    const lowRent = d.askingRent > 0 && d.askingRent < LOW_RENT_THRESHOLD;
+    const pin = L.circleMarker([pos.lat, pos.lng], {
+      radius: sz,
+      fillColor: color,
+      color: lowRent ? '#000000' : color,
+      weight: lowRent ? 3 : 2,
+      fillOpacity: 0.85
+    });
+    pin.bindTooltip(targetTooltipContent(d), { direction: 'top', offset: [0, -sz] });
+    pin._targetDealId = d.dealId;
+    // On direct pin click, trigger the same highlight flow as clicking from the list
+    pin.on('click', () => { clearMapTooltips(); highlightTargetPin(d); });
+    pin.addTo(map); markers.push(pin);
+  });
+}
+
+// Multi-select: which target dealIds are currently selected for map drill-in
+let _selectedTargets = new Set();
+
+function renderTargetPropertyList(targets) {
+  const sorted = [...targets].sort((a, b) => (b.totalUnits || 0) - (a.totalUnits || 0));
+  _detailListItems = sorted.map(d => ({ targetData: d }));
+  const selectedCount = sorted.filter(d => _selectedTargets.has(d.dealId)).length;
+  const header = selectedCount > 0
+    ? `<div style="padding:10px 14px;font-size:0.72rem;color:var(--landing-navy);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--landing-baby)">
+         <span><b style="color:var(--landing-blue);font-weight:700">${selectedCount}</b> selected</span>
+         <button onclick="clearTargetSelection()" style="background:none;border:none;color:var(--landing-blue);font-family:'Outfit',sans-serif;font-size:0.7rem;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:4px">Clear</button>
+       </div>`
+    : `<div style="padding:8px 14px;font-size:0.68rem;color:var(--silver);border-bottom:1px solid var(--border)">Click properties to view on map</div>`;
+  document.getElementById('dp-list').innerHTML = header + sorted.map((d, i) => {
+    const ago = syncedAgo(d.lastSynced);
+    const v = d.vacantUnits || 0;
+    const vacColor = v >= 10 ? '#08786C' : v >= 5 ? '#EAB308' : v >= 1 ? '#EE533D' : 'var(--muted)';
+    const estTag = d.vacantEstimated ? '<span style="font-size:0.55rem;opacity:0.7" title="Estimated from vacancy %">~</span>' : '';
+    const stars = d.starRating ? ' ★'.repeat(Math.round(d.starRating)) : '';
+    const selected = _selectedTargets.has(d.dealId);
+    const lowRent = d.askingRent > 0 && d.askingRent < 1450;
+    const rentColor = lowRent ? '#000' : 'var(--silver)';
+    const rentBg = lowRent ? 'rgba(0,0,0,0.06)' : '';
+    const rowStyle = selected
+      ? 'background:var(--landing-baby);border-left:3px solid var(--landing-blue);padding-left:11px'
+      : '';
+    const hsLink = d.dealId ? `<a href="https://app.hubspot.com/contacts/20754835/record/0-3/${d.dealId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in HubSpot" style="color:var(--landing-blue);text-decoration:none;font-weight:700;font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--landing-baby)">HS &#8599;</a>` : '';
+    const mapLink = d.address ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([d.name, d.address].filter(Boolean).join(' '))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Google Maps" style="color:var(--landing-teal);text-decoration:none;font-weight:700;font-size:0.72rem;padding:2px 6px;border-radius:4px;background:rgba(21,96,130,0.08)">&#128205; Map</a>` : '';
+    const webInfo = resolveWebsiteLink(d);
+    const webLink = webInfo
+      ? `<a href="${webInfo.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${webInfo.title}" style="color:#2D3654;text-decoration:none;font-weight:700;font-size:0.72rem;padding:2px 6px;border-radius:4px;background:rgba(45,54,84,0.08)">${webInfo.label === 'Website' ? 'Site' : 'Leasing'} &#8599;</a>`
+      : '';
+    return `<div class="detail-row" onclick="targetDetailClick(${i})" style="${rowStyle}">
+      <div class="detail-row-info">
+        <div class="detail-row-name">
+          ${selected ? '<span style="color:var(--landing-blue);font-weight:800;margin-right:5px">\u2713</span>' : ''}
+          ${gEsc(d.name)}<span style="color:#B95B00;font-size:0.62rem;margin-left:4px">${stars}</span>
+        </div>
+        <div class="detail-row-market">${gEsc(d.partner || '—')}${d.rep ? ' · ' + gEsc(d.rep) : ''}</div>
+        <div class="detail-row-metrics">
+          <span class="detail-metric units">${d.totalUnits || 0}u</span>
+          ${v > 0 ? `<span class="detail-metric" style="background:${vacColor}20;color:${vacColor}">${v}${estTag} vacant</span>` : ''}
+          ${d.askingRent ? `<span class="detail-metric" style="background:${rentBg};color:${rentColor};${lowRent ? 'border:1px solid #000;font-weight:700' : ''}">$${Math.round(d.askingRent).toLocaleString()}/u</span>` : ''}
+          ${ago ? `<span class="detail-metric" style="background:var(--blue-dim);color:var(--blue)">${ago}</span>` : ''}
+        </div>
+        ${(hsLink || mapLink || webLink) ? `<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${webLink}${hsLink}${mapLink}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearTargetSelection() {
+  _selectedTargets.clear();
+  // Restore all pins to their original style
+  for (const m of markers) {
+    if (m._origStyle) {
+      try { m.setStyle(m._origStyle); m.setRadius(m._origRadius); } catch(e){}
+    }
+  }
+  // Close any popup
+  if (_activePopup) {
+    try { map.closePopup(_activePopup); } catch(e){}
+    _activePopup = null;
+  }
+  // Refresh list
+  if (_drillState?.type === 'target-market') renderTargetPropertyList(_drillState.targets);
+}
+
+// State for currently-selected pin (target or portfolio)
+let _selectedTargetPin = null;
+let _selectedTargetOrig = null;
+let _activePopup = null;
+let _selectedPortfolioPin = null;
+let _selectedPortfolioOrig = null;
+
+function targetDetailClick(i) {
+  const item = _detailListItems[i];
+  const d = item?.targetData;
+  if (!d?.coords) return;
+  const pin = markers.find(m => m._targetDealId === d.dealId);
+
+  if (_selectedTargets.has(d.dealId)) {
+    // DESELECT — restore original style explicitly (every property, null the dashArray)
+    _selectedTargets.delete(d.dealId);
+    if (pin && pin._origStyle) {
+      pin.setStyle({
+        color: pin._origStyle.color,
+        weight: pin._origStyle.weight != null ? pin._origStyle.weight : 2,
+        fillOpacity: pin._origStyle.fillOpacity != null ? pin._origStyle.fillOpacity : 0.85,
+        dashArray: pin._origStyle.dashArray || null
+      });
+      pin.setRadius(pin._origRadius);
+    }
+  } else {
+    // SELECT — capture original ONCE, then apply selection style
+    _selectedTargets.add(d.dealId);
+    if (pin) {
+      if (!pin._origStyle) {
+        pin._origStyle = {
+          color: pin.options.color,
+          weight: pin.options.weight,
+          fillOpacity: pin.options.fillOpacity,
+          dashArray: pin.options.dashArray
+        };
+        pin._origRadius = pin.getRadius();
+      }
+      pin.setStyle({ color: '#1A61D9', weight: 5, fillOpacity: 1, dashArray: null });
+      pin.setRadius(pin._origRadius + 6);
+      pin.bringToFront();
+    }
+  }
+
+  fitMapToSelectedTargets();
+  if (_drillState?.type === 'target-market') renderTargetPropertyList(_drillState.targets);
+}
+
+function fitMapToSelectedTargets() {
+  if (_selectedTargets.size === 0) {
+    // Nothing selected: re-fit to whole drill-in market at city zoom
+    if (_drillState?.coords) {
+      map.setView([_drillState.coords.lat, _drillState.coords.lng], 11, { animate: true, duration: 0.4 });
+    }
+    if (_activePopup) { try { map.closePopup(_activePopup); } catch(e){} _activePopup = null; }
+    return;
+  }
+
+  // Build coords array of all selected targets
+  const targets = (_drillState?.targets || []).filter(t => _selectedTargets.has(t.dealId) && t.coords);
+  console.log('[TARGETS] fitMap — selected:', targets.length, targets.map(t => t.name));
+  if (!targets.length) return;
+
+  // Always close existing popup first
+  if (_activePopup) { try { map.closePopup(_activePopup); } catch(e){} _activePopup = null; }
+  map.stop();
+
+  if (targets.length === 1) {
+    const t = targets[0];
+    const ll = t._pinPos ? [t._pinPos.lat, t._pinPos.lng] : [t.coords.lat, t.coords.lng];
+    console.log('[TARGETS] single select, zoom to', ll);
+    map.setView(ll, 17, { animate: true, duration: 0.4 });
+    _activePopup = L.popup({
+      closeButton: true, autoClose: false, closeOnClick: false, autoPan: false,
+      className: 'target-highlight-popup', offset: [0, -18], maxWidth: 300
+    }).setLatLng(ll).setContent(targetTooltipContent(t)).openOn(map);
+    return;
+  }
+
+  // Multiple selected: compute bounds + zoom that fits them with comfortable padding
+  const points = targets.map(t => {
+    const p = t._pinPos || t.coords;
+    return [p.lat, p.lng];
+  });
+  console.log('[TARGETS] multi select bounds points:', points);
+
+  // Compute manually — fitBounds sometimes doesn't trigger a visible move when bounds are very small
+  const lats = points.map(p => p[0]);
+  const lngs = points.map(p => p[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+  const latSpan = Math.max(0.001, maxLat - minLat);
+  const lngSpan = Math.max(0.001, maxLng - minLng);
+  // Approximate zoom for a 0.05° span = ~13, 0.01° = ~15, 0.005° = ~16
+  const span = Math.max(latSpan, lngSpan);
+  let zoom;
+  if (span < 0.005) zoom = 16;
+  else if (span < 0.015) zoom = 15;
+  else if (span < 0.04) zoom = 14;
+  else if (span < 0.1) zoom = 13;
+  else if (span < 0.3) zoom = 12;
+  else zoom = 11;
+  console.log('[TARGETS] computed zoom:', zoom, 'center:', centerLat, centerLng, 'span:', span);
+  map.setView([centerLat, centerLng], zoom, { animate: true, duration: 0.4 });
+}
+
+function clearMapTooltips() {
+  // Restore previous pin's original style
+  if (_selectedTargetPin && _selectedTargetOrig) {
+    try {
+      _selectedTargetPin.setStyle(_selectedTargetOrig);
+      _selectedTargetPin.setRadius(_selectedTargetOrig._radius);
+    } catch (e) {}
+  }
+  _selectedTargetPin = null;
+  _selectedTargetOrig = null;
+  // Close active popup
+  if (_activePopup) {
+    try { map.closePopup(_activePopup); } catch (e) {}
+    _activePopup = null;
+  }
+}
+
+function highlightTargetPin(d) {
+  if (!d.coords) {
+    console.warn('[TARGETS] Cannot highlight — no coords for', d.name);
+    return;
+  }
+
+  clearMapTooltips();
+
+  const latlng = d._pinPos ? [d._pinPos.lat, d._pinPos.lng] : [d.coords.lat, d.coords.lng];
+
+  // 1. ZOOM IN HARD on click — drill-in is already at zoom 11, so we need 16+ for visible movement
+  map.stop();
+  map.setView(latlng, 17, { animate: true, duration: 0.5 });
+
+  // 2. Pump up the selected pin
+  const pin = markers.find(m => m._targetDealId === d.dealId);
+  if (pin) {
+    _selectedTargetOrig = {
+      color: pin.options.color,
+      weight: pin.options.weight,
+      fillOpacity: pin.options.fillOpacity,
+      dashArray: pin.options.dashArray,
+      _radius: pin.getRadius(),
+    };
+    pin.setStyle({ color: '#1A61D9', weight: 5, fillOpacity: 1, dashArray: null });  // Landing navy stroke
+    pin.setRadius(_selectedTargetOrig._radius + 8);
+    pin.bringToFront();
+    _selectedTargetPin = pin;
+  }
+
+  // 3. Open popup AFTER map move starts so it lands at the right viewport position
+  _activePopup = L.popup({
+    closeButton: true, autoClose: false, closeOnClick: false, autoPan: false,
+    className: 'target-highlight-popup', offset: [0, -18], maxWidth: 300
+  })
+    .setLatLng(latlng)
+    .setContent(targetTooltipContent(d))
+    .openOn(map);
+}
+
+// Zoom map to fit all currently-visible targets (respects filters)
+function zoomToActiveTargets() {
+  const active = activeTargetData().filter(t => t.coords);
+  if (!active.length) return;
+  if (active.length === 1) {
+    map.setView([active[0].coords.lat, active[0].coords.lng], 13, { animate: true });
+    return;
+  }
+  const bounds = L.latLngBounds(active.map(t => [t.coords.lat, t.coords.lng]));
+  map.fitBounds(bounds, { padding: [60, 60], maxZoom: 11, animate: true });
 }
 
 // ─── DEINSTALL OVERLAY (using gridData) ───
@@ -1563,10 +2246,153 @@ function setView(view, preserveSearch) {
   currentView = view;
   document.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   closeDetail(preserveSearch ? false : true);
+  clearMapTooltips();
   map.setView([39.0, -96.0], 5, { animate: true });
   updateLegend(view);
+  // Toggle Targets-only owner filter input
+  const tf = document.getElementById('targets-filter-group');
+  if (tf) tf.style.display = (view === 'targets') ? '' : 'none';
+  if (view === 'targets') populateOwnerFilterList();
   renderView();
   if (showDeinstalls) renderDeinstallOverlay();
+}
+
+// ─── TARGETS: Owner + Rep filters ───
+let _targetOwnerFilter = '';
+let _targetRepFilter = '';
+
+function activeTargetData() {
+  let d = targetData;
+  if (_targetOwnerFilter) {
+    const q = _targetOwnerFilter.toLowerCase();
+    d = d.filter(t => (t.partner || '').toLowerCase().includes(q));
+  }
+  if (_targetRepFilter) {
+    const q = _targetRepFilter.toLowerCase();
+    d = d.filter(t => (t.rep || '').toLowerCase().includes(q));
+  }
+  return d;
+}
+function populateOwnerFilterList() {
+  const owners = [...new Set(targetData.map(t => t.partner).filter(p => p && p !== '—'))].sort();
+  const dl = document.getElementById('owner-filter-list');
+  if (dl) dl.innerHTML = owners.map(o => `<option value="${o.replace(/"/g, '&quot;')}">`).join('');
+  const reps = [...new Set(targetData.map(t => t.rep).filter(Boolean))].sort();
+  const rdl = document.getElementById('rep-filter-list');
+  if (rdl) rdl.innerHTML = reps.map(r => `<option value="${r.replace(/"/g, '&quot;')}">`).join('');
+}
+
+function _debounce(fn, ms) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+}
+
+function _rerenderTargets() {
+  updateFilterSummary();
+  if (_drillState?.type === 'target-market') {
+    // Check if the drilled-in market still has any targets after filter
+    const mktAgg = buildTargetMarketAgg();
+    const mk = mktAgg[_drillState.title];
+    if (mk?.targets?.length) {
+      drillIntoTargetMarket(_drillState.title);
+    } else {
+      // Market got filtered out — exit drill-in and show all-markets view with the filter applied
+      _drillState = null;
+      _selectedTargets.clear();
+      closeDetail(true);
+      renderTargets();
+    }
+  } else {
+    renderTargets();
+  }
+}
+
+function applyOwnerFilter(val) {
+  _targetOwnerFilter = (val || '').trim();
+  document.getElementById('owner-filter-clear').style.display = _targetOwnerFilter ? '' : 'none';
+  _rerenderTargets();
+  // Zoom to fit filtered targets when at all-markets level
+  if (_targetOwnerFilter && _drillState?.type !== 'target-market') zoomToActiveTargets();
+}
+function applyRepFilter(val) {
+  _targetRepFilter = (val || '').trim();
+  document.getElementById('rep-filter-clear').style.display = _targetRepFilter ? '' : 'none';
+  _rerenderTargets();
+  // Zoom to fit filtered targets when at all-markets level
+  if (_targetRepFilter && _drillState?.type !== 'target-market') zoomToActiveTargets();
+}
+const debouncedOwnerFilter = _debounce(applyOwnerFilter, 200);
+const debouncedRepFilter = _debounce(applyRepFilter, 200);
+
+function clearOwnerFilter() {
+  const input = document.getElementById('owner-filter-input');
+  if (input) input.value = '';
+  applyOwnerFilter('');
+}
+function clearRepFilter() {
+  const input = document.getElementById('rep-filter-input');
+  if (input) input.value = '';
+  applyRepFilter('');
+}
+
+function updateFilterSummary() {
+  const el = document.getElementById('filter-summary');
+  if (!el) return;
+  const active = activeTargetData();
+  if (_targetOwnerFilter || _targetRepFilter) {
+    el.textContent = `${active.length} of ${targetData.length} targets`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ─── OUTREACH TRACKING ───
+const OUTREACH_KEY = 'landingOutreachDone_v1';
+let _outreachDone = null;
+function loadOutreachState() {
+  if (_outreachDone) return _outreachDone;
+  try { _outreachDone = JSON.parse(localStorage.getItem(OUTREACH_KEY) || '{}'); }
+  catch (e) { _outreachDone = {}; }
+  return _outreachDone;
+}
+function saveOutreachState() {
+  try { localStorage.setItem(OUTREACH_KEY, JSON.stringify(_outreachDone || {})); }
+  catch (e) { /* quota */ }
+}
+function toggleOutreach(dealId, ev) {
+  if (ev) ev.stopPropagation();
+  const state = loadOutreachState();
+  if (state[dealId]) delete state[dealId];
+  else state[dealId] = Date.now();
+  saveOutreachState();
+  // Re-render the targeted pin styling AND the list so both reflect the new state
+  if (_drillState?.type === 'target-market') {
+    // Find the pin and update its style in-place (no full re-plot)
+    const pin = markers.find(m => m._targetDealId === dealId);
+    if (pin) {
+      const done = !!state[dealId];
+      pin.setStyle({
+        fillOpacity: done ? 0.35 : 0.85,
+        dashArray: done ? '3,3' : null
+      });
+    }
+    renderTargetPropertyList(_drillState.targets);
+    // Also refresh stats bar count
+    if (typeof renderTargets === 'function' && currentView === 'targets') {
+      // only update bottom bar, not full re-render
+      const active = activeTargetData();
+      const outreachDone = active.filter(t => isOutreachDone(t.dealId)).length;
+      const el = document.getElementById('bottom-bar');
+      if (el && el.children.length) {
+        const last = el.children[el.children.length - 1];
+        const val = last.querySelector('.bb-val');
+        if (val) val.textContent = outreachDone;
+      }
+    }
+  }
+}
+function isOutreachDone(dealId) {
+  return !!loadOutreachState()[dealId];
 }
 
 // ─── MAP INIT ───
@@ -1587,20 +2413,26 @@ async function initMap() {
     lb.style.width = '60%';
     lt.textContent = 'Processing map data...';
 
-    // Parse targets from HubSpot
+    // Parse CoStar targets from HubSpot
     if (targetResp && targetResp.ok) {
       const enrichData = await targetResp.json();
       const rawTargets = enrichData.targets || [];
-      targetData = rawTargets.map(t => ({
-        ...t,
-        coords: MARKET_COORDS[t.market] || (() => {
-          const mapped = LOOKER_MARKET_MAP[t.market];
-          return mapped ? MARKET_COORDS[mapped] : null;
-        })()
-      }));
+      targetData = rawTargets.map(t => {
+        // Prefer server-geocoded coords, fall back to market-level lookup
+        let coords = t.coords;
+        let coordsSource = t.coordsSource;
+        if (!coords) {
+          coords = MARKET_COORDS[t.market] || (() => {
+            const mapped = LOOKER_MARKET_MAP[t.market];
+            return mapped ? MARKET_COORDS[mapped] : null;
+          })();
+          if (coords) coordsSource = 'market';
+        }
+        return { ...t, coords, coordsSource };
+      });
       const unmappedTargets = [...new Set(targetData.filter(d => !d.coords && d.market).map(d => d.market))];
       if (unmappedTargets.length) console.warn('Unmapped target markets:', unmappedTargets);
-      console.log(`Targets loaded: ${targetData.length} (${targetData.filter(d => d.coords).length} mapped)`);
+      console.log(`CoStar targets loaded: ${targetData.length} (${targetData.filter(d => d.coords).length} mapped, ${targetData.filter(d => d.coordsSource === 'address').length} address-accurate)`);
     }
 
     lb.style.width = '90%';
@@ -1663,22 +2495,29 @@ function switchMapGrid(mode) {
   }
 }
 
-async function loadGrid() {
+async function loadGrid(attempt = 1) {
   const tbody = document.getElementById('grid-body');
-  tbody.innerHTML = '<tr><td colspan="14" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data...</td></tr>';
+  tbody.innerHTML = `<tr><td colspan="14" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data${attempt > 1 ? ' (retry ' + attempt + ')' : ''}...</td></tr>`;
   try {
-    const resp = await fetch(GRID_API + '/grid-data');
-    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000); // 45s client timeout
+    const resp = await fetch(GRID_API + '/grid-data', { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     gridData = await resp.json();
-    // Signal that gridData is ready (map is waiting for this)
+    if (!Array.isArray(gridData)) throw new Error('Invalid response shape');
     if (gridDataReady) { gridDataReady(); gridDataReady = null; }
-    // Update date reference
     const now = new Date();
     document.getElementById('grid-date-ref').textContent = 'Data as of ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     gridApplyFilters();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="14" class="gd-empty">Failed to load grid data.<br><span style="font-size:0.68rem">Make sure the API server is running: <code>python server.py</code> in landing-internal-data</span></td></tr>`;
-    // Still resolve gridDataReady so map doesn't hang forever
+    // Auto-retry once on failure (handles cold-start timeouts)
+    if (attempt < 2) {
+      console.warn('grid-data fetch failed, retrying:', e.message);
+      return loadGrid(attempt + 1);
+    }
+    const errDetail = e.name === 'AbortError' ? 'request timed out' : e.message;
+    tbody.innerHTML = `<tr><td colspan="14" class="gd-empty">Couldn't load portfolio data (${gEsc(errDetail)}).<br><button onclick="loadGrid()" style="margin-top:8px;padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-family:Outfit,sans-serif;font-weight:600;cursor:pointer;font-size:0.72rem">Retry</button></td></tr>`;
     if (gridDataReady) { gridDataReady(); gridDataReady = null; }
   }
 }
@@ -1977,8 +2816,8 @@ function renderUnitTable(el, units) {
       // Rent
       const baseRent = u.rent_cost != null ? '$' + Number(u.rent_cost).toLocaleString() : '--';
       const hasLandingRent = u.landing_rent != null;
-      const isEstimated = u.rent_source === 'estimated';
-      const estTag = isEstimated ? '<span style="color:var(--muted);font-size:0.55rem;margin-left:2px" title="Estimated from daily AP cost">~</span>' : '';
+      // Tag source: reservation (actual), admin (monthly_rent from Admin), or none
+      const estTag = '';
       const landingRent = hasLandingRent ? '$' + Number(u.landing_rent).toLocaleString() + estTag : '<span style="color:var(--muted);font-size:0.62rem">--</span>';
       const markupVal = u.computed_markup != null ? u.computed_markup : u.markup;
       const markupStr = markupVal != null ? (markupVal * 100).toFixed(1) + '%' + estTag : '--';
@@ -2102,10 +2941,10 @@ function renderResTable(el, res, units) {
 function gridUpdateStats() {
   const d = gridFiltered;
   const units = d.reduce((s, r) => s + (r.home_count || 0), 0);
-  // Weighted avg occupancy — each unit counts equally, not each property
-  const avgOcc = units > 0 ? occupied / units : null;
   const occupied = d.reduce((s, r) => s + (r.home_occupied_count || 0), 0);
   const available = units - occupied;
+  // Weighted avg occupancy — each unit counts equally, not each property
+  const avgOcc = units > 0 ? occupied / units : null;
   document.getElementById('grid-stats').innerHTML =
     `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
     `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
