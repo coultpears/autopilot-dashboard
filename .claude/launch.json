@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "netlify-dev",
-      "runtimeExecutable": "netlify",
-      "runtimeArgs": ["dev"],
-      "port": 8888
+      "name": "static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8889"],
+      "port": 8889
     }
   ]
 }
