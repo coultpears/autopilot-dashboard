@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "note": "Hand-curated overrides. Always win over data/geocodes.json. Use this for properties/addresses that backfill cannot resolve, or to fix specific wrong geocodes.",
+  "byProperty": {
+    "Chestnut Farm": {
+      "lat": 35.0012,
+      "lng": -80.6982,
+      "src": "manual",
+      "note": "Mapbox only resolved to ZIP 28104 in Matthews, NC — '3005 Chestnut Grove Ln' not in Mapbox or Nominatim. ZIP-level approximation."
+    },
+    "River Junction": {
+      "lat": 30.6257,
+      "lng": -97.8648,
+      "src": "manual",
+      "note": "Looker had street '116 & Talon Grasp Trl' (ampersand confused geocoders). Cleaned to '116 Talon Grasp Trail, Leander, TX' for Mapbox — exact match."
+    },
+    "Cortland Phillips Creek Ranch North": {
+      "lat": 33.1311,
+      "lng": -96.8904,
+      "src": "manual",
+      "note": "Looker had street '6300 F 423' (truncated FM road name). Cleaned to '6300 FM 423, Frisco, TX' for Mapbox — exact match."
+    }
+  },
+  "byAddress": {}
+}

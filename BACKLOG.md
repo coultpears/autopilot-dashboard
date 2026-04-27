@@ -7,7 +7,12 @@
   2. **Weekly cron** to backfill any new CoStar targets from the latest ingest.
   3. OR enhance the CoStar ingest itself to do search enrichment as a post-step per deal.
 
-- **Server-side geocoding for target pins.** Currently all target pins in a drilled-in market jitter around the market center (city-level coords). True address-accurate pins need geocoding each deal's `property_street_address`. Client-side per-address geocoding was too slow + rate-limited; server-side scraping blocked by Google/Bing/DDG. Needs a persistent cache — either Netlify Blobs or a one-time batch script that writes lat/lng back to HubSpot custom properties.
+- **CoStar target geocoding stragglers (~28).** Mapbox-primary backfill resolved 99.0% of target addresses (2728/2756). The remaining 28 have data-quality issues in HubSpot (typos, ambiguous street numbers, malformed FM-road designations). Resolve via `data/geocodes-manual.json` byAddress overrides — extend `scripts/list-geocode-failures.js` to also output target failures (currently portfolio-only) so the worst offenders are visible. Until then, those 28 targets fall back to market-center jitter.
+
+- **Re-run backfill on a schedule.** New properties land in Looker and new CoStar deals land in HubSpot continuously. The cache only refreshes when `node scripts/backfill-geocoding.js` is run manually. Either:
+  1. **Local cron** — Matt runs it weekly, commits the updated `data/geocodes.json`.
+  2. **Netlify scheduled function** — call the geocode logic from a daily scheduled function, but the durable storage problem reappears (functions can't commit to git). Could write to Netlify Blobs and have the cache loader read from Blobs first, JSON file second.
+  3. **GitHub Action** — runs the backfill weekly, opens a PR with the updated JSON. Cleanest answer if we want zero manual intervention.
 
 - **Bulk-curate `property_website`** for high-priority CoStar targets via reps (organic growth). Map button picks it up automatically.
 
@@ -15,6 +20,8 @@
 
 ## Done (recent — Apr 2026 session)
 
+- **Address-accurate pin placement.** Portfolio 100% (679/679), targets 99.0% (2728/2756). Replaced the market-center golden-angle spiral with real geocoded coords from `data/geocodes.json`. Pipeline: `scripts/backfill-geocoding.js` reads addresses from Looker (`dimproperty.address_one/city_name/state/zip`) + HubSpot CoStar deals → geocodes via Mapbox (primary, ~50ms/req) with Nominatim fallback → writes to repo-committed JSON. `data/geocodes-manual.json` provides hand-curated overrides that always win. `_geocode-cache.js` is a shared loader for `grid-data.js` and `map-data.js`. Map render in `map.html` prefers `lat/lng` and only jitters when a property/target wasn't geocoded.
+- **Period rollups in Grid view.** Added 3mo/6mo/8mo/12mo segmented control to map.html grid toolbar. Each period swaps the middle 7 columns to show period-specific metrics: Occupancy, Reservations, Cum. Nights, Rev/Res, Period Rev, ADR, RevPAU. Stats strip updates accordingly. Period selection persists in localStorage. Backed by a new `/api/grid-history` endpoint that aggregates `tbldailyhomemetrics` over the date window + counts new reservations from `dimreservation`. Sort defaults to Period Rev desc when entering period mode.
 - Editorial design refresh (both Dashboard + Map):
   - Typography: Instrument Sans / DM Sans / JetBrains Mono
   - Warm off-white ground + Landing brand palette
@@ -43,6 +50,7 @@
 
 - `HUBSPOT_TOKEN` — Private app token, currently `pat-na1-4ae893d3-*` (sync'd w/ landing-ops-agents)
 - `LANDING_CLIENT_ID`, `LANDING_CLIENT_SECRET` — Looker API credentials
+- `MAPBOX_TOKEN` — Public token (`pk.*`) for geocoding. Free tier (100k req/mo). Used by `scripts/backfill-geocoding.js` only — runtime functions read from the repo-committed cache, not Mapbox directly.
 
 ## Deploys
 

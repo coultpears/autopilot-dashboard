@@ -2,6 +2,7 @@
 // Optimized: cached Looker auth + 3 parallel queries, aggressive CDN caching
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
+const geocodeCache = require('./_geocode-cache.js');
 
 // Module-level token cache — survives across warm Lambda invocations (saves ~300ms)
 let _cachedToken = null;
@@ -178,12 +179,16 @@ exports.handler = async (event) => {
       r.occupancy = r.home_count > 0 ? r.home_occupied_count / r.home_count : 0;
 
       const status = computeStatus({ ...r, ...res });
+      // Attach geocoded lat/lng (null when address never geocoded — client falls back to jitter)
+      const geo = geocodeCache.lookupByPropertyName(r.property_name);
       return {
         ...r,
         current_reservation_count: res.current_reservation_count || null,
         future_reservation_count: res.future_reservation_count || null,
         count: res.count || null,
         deinstall_count: di,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
         ...status,
       };
     });

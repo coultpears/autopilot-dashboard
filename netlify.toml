@@ -12,6 +12,9 @@
 [functions."property-detail"]
   timeout = 30
 
+[functions."grid-history"]
+  timeout = 30
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

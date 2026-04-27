@@ -46,6 +46,8 @@ const EXCLUDED_STAGES = new Set([
 let _cachedToken = null;
 let _tokenExpiry = 0;
 
+const geocodeCache = require('./_geocode-cache.js');
+
 async function fetchWithRetry(url, opts, retries = 3) {
   for (let i = 0; i < retries; i++) {
     const resp = await fetch(url, opts);
@@ -234,13 +236,16 @@ exports.handler = async () => {
         vacantEstimated = true;
       }
 
+      // Geocoded coords (from data/geocodes.json, populated by scripts/backfill-geocoding.js).
+      // Falls back to null when address never geocoded — client jitters around market center.
+      const geo = address ? geocodeCache.lookupByAddress(address) : null;
       return {
         dealId: deal.id,
         name,
         address,
         market,
-        coords: null,          // filled in below
-        coordsSource: null,
+        coords: geo ? { lat: geo.lat, lng: geo.lng } : null,
+        coordsSource: geo ? geo.src : null,
         partner: dealPartnerMap[deal.id] || '—',
         rep: owners[p.hubspot_owner_id] || '',
         stage: STAGE_LABELS[stageId] || stageId,
@@ -264,8 +269,9 @@ exports.handler = async () => {
       };
     }).filter(Boolean);
 
-    // No server-side geocoding — client handles it with localStorage cache.
-    // Client reads t.address and asynchronously resolves coords on demand.
+    // Server-side geocoding via repo-committed cache (data/geocodes.json).
+    // Targets without a cached geocode get `coords: null` — client jitters around the market center.
+    // Re-run scripts/backfill-geocoding.js to extend the cache for newly-added deals.
 
     return {
       statusCode: 200,

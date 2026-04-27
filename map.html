@@ -728,6 +728,44 @@ code, pre, kbd { font-variant-numeric: tabular-nums; font-feature-settings: "tnu
   box-shadow: 0 0 0 2px rgba(8,120,108,0.15);
 }
 
+/* ─── Period Segmented Control ─── */
+.grid-period {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  padding: 2px;
+}
+.grid-period-label {
+  font-family: var(--font-mono); font-size: 0.58rem; font-weight: 500;
+  color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.12em;
+  padding: 0 8px 0 6px;
+}
+.grid-period-btn {
+  font-family: var(--font-display); font-size: 0.72rem; font-weight: 500;
+  padding: 5px 11px; border: none; border-radius: 4px;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+  transition: all 0.12s; letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums;
+}
+.grid-period-btn:hover { color: var(--ink-0); background: var(--surface-1); }
+.grid-period-btn.active {
+  background: var(--landing-navy); color: #fff;
+  box-shadow: 0 1px 2px rgba(21,25,45,0.12);
+}
+.grid-period-btn[disabled] {
+  opacity: 0.55; cursor: wait;
+}
+/* Compact pill for the stats strip when in period mode */
+.grid-period-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 9px; border-radius: var(--r-sm);
+  background: var(--blue-tint); color: var(--landing-blue);
+  font-family: var(--font-mono); font-size: 0.58rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-left: 8px;
+}
+
 .grid-stats {
   display: flex; gap: 0; margin-left: auto;
   font-family: var(--font-mono); font-size: 0.7rem;
@@ -1137,29 +1175,20 @@ input:focus-visible, button:focus-visible, a:focus-visible {
     <button class="grid-active-btn active" id="grid-active-btn" onclick="gridToggleActive()">
       <span class="grid-active-dot"></span> Active Only
     </button>
+    <div class="grid-period" id="grid-period" role="tablist" aria-label="Rollup period">
+      <span class="grid-period-label">Period</span>
+      <button type="button" class="grid-period-btn active" data-period="now"  onclick="gridSetPeriod('now')"  title="Today's snapshot">Now</button>
+      <button type="button" class="grid-period-btn"        data-period="3mo"  onclick="gridSetPeriod('3mo')"  title="Last 90 days">3mo</button>
+      <button type="button" class="grid-period-btn"        data-period="6mo"  onclick="gridSetPeriod('6mo')"  title="Last 180 days">6mo</button>
+      <button type="button" class="grid-period-btn"        data-period="8mo"  onclick="gridSetPeriod('8mo')"  title="Last 240 days">8mo</button>
+      <button type="button" class="grid-period-btn"        data-period="12mo" onclick="gridSetPeriod('12mo')" title="Last 365 days">12mo</button>
+    </div>
     <div class="grid-stats" id="grid-stats"></div>
     <div class="grid-date-ref" id="grid-date-ref" style="font-family:'Outfit',sans-serif;font-size:0.68rem;font-weight:600;color:var(--muted);padding:4px 10px;background:var(--navy-light);border-radius:6px;border:1px solid var(--border);white-space:nowrap"></div>
   </div>
   <div class="grid-scroll">
     <table class="grid-table" id="grid-table">
-      <thead>
-        <tr>
-          <th class="col-expand"></th>
-          <th class="sortable" data-col="property_name">Property</th>
-          <th class="sortable" data-col="partner_name">Partner</th>
-          <th class="sortable" data-col="market_name">Market</th>
-          <th class="sortable num" data-col="home_count">Units</th>
-          <th class="sortable num" data-col="occupancy">Occupancy</th>
-          <th class="sortable num" data-col="home_occupied_count">Occ / Vacant</th>
-          <th class="sortable num" data-col="current_reservation_count">Reservations</th>
-          <th class="sortable num" data-col="home_average_rent_cost">Avg Base Rent</th>
-          <th class="sortable num" data-col="home_daily_rent_revenue">Daily Rev</th>
-          <th class="sortable num" data-col="home_daily_rent_cost_autopilot">Daily AP Cost</th>
-          <th class="sortable num" data-col="all_in_revpah_net">RevPAH</th>
-          <th class="sortable" data-col="status_label">Status</th>
-          <th class="col-link">Admin</th>
-        </tr>
-      </thead>
+      <thead id="grid-thead"></thead>
       <tbody id="grid-body"></tbody>
     </table>
   </div>
@@ -2057,9 +2086,16 @@ function drillIntoPartnerFromSearch(partnerName) {
 // ─── RENDER: PORTFOLIO (individual property pins) ───
 function plotPortfolioPins(data) {
   data.forEach((d, i) => {
-    const coords = resolveMarketCoords(d.market_name);
-    if (!coords) return;
-    const pos = jitter(coords, i);
+    // Prefer the address-accurate geocode from grid-data; fall back to market-center
+    // jittered placement only when the property hasn't been geocoded yet.
+    let pos;
+    if (d.lat != null && d.lng != null) {
+      pos = { lat: d.lat, lng: d.lng };
+    } else {
+      const coords = resolveMarketCoords(d.market_name);
+      if (!coords) return;
+      pos = jitter(coords, i);
+    }
     const units = d.home_count || 1;
     const sz = Math.max(6, Math.min(20, 4 + Math.sqrt(units) * 2));
     const color = STATUS_COLORS[d.status_color] || STATUS_COLORS.neutral;
@@ -2400,8 +2436,12 @@ function plotTargetPins(targets) {
   const LOW_RENT_THRESHOLD = 1450;
   targets.forEach((d, i) => {
     if (!d.coords) return;
-    const pos = jitter(d.coords, i);
-    d._pinPos = pos;  // store jittered position for highlight click
+    // Address-accurate geocodes already point at the building — don't jitter.
+    // Server cache uses 'nominatim'/'nominatim-fallback'/'cache'; legacy client geocoder used 'address'.
+    // Anything other than 'market' (the city-center fallback) is real geocoded coords.
+    const isAddressLevel = d.coordsSource && d.coordsSource !== 'market';
+    const pos = isAddressLevel ? d.coords : jitter(d.coords, i);
+    d._pinPos = pos;  // store position for highlight click
     const color = targetPinColor(d);
     const sz = Math.max(6, Math.min(18, 5 + Math.sqrt(d.totalUnits || 1) * 1.5));
     const lowRent = d.askingRent > 0 && d.askingRent < LOW_RENT_THRESHOLD;
@@ -2909,7 +2949,8 @@ async function initMap() {
       });
       const unmappedTargets = [...new Set(targetData.filter(d => !d.coords && d.market).map(d => d.market))];
       if (unmappedTargets.length) console.warn('Unmapped target markets:', unmappedTargets);
-      console.log(`CoStar targets loaded: ${targetData.length} (${targetData.filter(d => d.coords).length} mapped, ${targetData.filter(d => d.coordsSource === 'address').length} address-accurate)`);
+      const addressAccurate = targetData.filter(d => d.coordsSource && d.coordsSource !== 'market').length;
+      console.log(`CoStar targets loaded: ${targetData.length} (${targetData.filter(d => d.coords).length} mapped, ${addressAccurate} address-accurate)`);
     }
 
     lb.style.width = '90%';
@@ -2938,6 +2979,22 @@ const GRID_API = _isLocalDev ? 'http://localhost:5001/api' : '/api';
 let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
 let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
 const _detailCache = {};  // property_name -> { units, reservations }
+
+// ─── Period state (3/6/8/12-month rollups) ───
+let gridPeriod = (() => {
+  try { return localStorage.getItem('ap_grid_period') || 'now'; } catch { return 'now'; }
+})();
+const _periodCache = {};   // period key -> array of historical records (from /api/grid-history)
+let _periodLookup = {};    // property_name -> historical record for the active period
+let _periodLoading = false;
+
+const PERIOD_META = {
+  'now':  { label: 'Now',  days: 0,   desc: "Today's snapshot" },
+  '3mo':  { label: '3mo',  days: 90,  desc: 'Last 90 days' },
+  '6mo':  { label: '6mo',  days: 180, desc: 'Last 180 days' },
+  '8mo':  { label: '8mo',  days: 240, desc: 'Last 240 days' },
+  '12mo': { label: '12mo', days: 365, desc: 'Last 365 days' },
+};
 
 function switchMapGrid(mode) {
   activeViewMode = mode;
@@ -2973,8 +3030,11 @@ function switchMapGrid(mode) {
 }
 
 async function loadGrid(attempt = 1) {
+  // Render header immediately so the loading row aligns under real columns
+  gridRenderThead();
   const tbody = document.getElementById('grid-body');
-  tbody.innerHTML = `<tr><td colspan="14" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data${attempt > 1 ? ' (retry ' + attempt + ')' : ''}...</td></tr>`;
+  const colCount = gridColumns().length;
+  tbody.innerHTML = `<tr><td colspan="${colCount}" class="gd-loading"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading portfolio data${attempt > 1 ? ' (retry ' + attempt + ')' : ''}...</td></tr>`;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 45000); // 45s client timeout
@@ -2986,7 +3046,15 @@ async function loadGrid(attempt = 1) {
     if (gridDataReady) { gridDataReady(); gridDataReady = null; }
     const now = new Date();
     document.getElementById('grid-date-ref').textContent = 'Data as of ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    // Reflect persisted period choice in the segmented control
+    document.querySelectorAll('#grid-period .grid-period-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.period === gridPeriod);
+    });
+    // Render "Now" immediately so user sees data fast;
+    // if a non-"now" period was persisted, kick off its fetch (force=true because
+    // gridPeriod already matches the target but the data hasn't been loaded yet).
     gridApplyFilters();
+    if (gridPeriod !== 'now') gridSetPeriod(gridPeriod, true);
   } catch (e) {
     // Auto-retry once on failure (handles cold-start timeouts)
     if (attempt < 2) {
@@ -3034,26 +3102,23 @@ function gridSort(col) {
   if (gridSortCol === col) gridSortDir = gridSortDir === 'asc' ? 'desc' : 'asc';
   else { gridSortCol = col; gridSortDir = 'asc'; }
   gridApplyFilters();
-  document.querySelectorAll('.grid-table th.sortable').forEach(th => {
-    const match = th.dataset.col === gridSortCol;
-    th.classList.toggle('sorted', match);
-    th.classList.toggle('asc', match && gridSortDir === 'asc');
-    th.classList.toggle('desc', match && gridSortDir === 'desc');
-  });
 }
-// Attach sort handlers
-document.querySelectorAll('.grid-table th.sortable').forEach(th => {
-  th.addEventListener('click', () => gridSort(th.dataset.col));
+// Event delegation on thead — header cells are rendered dynamically by gridRenderThead()
+document.getElementById('grid-thead').addEventListener('click', (e) => {
+  const th = e.target.closest('th.sortable');
+  if (th && th.dataset.col) gridSort(th.dataset.col);
 });
 
 function gridSorted(data) {
+  const dir = gridSortDir === 'asc' ? 1 : -1;
   return [...data].sort((a, b) => {
-    let va = a[gridSortCol], vb = b[gridSortCol];
-    if (va == null) va = '';
-    if (vb == null) vb = '';
-    if (typeof va === 'number' && typeof vb === 'number') return gridSortDir === 'asc' ? va - vb : vb - va;
-    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
-    return gridSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    const va = a[gridSortCol], vb = b[gridSortCol];
+    // Always push null/undefined to the bottom regardless of direction
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+    return String(va).toLowerCase().localeCompare(String(vb).toLowerCase()) * dir;
   });
 }
 
@@ -3080,46 +3145,225 @@ function statusHtml(r) {
   return `<span class="status-badge ${cls}"><span class="grid-active-dot"></span>${gEsc(lbl)}</span>`;
 }
 
+// ─── Column definitions (drive both thead + tbody render) ─────────────
+// Shape: { id, label, cls, sortable, title, cell(r) -> HTML }
+// `id` is the sort key (also data-col attribute). omit id for non-sortable.
+function gridCommonHeadCols() {
+  return [
+    { id: null, label: '', cls: 'col-expand', sortable: false, cell: () => '<span class="expand-chevron">&#9654;</span>' },
+    { id: 'property_name', label: 'Property', sortable: true, cell: r =>
+        `<td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : ''}</td>` },
+    { id: 'partner_name',  label: 'Partner',  sortable: true, cell: r =>
+        `<td class="grid-partner">${gEsc(r.pmc_name || r.partner_name || '')}${r.dp_name && r.dp_name !== r.pmc_name ? '<div class="grid-partner-sub">' + gEsc(r.dp_name) + '</div>' : ''}</td>` },
+    { id: 'market_name',   label: 'Market',   sortable: true, cell: r => `<td class="grid-loc">${gEsc(r.market_name)}</td>` },
+    { id: 'home_count',    label: 'Units',    cls: 'num', sortable: true, cell: r => `<td class="num">${gFmt(r.home_count || 0)}</td>` },
+  ];
+}
+function gridCommonTailCols() {
+  return [
+    { id: 'status_label', label: 'Status', sortable: true, cell: r => `<td>${statusHtml(r)}</td>` },
+    { id: null, label: 'Admin', cls: 'col-link', sortable: false, cell: r => {
+        const adminUrl = 'https://admin.hellolanding.com/properties/' + encodeURIComponent((r.property_name || '').toLowerCase().replace(/\s+/g, '-'));
+        return `<td><a href="${gEsc(adminUrl)}" target="_blank" class="admin-link" onclick="event.stopPropagation()">&#8599;</a></td>`;
+      } },
+  ];
+}
+
+// Now-mode middle columns (today's snapshot — same as original layout)
+function gridNowMiddleCols() {
+  return [
+    { id: 'occupancy', label: 'Occupancy', cls: 'num', sortable: true, cell: r => {
+        const occ = r.occupancy, occW = occ != null ? Math.round(occ * 100) : 0;
+        return `<td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>`;
+      } },
+    { id: 'home_occupied_count', label: 'Occ / Vacant', cls: 'num', sortable: true, cell: r => {
+        const units = r.home_count || 0, occupied = r.home_occupied_count || 0, vacant = units - occupied;
+        return `<td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#EE533D' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>`;
+      } },
+    { id: 'current_reservation_count', label: 'Reservations', cls: 'num', sortable: true, cell: r => {
+        const currRes = r.current_reservation_count || 0, futRes = r.future_reservation_count || 0;
+        return `<td class="num"><span class="res-chip res-curr">${currRes} <span class="res-label">now</span></span><span class="res-chip res-fut">${futRes} <span class="res-label">upcoming</span></span></td>`;
+      } },
+    { id: 'home_average_rent_cost', label: 'Avg Base Rent', cls: 'num', sortable: true, cell: r =>
+        `<td class="num">${r.home_average_rent_cost != null ? '$' + Math.round(r.home_average_rent_cost).toLocaleString() : '--'}</td>` },
+    { id: 'home_daily_rent_revenue', label: 'Daily Rev', cls: 'num', sortable: true, cell: r =>
+        `<td class="num" style="color:var(--green);font-weight:700">${r.home_daily_rent_revenue != null ? '$' + Math.round(r.home_daily_rent_revenue).toLocaleString() : '--'}</td>` },
+    { id: 'home_daily_rent_cost_autopilot', label: 'Daily AP Cost', cls: 'num', sortable: true, cell: r =>
+        `<td class="num">${r.home_daily_rent_cost_autopilot != null ? '$' + Math.round(r.home_daily_rent_cost_autopilot).toLocaleString() : '--'}</td>` },
+    { id: 'all_in_revpah_net', label: 'RevPAH', cls: 'num', sortable: true, cell: r =>
+        `<td class="num" style="font-weight:700">${r.all_in_revpah_net != null ? '$' + r.all_in_revpah_net.toFixed(2) : '--'}</td>` },
+  ];
+}
+
+// Period-mode middle columns (lookback rollups for an owner-operator)
+function gridPeriodMiddleCols() {
+  const meta = PERIOD_META[gridPeriod];
+  const suffix = meta ? ` (${meta.label})` : '';
+  return [
+    { id: 'period_occupancy', label: 'Occupancy' + suffix, cls: 'num', sortable: true,
+      title: 'Occupied unit-nights ÷ available unit-nights over ' + (meta?.desc || 'period'),
+      cell: r => {
+        const occ = r.period_occupancy, occW = occ != null ? Math.round(occ * 100) : 0;
+        return `<td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>`;
+      } },
+    { id: 'period_reservations', label: 'Reservations', cls: 'num', sortable: true,
+      title: 'Bookings that started in the period',
+      cell: r => `<td class="num" style="font-weight:700">${gFmt(r.period_reservations)}</td>` },
+    { id: 'period_occupied_nights', label: 'Cum. Nights', cls: 'num', sortable: true,
+      title: 'Total occupied unit-nights across all units in the period',
+      cell: r => `<td class="num">${gFmt(r.period_occupied_nights)}</td>` },
+    { id: 'period_rev_per_res', label: 'Rev / Res', cls: 'num', sortable: true,
+      title: 'Average revenue per new reservation started in the period',
+      cell: r => `<td class="num">${r.period_rev_per_res != null ? '$' + Math.round(r.period_rev_per_res).toLocaleString() : '--'}</td>` },
+    { id: 'period_revenue', label: 'Period Rev', cls: 'num', sortable: true,
+      title: 'Total rent revenue booked through Landing in the period',
+      cell: r => `<td class="num" style="color:var(--green);font-weight:700">${r.period_revenue != null ? '$' + Math.round(r.period_revenue).toLocaleString() : '--'}</td>` },
+    { id: 'period_adr', label: 'ADR', cls: 'num', sortable: true,
+      title: 'Average Daily Rate — revenue per occupied unit-night',
+      cell: r => `<td class="num">${r.period_adr != null ? '$' + r.period_adr.toFixed(0) : '--'}</td>` },
+    { id: 'period_revpau', label: 'RevPAU', cls: 'num', sortable: true,
+      title: 'Revenue per Available Unit — revenue ÷ all available unit-nights (incl. vacant)',
+      cell: r => `<td class="num" style="font-weight:700">${r.period_revpau != null ? '$' + r.period_revpau.toFixed(0) : '--'}</td>` },
+  ];
+}
+
+function gridColumns() {
+  const middle = gridPeriod === 'now' ? gridNowMiddleCols() : gridPeriodMiddleCols();
+  return [...gridCommonHeadCols(), ...middle, ...gridCommonTailCols()];
+}
+
+function gridRenderThead() {
+  const thead = document.getElementById('grid-thead');
+  const cols = gridColumns();
+  let html = '<tr>';
+  for (const c of cols) {
+    const clsParts = [];
+    if (c.sortable) clsParts.push('sortable');
+    if (c.cls) clsParts.push(c.cls);
+    if (c.id && c.id === gridSortCol) {
+      clsParts.push('sorted', gridSortDir === 'asc' ? 'asc' : 'desc');
+    }
+    const cls = clsParts.length ? ` class="${clsParts.join(' ')}"` : '';
+    const dc = c.id ? ` data-col="${c.id}"` : '';
+    const ttl = c.title ? ` title="${gEsc(c.title)}"` : '';
+    html += `<th${cls}${dc}${ttl}>${gEsc(c.label)}</th>`;
+  }
+  html += '</tr>';
+  thead.innerHTML = html;
+}
+
 function gridRender() {
+  gridRenderThead();
   const tbody = document.getElementById('grid-body');
+  const cols = gridColumns();
   const sorted = gridSorted(gridFiltered);
   if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="14" class="gd-empty">No properties match your search</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="gd-empty">No properties match your search</td></tr>`;
     return;
   }
   let html = '';
   sorted.forEach(r => {
-    const occ = r.occupancy;
-    const occW = occ != null ? Math.round(occ * 100) : 0;
     const isExp = gridExpandedProp === r.property_name;
-    const adminUrl = 'https://admin.hellolanding.com/properties/' + encodeURIComponent((r.property_name || '').toLowerCase().replace(/\s+/g, '-'));
-    const units = r.home_count || 0;
-    const occupied = r.home_occupied_count || 0;
-    const vacant = units - occupied;
-    const currRes = r.current_reservation_count || 0;
-    const futRes = r.future_reservation_count || 0;
-
-    html += `<tr class="${isExp ? 'expanded' : ''}" data-prop="${gEsc(r.property_name)}" onclick="gridToggleExpand('${gEsc(r.property_name)}')" onmouseenter="gridPrefetch('${gEsc(r.property_name)}')">
-      <td><span class="expand-chevron">&#9654;</span></td>
-      <td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : ''}</td>
-      <td class="grid-partner">${gEsc(r.pmc_name || r.partner_name || '')}${r.dp_name && r.dp_name !== r.pmc_name ? '<div class="grid-partner-sub">' + gEsc(r.dp_name) + '</div>' : ''}</td>
-      <td class="grid-loc">${gEsc(r.market_name)}</td>
-      <td class="num">${gFmt(units)}</td>
-      <td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>
-      <td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#EE533D' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>
-      <td class="num"><span class="res-chip res-curr">${currRes} <span class="res-label">now</span></span><span class="res-chip res-fut">${futRes} <span class="res-label">upcoming</span></span></td>
-      <td class="num">${r.home_average_rent_cost != null ? '$' + Math.round(r.home_average_rent_cost).toLocaleString() : '--'}</td>
-      <td class="num" style="color:var(--green);font-weight:700">${r.home_daily_rent_revenue != null ? '$' + Math.round(r.home_daily_rent_revenue).toLocaleString() : '--'}</td>
-      <td class="num">${r.home_daily_rent_cost_autopilot != null ? '$' + Math.round(r.home_daily_rent_cost_autopilot).toLocaleString() : '--'}</td>
-      <td class="num" style="font-weight:700">${r.all_in_revpah_net != null ? '$' + r.all_in_revpah_net.toFixed(2) : '--'}</td>
-      <td>${statusHtml(r)}</td>
-      <td><a href="${gEsc(adminUrl)}" target="_blank" class="admin-link" onclick="event.stopPropagation()">&#8599;</a></td>
-    </tr>`;
-
+    html += `<tr class="${isExp ? 'expanded' : ''}" data-prop="${gEsc(r.property_name)}" onclick="gridToggleExpand('${gEsc(r.property_name)}')" onmouseenter="gridPrefetch('${gEsc(r.property_name)}')">`;
+    for (const c of cols) {
+      const out = c.cell(r);
+      // If the cell function returned a full <td>, use it; otherwise wrap.
+      if (typeof out === 'string' && out.trim().startsWith('<td')) html += out;
+      else html += `<td${c.cls ? ' class="' + c.cls + '"' : ''}>${out}</td>`;
+    }
+    html += '</tr>';
   });
   tbody.innerHTML = html;
   // If a property was expanded, re-inject the detail row via targeted DOM
   if (gridExpandedProp) gridToggleExpand(gridExpandedProp);
+}
+
+// ─── Period filter handler ─────────────────────────────────────────────
+// `force` bypasses the same-period no-op — used on initial load when the
+// persisted period matches `gridPeriod` but we still need to fetch its data.
+async function gridSetPeriod(period, force) {
+  if (!PERIOD_META[period]) return;
+  if (period === gridPeriod && !_periodLoading && !force) return;
+  gridPeriod = period;
+  try { localStorage.setItem('ap_grid_period', period); } catch {}
+
+  // Reflect active state in segmented control
+  document.querySelectorAll('#grid-period .grid-period-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+
+  // "Now" uses gridData directly, no extra fetch needed.
+  if (period === 'now') {
+    _periodLookup = {};
+    // Reset sort to a column that exists in "now" mode if needed
+    if (gridSortCol && gridSortCol.startsWith('period_')) {
+      gridSortCol = 'property_name'; gridSortDir = 'asc';
+    }
+    mergePeriodIntoFiltered();
+    gridApplyFilters();
+    gridUpdateStats();
+    return;
+  }
+
+  // Period mode — fetch rollups (cached per period)
+  if (!_periodCache[period]) {
+    _periodLoading = true;
+    // Visual cue: disable buttons while loading
+    document.querySelectorAll('#grid-period .grid-period-btn').forEach(b => b.disabled = true);
+    try {
+      const resp = await fetch(GRID_API + '/grid-history?period=' + encodeURIComponent(period));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      _periodCache[period] = Array.isArray(data.records) ? data.records : [];
+    } catch (e) {
+      console.error('grid-history fetch failed:', e);
+      _periodCache[period] = [];
+      // Don't leave user stuck — revert to Now
+      alert('Could not load ' + PERIOD_META[period].label + ' rollups: ' + e.message);
+      gridSetPeriod('now');
+      return;
+    } finally {
+      _periodLoading = false;
+      document.querySelectorAll('#grid-period .grid-period-btn').forEach(b => b.disabled = false);
+    }
+  }
+
+  // Build lookup: property_name -> period record
+  _periodLookup = {};
+  for (const p of _periodCache[period]) {
+    if (p.property_name) _periodLookup[p.property_name] = p;
+  }
+
+  // Default-sort by Period Rev (desc) the first time user switches to a period
+  if (!gridSortCol || !gridSortCol.startsWith('period_')) {
+    gridSortCol = 'period_revenue'; gridSortDir = 'desc';
+  }
+
+  mergePeriodIntoFiltered();
+  gridApplyFilters();
+  gridUpdateStats();
+}
+
+// Merge period fields into each gridData record so sort + render can read them directly.
+function mergePeriodIntoFiltered() {
+  for (const r of gridData) {
+    // Clear any previous period values
+    delete r.period_occupancy; delete r.period_reservations; delete r.period_occupied_nights;
+    delete r.period_rev_per_res; delete r.period_revenue; delete r.period_adr;
+    delete r.period_revpau; delete r.period_available_nights; delete r.period_cost;
+    const p = _periodLookup[r.property_name];
+    if (p) {
+      r.period_occupancy = p.period_occupancy;
+      r.period_reservations = p.period_reservations;
+      r.period_occupied_nights = p.period_occupied_nights;
+      r.period_available_nights = p.period_available_nights;
+      r.period_rev_per_res = p.period_rev_per_res;
+      r.period_revenue = p.period_revenue;
+      r.period_cost = p.period_cost;
+      r.period_adr = p.period_adr;
+      r.period_revpau = p.period_revpau;
+    }
+  }
 }
 
 function gridToggleExpand(name) {
@@ -3418,16 +3662,44 @@ function renderResTable(el, res, units) {
 function gridUpdateStats() {
   const d = gridFiltered;
   const units = d.reduce((s, r) => s + (r.home_count || 0), 0);
-  const occupied = d.reduce((s, r) => s + (r.home_occupied_count || 0), 0);
-  const available = units - occupied;
-  // Weighted avg occupancy — each unit counts equally, not each property
-  const avgOcc = units > 0 ? occupied / units : null;
-  document.getElementById('grid-stats').innerHTML =
+  const el = document.getElementById('grid-stats');
+
+  if (gridPeriod === 'now') {
+    const occupied = d.reduce((s, r) => s + (r.home_occupied_count || 0), 0);
+    const available = units - occupied;
+    const avgOcc = units > 0 ? occupied / units : null;
+    el.innerHTML =
+      `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
+      `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
+      `<span><span class="grid-stat-val" style="color:var(--green)">${occupied.toLocaleString()}</span>Occupied</span>` +
+      `<span><span class="grid-stat-val" style="color:#B95B00">${available.toLocaleString()}</span>Available</span>` +
+      `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
+    return;
+  }
+
+  // Period mode — sum rollups across filtered properties
+  const meta = PERIOD_META[gridPeriod] || { label: gridPeriod };
+  let totalOccNights = 0, totalAvailNights = 0, totalRev = 0, totalRes = 0;
+  for (const r of d) {
+    totalOccNights  += r.period_occupied_nights  || 0;
+    totalAvailNights += r.period_available_nights || 0;
+    totalRev        += r.period_revenue         || 0;
+    totalRes        += r.period_reservations    || 0;
+  }
+  const portfolioOcc = totalAvailNights > 0 ? totalOccNights / totalAvailNights : null;
+  const portfolioAdr = totalOccNights > 0 ? totalRev / totalOccNights : null;
+  const portfolioRevPerRes = totalRes > 0 ? totalRev / totalRes : null;
+  const fmtMoney = v => v == null ? '--' : (v >= 1e6 ? '$' + (v/1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + Math.round(v/1e3) + 'k' : '$' + Math.round(v).toLocaleString());
+
+  el.innerHTML =
     `<span><span class="grid-stat-val">${d.length.toLocaleString()}</span>Properties</span>` +
     `<span><span class="grid-stat-val">${units.toLocaleString()}</span>Units</span>` +
-    `<span><span class="grid-stat-val" style="color:var(--green)">${occupied.toLocaleString()}</span>Occupied</span>` +
-    `<span><span class="grid-stat-val" style="color:#B95B00">${available.toLocaleString()}</span>Available</span>` +
-    `<span><span class="grid-stat-val">${avgOcc != null ? gPct(avgOcc) : '--'}</span>Avg Occ.</span>`;
+    `<span><span class="grid-stat-val">${portfolioOcc != null ? gPct(portfolioOcc) : '--'}</span>${gEsc(meta.label)} Occ.</span>` +
+    `<span><span class="grid-stat-val">${totalRes.toLocaleString()}</span>Reservations</span>` +
+    `<span><span class="grid-stat-val">${totalOccNights.toLocaleString()}</span>Occ. Nights</span>` +
+    `<span><span class="grid-stat-val" style="color:var(--green)">${fmtMoney(totalRev)}</span>Revenue</span>` +
+    `<span><span class="grid-stat-val">${portfolioAdr != null ? '$' + portfolioAdr.toFixed(0) : '--'}</span>ADR</span>` +
+    `<span><span class="grid-stat-val">${portfolioRevPerRes != null ? fmtMoney(portfolioRevPerRes) : '--'}</span>Rev/Res</span>`;
 }
 
 // Prefetch grid data immediately — will be ready by the time user clicks Grid
