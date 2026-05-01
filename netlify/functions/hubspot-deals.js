@@ -99,8 +99,17 @@ exports.handler = async () => {
       if (propName) dealMap[propName.toLowerCase()] = deal.id;
     }
 
-    // 2. Pitches — matching ops monitor logic exactly:
-    //    - Active stages only (New Opps → Contract Redline)
+    // 2. Pitches — count of unique deals with `first_pitch_date__ap_` set in the
+    //    date range. Pitch count is a measure of REP ACTIVITY in the period; it
+    //    must NOT depend on where the deal ended up afterward. We previously
+    //    filtered to ACTIVE_STAGE_IDS (which excludes Lost Deal, Not Qualified,
+    //    Doesn't Meet Standards, Not Reached, Existing Opp Follow Up, etc.), but
+    //    that silently dropped real pitches and made rep counts ~11% too low
+    //    portfolio-wide and as much as 73% too low for individual reps doing
+    //    heavy CoStar outreach (where most pitches end up Lost / Not Qualified).
+    //    The previous comment "matches ops monitor logic exactly" was the
+    //    reason for the filter; reps reported the resulting numbers as wrong.
+    //
     //    - first_pitch_date__ap_ in date range
     //    - Exclude future dates (Central Time)
     //    - Week = Monday → today (CT)
@@ -126,26 +135,25 @@ exports.handler = async () => {
     const prevWeekStartStr = prevWeekStartDate.getFullYear() + '-' + String(prevWeekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekStartDate.getDate()).padStart(2, '0');
     const prevWeekEndStr = prevWeekEndDate.getFullYear() + '-' + String(prevWeekEndDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekEndDate.getDate()).padStart(2, '0');
 
-    // Fetch this week's pitches from active stages, then filter by date string (CT)
-    // Using a broad date filter then post-filtering for CT accuracy + future date exclusion
+    // Fetch all pipeline deals with first_pitch_date__ap_ in the date range,
+    // then filter for CT accuracy and future-date exclusion. NO stage filter:
+    // pitch counts reflect rep activity regardless of subsequent deal outcome.
     async function fetchPitchesInRange(gteStr, lteStr) {
-      // Search with stage filter — HubSpot IN operator requires filterGroups per stage
-      // Instead, fetch from all pipeline deals with pitch date in range, then filter stages client-side
       // HubSpot date-type properties are stored at 00:00 UTC, so filter against UTC midnight.
       // Using a CT offset here pushes GTE to 06:00 UTC and silently drops deals whose pitch date == gteStr.
       const gteMs = new Date(gteStr + 'T00:00:00Z').getTime();
       const lteMs = new Date(lteStr + 'T23:59:59Z').getTime();
+      // 25 pages × 200 = 5000 deals/range — well above any plausible single-month pitch volume.
       const results = await searchDeals(token, [
         { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
         { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
         { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
-      ], ['first_pitch_date__ap_', 'hubspot_owner_id', 'dealstage'], 5);
+      ], ['first_pitch_date__ap_', 'hubspot_owner_id', 'dealstage']);
 
-      // Post-filter: active stages only + date string check (CT) + no future dates
+      // Date string check (CT) + no future dates. No stage filter — see comment above.
       return results.filter(d => {
-        if (!ACTIVE_STAGE_IDS.includes(d.properties.dealstage)) return false;
         const pd = (d.properties.first_pitch_date__ap_ || '').slice(0, 10);
-        if (!pd || pd > todayStr) return false; // exclude future dates
+        if (!pd || pd > todayStr) return false;
         return pd >= gteStr && pd <= lteStr;
       });
     }
@@ -213,14 +221,19 @@ exports.handler = async () => {
       lastMonthByRep[repName] = (lastMonthByRep[repName] || 0) + 1;
     }
 
-    // Monthly pitch counts — simple pipeline-wide count (no stage filter) for sparklines/YoY
-    // Stage filtering on monthly would require 3 API calls per month x 27 months = too many
+    // Monthly pitch counts — simple pipeline-wide count for sparklines/YoY.
+    // For the CURRENT month we cap the upper bound at today so the headline
+    // doesn't include future-dated pitches (would otherwise show e.g. "9 pitches
+    // in May" on May 1 when only 1 has actually happened, and the per-rep
+    // breakdown — which already excludes future dates — would disagree).
     async function countPitchesInMonth(year, month) {
       const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
       const lastDay = new Date(year, month + 1, 0).getDate();
       const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+      const isCurrentMonth = year === curYear && month === curMonth;
+      const effectiveEndStr = isCurrentMonth ? todayStr : mEndStr;
       const gteMs = new Date(mStartStr + 'T00:00:00Z').getTime();
-      const lteMs = new Date(mEndStr + 'T23:59:59Z').getTime();
+      const lteMs = new Date(effectiveEndStr + 'T23:59:59Z').getTime();
       const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
