@@ -691,8 +691,18 @@ code, pre, kbd { font-variant-numeric: tabular-nums; font-feature-settings: "tnu
   background: var(--surface-1);
   border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 10px;
 }
-.grid-search-wrap { position: relative; flex: 1; max-width: 400px; }
+.grid-search-wrap { position: relative; flex: 1 1 240px; max-width: 400px; min-width: 240px; }
+/* On narrower viewports, drop the date stamp first (least essential), then
+   let the search take a full row so the input stays usable. */
+@media (max-width: 1280px) {
+  .grid-date-ref { display: none !important; }
+}
+@media (max-width: 1100px) {
+  .grid-search-wrap { flex-basis: 100%; max-width: none; }
+}
 .grid-search-icon {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
   color: var(--ink-3); pointer-events: none;
