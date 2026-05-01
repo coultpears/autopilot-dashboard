@@ -1475,17 +1475,28 @@ function onSearch(q) {
   const results = [];
   const seen = new Set();
 
-  // Partners
+  // Partners — group by canonical identity so typo'd / split-named partners merge.
+  // Match the user's query against the canonical name, the PMC name, and the DP
+  // name so a search for any spelling variant ("Stoltz", "Stolz Properties",
+  // "Stoltz Management") finds the canonical "Stoltz" entity.
   const partnerAgg = {};
   activeGridData().forEach(d => {
-    if (!d.partner_name) return;
-    if (!partnerAgg[d.partner_name]) partnerAgg[d.partner_name] = { units: 0, markets: new Set() };
-    partnerAgg[d.partner_name].units += d.home_count || 0;
-    partnerAgg[d.partner_name].markets.add(d.market_name);
+    const key = d.partner_canonical || d.partner_name;
+    if (!key) return;
+    if (!partnerAgg[key]) partnerAgg[key] = { units: 0, markets: new Set(), variants: new Set(), props: 0 };
+    partnerAgg[key].units += d.home_count || 0;
+    partnerAgg[key].markets.add(d.market_name);
+    partnerAgg[key].props += 1;
+    if (d.pmc_name) partnerAgg[key].variants.add(d.pmc_name);
+    if (d.dp_name) partnerAgg[key].variants.add(d.dp_name);
+    // Include every known spelling variant so the dropdown finds the partner via any typo.
+    if (Array.isArray(d.partner_variants)) for (const v of d.partner_variants) partnerAgg[key].variants.add(v);
   });
   Object.entries(partnerAgg).forEach(([name, data]) => {
-    if (name.toLowerCase().includes(q)) {
-      results.push({ id: 'p:' + name, name, type: 'partner', meta: `${data.markets.size} markets · ${fmt(data.units)} units`, sort: data.units + 1000000 });
+    const canonHit = name.toLowerCase().includes(q);
+    const variantHit = [...data.variants].some(v => v.toLowerCase().includes(q));
+    if (canonHit || variantHit) {
+      results.push({ id: 'p:' + name, name, type: 'partner', meta: `${data.props} properties · ${data.markets.size} markets · ${fmt(data.units)} units`, sort: data.units + 1000000 });
     }
   });
 
@@ -1501,10 +1512,11 @@ function onSearch(q) {
   activeGridData().forEach(d => {
     const key = 'prop:' + d.property_name + ':' + d.market_name;
     if (seen.has(key)) return;
-    const hay = [d.property_name, d.partner_name, d.pmc_name, d.dp_name, d.market_name].filter(Boolean).join(' ').toLowerCase();
+    const variants = (d.partner_variants || []).join(' ');
+    const hay = [d.property_name, d.partner_name, d.partner_canonical, variants, d.pmc_name, d.dp_name, d.market_name].filter(Boolean).join(' ').toLowerCase();
     if (hay.includes(q) || q.split(/\s+/).filter(Boolean).every(t => hay.includes(t))) {
       seen.add(key);
-      results.push({ id: key, name: d.property_name, type: 'property', meta: `${d.partner_name} · ${d.market_name} · ${d.home_count || 0}u`, sort: d.home_count || 0 });
+      results.push({ id: key, name: d.property_name, type: 'property', meta: `${d.partner_canonical || d.partner_name} · ${d.market_name} · ${d.home_count || 0}u`, sort: d.home_count || 0 });
     }
   });
 
@@ -2041,9 +2053,15 @@ function renderMarketPropertyList(props) {
   }).join('') || '<div style="padding:16px;color:var(--silver);font-size:0.8rem">No properties found</div>';
 }
 
-// Partner search drill-in (from search)
+// Partner search drill-in (from search). Matches by canonical identity so a
+// drill-in into "Stoltz" picks up properties whose PMC says "Stoltz Management
+// Corporation" AND whose DP says "Stolz Properties".
 function drillIntoPartnerFromSearch(partnerName) {
-  const props = activeGridData().filter(d => (d.partner_name || '').toLowerCase() === partnerName.toLowerCase());
+  const target = (partnerName || '').toLowerCase();
+  const props = activeGridData().filter(d =>
+    (d.partner_canonical || '').toLowerCase() === target ||
+    (d.partner_name || '').toLowerCase() === target
+  );
   if (!props.length) return;
 
   _drillState = { title: partnerName, type: 'partner-search', props };
@@ -3091,7 +3109,12 @@ function gridToggleActive() {
 function gridApplyFilters() {
   gridFiltered = gridData.filter(r => {
     if (gridActiveOnly && (!r.active_property_count || r.active_property_count < 1)) return false;
-    const hay = [r.property_name, r.partner_name, r.pmc_name, r.dp_name, r.market_name].filter(Boolean).join(' ');
+    // Include partner_canonical AND every known variant spelling so a search for
+    // any flavor ("Stoltz", "Stolz", "Stolz Properties", etc.) finds every
+    // property under that partner — even when one record's DP is a person's
+    // name instead of the partner's name.
+    const variants = (r.partner_variants || []).join(' ');
+    const hay = [r.property_name, r.partner_name, r.partner_canonical, variants, r.pmc_name, r.dp_name, r.market_name].filter(Boolean).join(' ');
     return gridFuzzy(hay, gridSearchTerm);
   });
   gridRender();

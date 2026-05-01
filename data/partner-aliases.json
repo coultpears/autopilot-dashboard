@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "note": "Canonical partner identities for the AP map. Each entry: a canonical display name plus the variants that should resolve to it (matched against PMC name and/or DP name on the property record). Variants are case-insensitive substrings (the variant is matched whole, lowercase). When a property's PMC or DP matches any variant, the property's `partner_canonical` is set to the canonical name. Search + aggregation in the UI groups by `partner_canonical`, so typo'd or split-named partners merge under one identity. Re-run scripts/list-partner-mismatches.js to surface new candidates.",
+  "partners": [
+    {
+      "canonical": "Stoltz",
+      "variants": ["Stoltz Management Corporation", "Stolz Properties"],
+      "note": "Looker has a typo: PMC = 'Stoltz' (2 Ls), DP = 'Stolz' (1 L). One property (35 Folly) has DP = 'Daniel Bretzke' (a person), reached via the PMC variant."
+    },
+    {
+      "canonical": "Seven Seas Holdings",
+      "variants": ["Seven Seas Holdings", "SevenSeas Holdings"],
+      "note": "Spacing typo."
+    },
+    {
+      "canonical": "Northshore",
+      "variants": ["Nortshore", "North shore", "Northshore"],
+      "note": "Typo + spacing variants."
+    },
+    {
+      "canonical": "Carleton Companies",
+      "variants": ["Carleton Companies", "Carlton Companies"],
+      "note": "Typo: missing 'e'."
+    },
+    {
+      "canonical": "Cornerstone Residential",
+      "variants": ["Cornerstone Residential", "Corner stone"],
+      "note": "Spacing typo."
+    },
+    {
+      "canonical": "Perennial Properties",
+      "variants": ["PERRINIAL PROPERTIES", "Perennial Properties"],
+      "note": "Typo: 'PERRINIAL' should be 'Perennial'."
+    },
+    {
+      "canonical": "Delwest",
+      "variants": ["Delwest", "Dellwest"],
+      "note": "Spelling variant."
+    },
+    {
+      "canonical": "RealSource Properties",
+      "variants": ["RealSource Properties", "Real Source"],
+      "note": "Spacing typo."
+    },
+    {
+      "canonical": "Flaherty & Collins Properties",
+      "variants": ["Flaherty & Collins Properties", "Flahery Collins"],
+      "note": "Typo: 'Flahery' missing 't', plus dropped '&'."
+    },
+    {
+      "canonical": "A.C. Lewis Management",
+      "variants": ["A.C. Lewis Management", "AC Lewis Management"],
+      "note": "Punctuation variant."
+    },
+    {
+      "canonical": "Huntington Properties",
+      "variants": ["Huntington Properties", "Hunington Properties"],
+      "note": "Typo: missing 't'."
+    },
+    {
+      "canonical": "Cres Management",
+      "variants": ["Cres Management LLC", "Crest"],
+      "note": "Looker has 'Cres Management LLC' as PMC and just 'Crest' as DP — likely shorthand, treat as same partner."
+    }
+  ]
+}

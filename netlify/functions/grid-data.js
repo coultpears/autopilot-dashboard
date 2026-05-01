@@ -3,6 +3,7 @@
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 const geocodeCache = require('./_geocode-cache.js');
+const partnerAliases = require('./_partner-aliases.js');
 
 // Module-level token cache — survives across warm Lambda invocations (saves ~300ms)
 let _cachedToken = null;
@@ -44,6 +45,16 @@ function cleanRow(row) {
   out.dp_name = dp || null;
   // partner_name kept for backward compat: PMC preferred, DP fallback
   out.partner_name = mgmt || dp || null;
+  // partner_canonical: resolves typo'd / split-named partners to a single identity
+  // (e.g., "Stoltz Management Corporation" + "Stolz Properties" -> "Stoltz")
+  // via the data/partner-aliases.json map. Falls back to PMC then DP.
+  const resolved = partnerAliases.resolvePartner(mgmt, dp);
+  out.partner_canonical = resolved.canonical;
+  // partner_variants: every known spelling of this partner. Injected into the
+  // client-side search hay so any spelling the user types (typo or not) finds
+  // every property under this partner.
+  const variants = partnerAliases.variantsFor(resolved.canonical);
+  out.partner_variants = variants.length ? variants : null;
   delete out.property_management_company;
   delete out.dp_full_name;
   return out;
