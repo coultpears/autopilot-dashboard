@@ -9,14 +9,24 @@ const crypto = require('crypto');
 let _cache = null;
 
 function loadJsonNear(filename) {
+  // Try fs.readFileSync first (lets local dev pick up edits without restart).
+  // In production Netlify Lambdas, the function is bundled by esbuild and
+  // these absolute paths usually don't exist — that's where the require()
+  // fallback below comes in (esbuild statically inlines JSON requires).
   const candidates = [
     path.resolve(__dirname, '..', '..', 'data', filename),
     path.resolve(process.cwd(), 'data', filename),
+    path.resolve(__dirname, 'data', filename),
   ];
   for (const p of candidates) {
     try { return { data: JSON.parse(fs.readFileSync(p, 'utf8')), path: p }; }
     catch (e) { /* try next */ }
   }
+  // Bundled fallback — esbuild inlines these JSON imports at build time.
+  try {
+    if (filename === 'geocodes.json') return { data: require('../../data/geocodes.json'), path: 'bundled' };
+    if (filename === 'geocodes-manual.json') return { data: require('../../data/geocodes-manual.json'), path: 'bundled' };
+  } catch (e) { /* no bundled copy */ }
   return { data: null, path: null };
 }
 

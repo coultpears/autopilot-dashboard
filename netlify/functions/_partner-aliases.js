@@ -17,10 +17,15 @@ function load() {
   const candidates = [
     path.resolve(__dirname, '..', '..', 'data', 'partner-aliases.json'),
     path.resolve(process.cwd(), 'data', 'partner-aliases.json'),
+    path.resolve(__dirname, 'data', 'partner-aliases.json'),
   ];
   let data = null;
   for (const p of candidates) {
     try { data = JSON.parse(fs.readFileSync(p, 'utf8')); break; } catch (e) { /* try next */ }
+  }
+  // Bundled fallback — esbuild inlines this JSON require at build time.
+  if (!data) {
+    try { data = require('../../data/partner-aliases.json'); } catch (e) { /* no bundled copy */ }
   }
   _byVariantLower = {};
   _variantsByCanonical = {};

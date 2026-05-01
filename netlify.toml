@@ -5,6 +5,10 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = []
+  # Include the repo-committed data files in every function bundle.
+  # Without this, fs.readFileSync in _geocode-cache.js / _partner-aliases.js
+  # finds nothing in prod and pins fall back to jittered market centers.
+  included_files = ["data/**"]
 
 [functions."grid-data"]
   timeout = 30
