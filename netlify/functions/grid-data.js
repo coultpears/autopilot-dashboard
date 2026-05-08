@@ -43,8 +43,16 @@ function cleanRow(row) {
   const dp = (out.dp_full_name || '').trim();
   out.pmc_name = mgmt || null;
   out.dp_name = dp || null;
-  // partner_name kept for backward compat: PMC preferred, DP fallback
-  out.partner_name = mgmt || dp || null;
+  // partner_name = capital owner (DP) preferred, operator (PMC) fallback.
+  // Flipped 2026-05-08: reps think of "the partner" as the entity that signs
+  // contracts and gets paid (Carlton Companies, Cardone Capital, Mast Capital,
+  // etc.) — that's dimdirectpartner.dp_full_name. PMC is the operator (e.g.
+  // American Landmark, hired by Carlton). The DP-first ordering aligns the
+  // dashboard's primary "partner" column with the rep mental model and with
+  // what HubSpot deal company_name is tagged. Earlier "PMC preferred" was a
+  // legacy default that surfaced operators as partners (gap discovered on
+  // The Heyward — pmc=American Landmark, dp=Carlton Companies).
+  out.partner_name = dp || mgmt || null;
   // partner_canonical: resolves typo'd / split-named partners to a single identity
   // (e.g., "Stoltz Management Corporation" + "Stolz Properties" -> "Stoltz")
   // via the data/partner-aliases.json map. Falls back to PMC then DP.

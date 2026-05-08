@@ -63,21 +63,26 @@ function lookup(name) {
 }
 
 // Resolve a property's canonical partner from its (pmc_name, dp_name).
-// Order of preference:
-//   1) Alias match on PMC name
-//   2) Alias match on DP name
-//   3) PMC name itself (already canonical for the vast majority of partners)
-//   4) DP name as final fallback
-// Returns { canonical, source } where source is one of 'pmc-alias' | 'dp-alias' | 'pmc' | 'dp' | null.
+// Order of preference (flipped 2026-05-08 to align with rep mental model):
+//   1) Alias match on DP name (capital owner — what reps think of as "the partner")
+//   2) Alias match on PMC name (operator — fallback when no DP signal)
+//   3) DP name itself
+//   4) PMC name as final fallback
+// Returns { canonical, source } where source is one of 'dp-alias' | 'pmc-alias' | 'dp' | 'pmc' | null.
+//
+// Earlier "PMC preferred" was a legacy default that surfaced operators as
+// partners — gap discovered on The Heyward (PMC=American Landmark hired by
+// DP=Carlton Companies). Reps track partnerships by capital owner / signing
+// entity, not by PMC. PMC stays available via separate pmc_name field.
 function resolvePartner(pmcName, dpName) {
-  const pmcCanon = lookup(pmcName);
-  if (pmcCanon) return { canonical: pmcCanon, source: 'pmc-alias' };
   const dpCanon = lookup(dpName);
   if (dpCanon) return { canonical: dpCanon, source: 'dp-alias' };
-  const pmc = (pmcName || '').trim();
-  if (pmc) return { canonical: pmc, source: 'pmc' };
+  const pmcCanon = lookup(pmcName);
+  if (pmcCanon) return { canonical: pmcCanon, source: 'pmc-alias' };
   const dp = (dpName || '').trim();
   if (dp) return { canonical: dp, source: 'dp' };
+  const pmc = (pmcName || '').trim();
+  if (pmc) return { canonical: pmc, source: 'pmc' };
   return { canonical: null, source: null };
 }
 

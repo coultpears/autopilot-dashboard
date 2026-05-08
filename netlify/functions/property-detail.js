@@ -40,7 +40,9 @@ function cleanRow(row) {
   const dp = (out.dp_full_name || '').trim();
   out.pmc_name = mgmt || null;
   out.dp_name = dp || null;
-  out.partner_name = mgmt || dp || null;
+  // partner_name = capital owner (DP) preferred, operator (PMC) fallback.
+  // See grid-data.js for rationale (flipped 2026-05-08).
+  out.partner_name = dp || mgmt || null;
   delete out.property_management_company;
   delete out.dp_full_name;
   return out;
