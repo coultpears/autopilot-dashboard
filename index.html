@@ -250,9 +250,9 @@ body::after {
 /* ─── MAIN LAYOUT ─── */
 .main {
   position: relative; z-index: 1;
-  max-width: 1440px;
+  max-width: 1720px;
   margin: 0 auto;
-  padding: 1.5rem 2rem 3rem;
+  padding: 1.5rem 1.5rem 3rem;
 }
 
 /* ─── KPI STRIP ─── */
@@ -898,204 +898,388 @@ tbody td {
   margin: 0.5rem 0 0.75rem;
 }
 
-/* ─── REP SCORECARD ─── */
+/* ─── REP SCORECARD ─── Quiet modern dashboard. Linear/Vercel feel.
+   ONE font family (DM Sans) end-to-end.
+   ONE size scale: 11px labels, 14px data, 22px Σ + tfoot.
+   NO zebra, NO column rules, NO inset shadows. Pure white rows separated by a
+   single hairline rule. Hierarchy comes from size + weight + color only.
+   The Σ column is the heaviest element on each row — that's how it reads. */
 .scorecard {
+  position: relative;
   background: var(--surface-1);
   border: 1px solid var(--line-1);
   border-radius: var(--r-xl);
-  padding: 1.5rem 1.75rem;
+  padding: 1.75rem 2rem 1.5rem;
   margin-bottom: 1.25rem;
   opacity: 0;
   transform: translateY(10px);
   animation: card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: 0.3s;
   box-shadow: var(--elev-1);
+  overflow: hidden;
+}
+/* Subtle tonal wash at the top edge of the card — like the slight color wash
+   at the masthead of a printed page. 2% landing-blue fading to transparent over
+   80px. Adds atmosphere without being a "gradient design." */
+.scorecard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 80px;
+  background: linear-gradient(180deg, rgba(26,97,217,0.025) 0%, rgba(26,97,217,0) 100%);
+  pointer-events: none;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+}
+.scorecard > * { position: relative; }
+
+/* Section header refinement — title gets a short 2px landing-blue underline
+   anchor mark. Period chip sits opposite at the right. */
+.scorecard-header { align-items: flex-end; }
+.scorecard-title { position: relative; padding-bottom: 6px; }
+.scorecard-title::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 28px; height: 2px;
+  background: var(--landing-blue);
+  border-radius: 1px;
+}
+.scorecard-period {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 12px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-0);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.scorecard-period__main {
+  color: var(--landing-navy);
+  font-weight: 700;
+  letter-spacing: 0.005em;
+}
+.scorecard-period__sep {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+.scorecard-period__sub {
+  color: var(--ink-3);
+  font-weight: 500;
 }
 .scorecard-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 2px;
+  border-collapse: collapse;
+  font-family: var(--font-body);     /* DM Sans — applies to EVERYTHING in the table */
+  font-variant-numeric: tabular-nums;
 }
+
+/* ─── HEADER ─── one size (11px), tight letter-spacing, uppercase.
+   Bottom-aligned so labels sit just above the body, like column headers
+   should. Differentiate tiers through weight + color, not size. */
 .scorecard-table thead th {
   background: transparent;
-  padding: 8px 14px 12px;
+  padding: 6px 12px;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-family: var(--font-body);
+  font-size: 0.69rem;          /* 11px @ default 16px root */
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--ink-3);
   font-weight: 500;
   white-space: nowrap;
+  vertical-align: bottom;
+}
+/* Group labels (row 1) — bumped to read as section titles, not just labels.
+   12px / 700 weight / tighter tracking gives them authority over sub-rows. */
+.scorecard-table thead tr.col-groups th {
+  font-size: 0.75rem;          /* 12px */
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  padding-top: 14px;
+  padding-bottom: 8px;
+  border-bottom: none;
+}
+.scorecard-table thead tr.col-groups th.cg-ytd   { color: var(--landing-blue); }
+.scorecard-table thead tr.col-groups th.cg-month { color: var(--landing-teal); }
+.scorecard-table thead tr.col-groups th.cg-pitch { color: var(--landing-tonal); }
+.scorecard-table thead tr.subgroup th {
+  font-weight: 600;
+  color: var(--ink-1);
+  padding: 6px 12px;
+}
+.scorecard-table thead tr.subgroup th.cg-expansion {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.scorecard-table thead tr.subgroup th.sigma-head {
+  font-weight: 700;
+  color: var(--landing-navy);
+}
+.scorecard-table thead tr.col-leaf th {
+  padding-top: 4px;
+  padding-bottom: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
   border-bottom: 1px solid var(--line-1);
 }
-.scorecard-table thead th:first-child {
+.scorecard-table thead tr.col-groups th.rep-head,
+.scorecard-table thead tr.col-groups th[rowspan="3"] {
   text-align: left;
-  width: 180px;
+  width: 160px;
+  padding-left: 16px;
+  vertical-align: bottom;
+  padding-bottom: 14px;
+  font-family: var(--font-body);
+  font-size: 0.69rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line-1);
 }
+
+/* ─── BODY ─── no zebra. Single hairline rule between rows. Generous padding.
+   Each row reads as one calm horizontal band. */
 .scorecard-table tbody tr {
-  transition: all 0.15s;
+  transition: background-color 0.12s;
 }
 .scorecard-table tbody tr td {
   background: var(--surface-1);
-  border-top: 1px solid transparent;
   border-bottom: 1px solid var(--line-0);
 }
 .scorecard-table tbody tr:hover td {
   background: var(--surface-2);
 }
-.scorecard-table tbody tr.sc-top td:first-child {
-  border-left: 3px solid var(--landing-blue);
-}
-.scorecard-table tbody tr.sc-top td {
-  background: var(--landing-baby);
-}
-.scorecard-table tbody tr.sc-top:hover td {
-  background: rgba(26,97,217,0.10);
-}
 .scorecard-table tbody td {
-  padding: 11px 14px;
+  padding: 16px 12px;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.86rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;            /* 14px */
   font-weight: 500;
   color: var(--ink-1);
   font-variant-numeric: tabular-nums;
-}
-.scorecard-table tbody tr.sc-top td {
-  color: var(--ink-0);
-  font-weight: 600;
-}
-.scorecard-table tbody td:first-child {
-  text-align: left;
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--ink-0);
   letter-spacing: -0.005em;
 }
-.scorecard-table tfoot td {
-  padding: 14px 14px;
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 1.02rem;
+
+/* Top-3 rows: bolder name + ink-0. No background, no inset shadow.
+   The rank pill itself (already navy/blue-filled) is the only visual cue. */
+.scorecard-table tbody tr.sc-top td:first-child {
+  color: var(--ink-0);
+  font-weight: 700;
+}
+
+/* Rep name cell — same family as everything else, just heavier weight.
+   No display font, no border-right. Quiet. */
+.scorecard-table tbody td:first-child {
+  text-align: left;
+  font-size: 0.94rem;
   font-weight: 600;
   color: var(--ink-0);
-  border-top: 2px solid var(--line-1);
+  letter-spacing: -0.01em;
+  padding-left: 16px;
+}
+
+/* Detail data (New Logo, Exp-New, Exp-Existing) — slightly lighter to recede,
+   letting the Σ column dominate the row */
+.scorecard-table tbody td.pitch-newlogo,
+.scorecard-table tbody td.pitch-exp {
+  color: var(--ink-2);
+}
+.scorecard-table tbody tr.sc-top td.pitch-newlogo,
+.scorecard-table tbody tr.sc-top td.pitch-exp {
+  color: var(--ink-1);
+}
+
+/* ─── Σ COLUMN ─── the headline number per row. Bumped to 24px in
+   --landing-navy (max ink). Top-3 rows shift to landing-blue weight 800 —
+   the single visual cue for "leader". */
+.scorecard-table tbody td.pitch-sigma {
+  font-size: 1.5rem;             /* 24px */
+  font-weight: 700;
+  color: var(--landing-navy);
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+.scorecard-table tbody tr.sc-top td.pitch-sigma {
+  color: var(--landing-blue);
+  font-weight: 800;
+}
+
+/* Σ delta caption — small + quiet, just signals direction */
+.scorecard-table .pitch-delta {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-top: 4px;
+  line-height: 1;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  min-height: 0.68rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+/* Directional glyph (▲/▼) before delta number. Smaller than the digits so it
+   reads as a marker, not a competing element. Inherits the same green/orange
+   color via currentColor. */
+.scorecard-table .pitch-delta__glyph {
+  font-size: 0.56rem;
+  line-height: 1;
+  opacity: 0.85;
+  letter-spacing: 0;
+  transform: translateY(-0.5px);
+}
+
+/* ─── FOOTER (Team Total) ─── anchored by a 2px landing-blue top rule.
+   The Σ totals here are the biggest, heaviest numbers on the entire table —
+   the "destination" the eye lands on. */
+.scorecard-table tfoot td {
+  padding: 22px 12px 18px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 1.075rem;            /* 17.2px */
+  font-weight: 700;
+  color: var(--ink-0);
+  border-top: 2px solid var(--landing-blue);
   background: transparent;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
 }
 .scorecard-table tfoot td:first-child {
   text-align: left;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   text-transform: uppercase;
-  font-size: 0.64rem;
+  font-size: 0.72rem;
   letter-spacing: 0.14em;
-  color: var(--ink-3);
-  font-weight: 500;
+  color: var(--ink-2);
+  font-weight: 700;
+  padding-left: 16px;
 }
+.scorecard-table tfoot td.pitch-sigma {
+  font-size: 1.75rem;            /* 28px — biggest number on the page */
+  font-weight: 800;
+  color: var(--landing-blue);
+  letter-spacing: -0.025em;
+}
+/* ─── RANK PILL ─── compact circle. Top-3 = landing-blue fill (the single
+   visual signal that distinguishes leaders from the rest). */
 .sc-rank {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  margin-right: 10px;
+  border-radius: 50%;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-right: 12px;
   background: var(--surface-3);
-  color: var(--ink-2);
+  color: var(--ink-3);
   vertical-align: middle;
+  letter-spacing: 0;
 }
 .sc-rank.top {
-  background: var(--landing-navy);
+  background: var(--landing-blue);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
 }
-.sc-highlight { color: var(--landing-blue) !important; font-weight: 600; }
-.sc-zero { opacity: 0.35; font-weight: 400; }
+/* Tonal staircase across top-3 — solid blue for #1, slightly desaturated for
+   #2 and #3. Reads like gold/silver/bronze without going literal. */
+.sc-rank.top.rank-2 { background: rgba(26, 97, 217, 0.78); }
+.sc-rank.top.rank-3 { background: rgba(26, 97, 217, 0.58); }
+.sc-highlight { color: var(--landing-blue) !important; }
 
-/* Column group headers */
-.scorecard-table thead tr.col-groups th {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.18em;
-  padding: 10px 14px 4px;
-  border-bottom: none;
-  color: var(--ink-3);
-  font-weight: 500;
-  text-transform: uppercase;
-}
-.scorecard-table thead tr.col-groups th.cg-ytd   { color: var(--landing-blue); }
-.scorecard-table thead tr.col-groups th.cg-month { color: var(--landing-teal); }
-.scorecard-table thead tr.col-groups th.cg-pitch { color: var(--landing-tonal); }
-
-/* Column dividers */
+/* Column dividers — subtle hairline between metric groups */
 .scorecard-table .col-div {
   border-left: 1px solid var(--line-0) !important;
 }
-
-/* Inline progress bar for YTD units */
-.sc-bar-cell {
-  position: relative;
+.scorecard-table .exp-band-first {
+  border-left: 1px dotted var(--line-1);
 }
+
+/* Zero placeholder — em-dash, very faded so the eye skips past it */
+.sc-zero {
+  opacity: 0.25;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* ─── LEGEND ─── editorial footnote style. Italic serif lead-in, mono key. */
+.scorecard-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 14px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line-0);
+}
+.scorecard-legend .legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: baseline;
+}
+.scorecard-legend .legend-item {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1.4;
+}
+.scorecard-legend .legend-key {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--landing-navy);
+  margin-right: 8px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--landing-navy);
+  line-height: 1;
+}
+.scorecard-legend .legend-note {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  line-height: 1.55;
+  margin: 0;
+  letter-spacing: 0;
+}
+
+/* ─── PROGRESS BAR on YTD Units cell ─── slimmer, lower, less visual noise */
+.sc-bar-cell { position: relative; }
 .sc-bar {
   position: absolute;
-  left: 6px; right: 6px; bottom: 3px;
-  height: 2px;
-  border-radius: 1px;
+  left: 9px; right: 9px; bottom: 4px;
+  height: 1px;
   background: var(--line-0);
   overflow: hidden;
 }
 .sc-bar-fill {
   height: 100%;
-  border-radius: 1px;
   background: var(--landing-blue);
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Rep avatar */
-.sc-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-md);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  font-weight: 500;
-  margin-right: 8px;
-  vertical-align: middle;
-  background: var(--surface-3);
-  color: var(--ink-1);
-  letter-spacing: 0.04em;
-}
-.sc-top .sc-avatar {
-  background: var(--landing-navy);
-  color: #fff;
-}
+/* Avatar removed — in this quieter aesthetic the rank pill alone signals
+   identity + leadership status. Keep .sc-avatar as display:none so existing
+   markup doesn't break but no visual noise. */
+.sc-avatar { display: none; }
 
-/* Footer */
-.scorecard-table tfoot tr { position: relative; }
-.scorecard-table tfoot td {
-  padding: 14px 14px;
-  background: var(--landing-baby);
-  border-top: 1px solid var(--line-1);
-}
-
-/* #1 rank subtle pulse */
-@keyframes rank-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(26,97,217,0.35); }
-  50%      { box-shadow: 0 0 0 3px rgba(26,97,217,0); }
-}
-.sc-rank.top.first {
-  animation: rank-glow 2.5s ease-in-out infinite;
-  background: var(--landing-blue);
-}
+/* #1 / #2 / #3 ranks all use the same landing-blue pill — distinguish by
+   numeral position alone. No need for a separate "first" treatment. */
+.sc-rank.top.first { background: var(--landing-blue); }
 
 /* TV-optimized: larger text at wide viewports */
 @media (min-width: 1600px) {
@@ -1884,6 +2068,18 @@ function render(deals, deinstalls, dealMap, pitchData) {
     sparkPitches.push(pitchData.byMonth[mk] || 0);
   }
 
+  // Pitch category breakdowns (unique-company counts per window per category).
+  // Backend keys: 'New Logo' | 'Expansion Existing' | 'Expansion New' | 'Other'
+  const pitchCat = pitchData.byCategory || { thisWeek:{}, lastWeek:{}, thisMonth:{}, lastMonth:{} };
+  const pitchRepCat = pitchData.byRepCategory || { thisWeek:{}, lastWeek:{}, thisMonth:{}, lastMonth:{} };
+  const CAT_ORDER = ['New Logo', 'Expansion Existing', 'Expansion New', 'Other'];
+  const CAT_SHORT = { 'New Logo': 'NL', 'Expansion Existing': 'EE', 'Expansion New': 'EN', 'Other': 'UT' };
+  const CAT_LONG = { 'New Logo': 'New Logo', 'Expansion Existing': 'Expansion Existing', 'Expansion New': 'Expansion New', 'Other': 'Untagged' };
+  function catBreakdownLine(catCounts) {
+    const parts = CAT_ORDER.map(c => CAT_SHORT[c] + ' ' + (catCounts[c] || 0));
+    return parts.join(' · ');
+  }
+
   // Deal type breakdown
   const dealTypeMap = {};
   curDeals.forEach(d => {
@@ -1933,7 +2129,11 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const maxRenewalUnits = Math.max(...renewalMonths.map(m => m.units), 1);
 
   // Rep leaderboard (current year) — include all AP reps even if 0 deals
-  const AP_REPS = ['Wells', 'Scout', 'Jack', 'John', 'Sophia', 'Ghislain', 'Jason', 'Richard', 'Nolan', 'Raegan', 'Xander', 'Ashtyn', 'Renato'];
+  const AP_REPS = ['Wells', 'Scout', 'Jack', 'Sophia', 'Ghislain', 'Jason', 'Richard', 'Nolan', 'Raegan', 'Xander', 'Renato'];
+  // Former reps — explicitly excluded from scorecard even if they appear in
+  // historical deal data or HubSpot owner records. Their deals still count
+  // toward team YTD totals; they just don't get their own row.
+  const FORMER_REPS = new Set(['John', 'Ashtyn']);
   const repMap = {};
   AP_REPS.forEach(name => { repMap[name] = { deals: 0, units: 0 }; });
   curDeals.forEach(d => {
@@ -1941,6 +2141,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     if (name === '—' || !d.rep.includes('@')) return;
     // Normalize "Jasoncreel" to "Jason"
     if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
+    if (FORMER_REPS.has(name)) return;
     if (!repMap[name]) repMap[name] = { deals: 0, units: 0 };
     repMap[name].deals++;
     repMap[name].units += d.units;
@@ -1956,6 +2157,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     let name = extractFirstName(d.rep);
     if (name === '—' || !d.rep.includes('@')) return;
     if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
+    if (FORMER_REPS.has(name)) return;
     if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 };
     repScorecard[name].ytdDeals++;
     repScorecard[name].ytdUnits += d.units;
@@ -1965,20 +2167,29 @@ function render(deals, deinstalls, dealMap, pitchData) {
     }
   });
   Object.entries(monthlyPitchesByRep).forEach(([name, count]) => {
+    if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].monthPitches = count;
     else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count, weekPitches: 0 };
   });
   Object.entries(pitchesByRep).forEach(([name, count]) => {
+    if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].weekPitches = count;
     else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: count, lastWeekPitches: 0, lastMonthPitches: 0 };
   });
   Object.entries(lastWeekByRep).forEach(([name, count]) => {
+    if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].lastWeekPitches = count;
   });
   Object.entries(lastMonthByRep).forEach(([name, count]) => {
+    if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].lastMonthPitches = count;
   });
-  const scRows = Object.entries(repScorecard).sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
+  // Filter former reps from the displayed scorecard rows (catches any reps added
+  // through the per-column fallbacks above that didn't go through the explicit
+  // FORMER_REPS check, e.g. legacy data shapes)
+  const scRows = Object.entries(repScorecard)
+    .filter(([name]) => !FORMER_REPS.has(name))
+    .sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
   const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches, weekPitches: t.weekPitches + v.weekPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 });
 
   // Per-column rankings for badge display (top 2 in each non-YTD metric)
@@ -1995,7 +2206,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
     });
   });
   function scBadge(name, col, val) {
-    if (val === 0) return '<span class="sc-zero">0</span>';
+    if (val === 0) return '<span class="sc-zero">&mdash;</span>';
     const rank = colRanks[col] && colRanks[col][name];
     if (!rank) return fmt(val);
     const colors = { 1: 'var(--blue-glow)', 2: 'var(--silver)', 3: 'var(--silver)' };
@@ -2006,65 +2217,45 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // ─── BUILD HTML ───
   let html = '';
 
-  // ─── COMMAND CENTER: KPI sidebar + Scorecard main stage ───
+  // ─── PRIMARY HERO: Rep Scorecard ───
   const dtEntries = Object.entries(dealTypeMap).sort((a,b) => b[1].units - a[1].units);
 
-  html += `<div style="display:grid;grid-template-columns:280px 1fr;gap:1.25rem;margin-bottom:1.5rem;" class="command-center">
-
-    <!-- KPI SIDEBAR -->
-    <div style="display:flex;flex-direction:column;gap:0.75rem;">
-      <div class="kpi-card hero green" style="animation-delay:0.05s;padding:1.25rem 1.5rem">
-        <div class="kpi-label">Net Units YTD</div>
-        <div class="kpi-value" style="color:${netUnitsYtd >= 0 ? 'var(--green-light)' : 'var(--orange-light)'};font-size:2.4rem">${netUnitsYtd >= 0 ? '+' : ''}${fmt(netUnitsYtd)}</div>
-        ${sparkline(sparkNet)}
-        ${badge(netUnitsYtd, netUnitsYtdPrev)}
-      </div>
-      <div class="kpi-card hero" style="animation-delay:0.1s;padding:1.25rem 1.5rem">
-        <div class="kpi-label">Deals YTD</div>
-        <div class="kpi-value" style="font-size:2.4rem">${fmt(ytdCur.length)}</div>
-        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${fmt(sum(ytdCur))} units booked</div>
-        ${sparkline(sparkDeals)}
-        ${badge(ytdCur.length, ytdPrev.length)}
-      </div>
-      <div class="kpi-card hero blue" style="animation-delay:0.12s;padding:1.25rem 1.5rem">
-        <div class="kpi-label">Pitches This Week</div>
-        <div class="kpi-value" style="color:var(--blue-glow);font-size:2.4rem">${fmt(pitchThisWeek)}</div>
-        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${pitchLastWeek ? (pitchThisWeek >= pitchLastWeek ? '+' : '') + fmt(pitchThisWeek - pitchLastWeek) + ' vs last week' : 'Last week: ' + fmt(pitchLastWeek)}</div>
-        ${sparkline(sparkPitches)}
-        ${badge(pitchYtdCur, pitchYtdPrev)}
-      </div>
-      <div class="kpi-card hero orange" style="animation-delay:0.15s;padding:1.25rem 1.5rem">
-        <div class="kpi-label">Deinstalls YTD</div>
-        <div class="kpi-value" style="color:var(--orange-light);font-size:2.4rem">${fmt(diYtdCur.length)}</div>
-        <div style="font-size:0.75rem;color:var(--silver);margin-top:2px">${Math.round(diYtdCur.length / sum(ytdCur) * 100)}% of ${fmt(sum(ytdCur))} booked</div>
-        ${sparkline(sparkDi)}
-        ${badge(-diYtdCur.length, -diYtdPrev.length)}
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;" id="deal-type-pills"></div>
-    </div>
-
-    <!-- SCORECARD MAIN STAGE -->
-    <div class="scorecard" style="margin-bottom:0">
-      <div class="section-header">
-        <div class="section-title">Rep Scorecard<small>${CUR_YEAR} — ${MONTH_NAMES[curMonth]}</small></div>
+  html += `<div class="scorecard scorecard--editorial" style="margin-bottom:1.25rem">
+      <div class="section-header scorecard-header">
+        <div class="section-title scorecard-title">Rep Scorecard</div>
+        <div class="scorecard-period">
+          <span class="scorecard-period__main">${MONTH_NAMES[curMonth]} ${CUR_YEAR}</span>
+          <span class="scorecard-period__sep">·</span>
+          <span class="scorecard-period__sub">12 reps · YTD ${CUR_YEAR}</span>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="scorecard-table">
           <thead>
             <tr class="col-groups">
-              <th></th>
-              <th colspan="2" class="cg-ytd">Year to Date</th>
-              <th colspan="2" class="cg-month col-div">${MONTH_NAMES[curMonth]}</th>
-              <th colspan="2" class="cg-pitch col-div">Pitches</th>
+              <th rowspan="3" class="rep-head">Rep</th>
+              <th colspan="2" rowspan="2" class="cg-ytd">Year to Date</th>
+              <th colspan="2" rowspan="2" class="cg-month col-div">${MONTH_NAMES[curMonth]}</th>
+              <th colspan="4" class="cg-pitch col-div">Pitches This Week</th>
+              <th colspan="4" class="cg-pitch col-div">Pitches ${MONTH_NAMES[curMonth]}</th>
             </tr>
-            <tr>
-              <th>Rep</th>
+            <tr class="col-groups subgroup">
+              <th rowspan="2" class="col-div sub-newlogo">New Logo</th>
+              <th colspan="2" class="cg-expansion">Expansion</th>
+              <th rowspan="2" class="sigma-head col-sigma">Σ</th>
+              <th rowspan="2" class="col-div sub-newlogo">New Logo</th>
+              <th colspan="2" class="cg-expansion">Expansion</th>
+              <th rowspan="2" class="sigma-head col-sigma">Σ</th>
+            </tr>
+            <tr class="col-leaf">
               <th>Deals</th>
               <th>Units</th>
               <th class="col-div">Deals</th>
               <th>Units</th>
-              <th class="col-div">This Wk</th>
-              <th>This Mo</th>
+              <th class="sub-exp" title="Expansion - New (target property not currently in Landing's portfolio)">New</th>
+              <th class="sub-exp" title="Expansion - Existing (more units at a property Landing already operates)">Existing</th>
+              <th class="sub-exp" title="Expansion - New (target property not currently in Landing's portfolio)">New</th>
+              <th class="sub-exp" title="Expansion - Existing (more units at a property Landing already operates)">Existing</th>
             </tr>
           </thead>
           <tbody id="sc-tbody">
@@ -2075,15 +2266,43 @@ function render(deals, deinstalls, dealMap, pitchData) {
             <td>${fmt(scTotals.ytdUnits)}</td>
             <td class="col-div">${fmt(scTotals.monthDeals)}</td>
             <td>${fmt(scTotals.monthUnits)}</td>
-            <td class="col-div">${fmt(scTotals.weekPitches)}<div style="font-size:0.55rem;font-weight:500;margin-top:3px;color:${scTotals.weekPitches >= pitchLastWeek ? 'var(--green-light)' : 'var(--orange-light)'}">last wk: ${fmt(pitchLastWeek)}</div></td>
-            <td>${fmt(scTotals.monthPitches)}<div style="font-size:0.55rem;font-weight:500;margin-top:3px;color:${scTotals.monthPitches >= pitchLastMonth ? 'var(--green-light)' : 'var(--silver)'}">last mo: ${fmt(pitchLastMonth)}</div></td>
+            <td class="col-div pitch-newlogo">${fmt((pitchCat.thisWeek || {})['New Logo'] || 0)}</td>
+            <td class="exp-band-first pitch-exp">${fmt((pitchCat.thisWeek || {})['Expansion New'] || 0)}</td>
+            <td class="pitch-exp">${fmt((pitchCat.thisWeek || {})['Expansion Existing'] || 0)}</td>
+            <td class="pitch-sigma col-sigma">${fmt(pitchThisWeek)}<div class="pitch-delta" style="color:${pitchThisWeek >= pitchLastWeek ? 'var(--green-light)' : 'var(--orange-light)'}"><span class="pitch-delta__glyph">${pitchThisWeek - pitchLastWeek > 0 ? '▲' : pitchThisWeek - pitchLastWeek < 0 ? '▼' : '·'}</span>${pitchThisWeek - pitchLastWeek >= 0 ? '+' : ''}${fmt(pitchThisWeek - pitchLastWeek)}</div></td>
+            <td class="col-div pitch-newlogo">${fmt((pitchCat.thisMonth || {})['New Logo'] || 0)}</td>
+            <td class="exp-band-first pitch-exp">${fmt((pitchCat.thisMonth || {})['Expansion New'] || 0)}</td>
+            <td class="pitch-exp">${fmt((pitchCat.thisMonth || {})['Expansion Existing'] || 0)}</td>
+            <td class="pitch-sigma col-sigma">${fmt(pitchThisMonth)}<div class="pitch-delta" style="color:${pitchThisMonth >= pitchLastMonth ? 'var(--green-light)' : 'var(--orange-light)'}"><span class="pitch-delta__glyph">${pitchThisMonth - pitchLastMonth > 0 ? '▲' : pitchThisMonth - pitchLastMonth < 0 ? '▼' : '·'}</span>${pitchThisMonth - pitchLastMonth >= 0 ? '+' : ''}${fmt(pitchThisMonth - pitchLastMonth)}</div></td>
           </tr></tfoot>
         </table>
       </div>
-    </div>
+      <div class="scorecard-legend">
+        <div class="legend-row">
+          <span class="legend-item"><span class="legend-key">Σ</span>Total unique companies pitched (includes untagged)</span>
+          <span class="legend-item"><span class="legend-key">Exp New</span>Target property not currently in Landing's portfolio</span>
+          <span class="legend-item"><span class="legend-key">Exp Existing</span>More units at a property Landing already operates</span>
+        </div>
+        <p class="legend-note">1 pitch = 1 unique company per rep per window. When two reps pitch the same company, both get credit; team total counts it once, so per-rep totals may sum higher.</p>
+      </div>
   </div>`;
 
-  // (scorecard rendered in command center above)
+  // ─── COMPACT KPI STRIP: Net Units YTD + Pitches This Week ───
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+      <div class="kpi-card hero green" style="animation-delay:0.05s;padding:1rem 1.25rem">
+        <div class="kpi-label">Net Units YTD</div>
+        <div class="kpi-value" style="color:${netUnitsYtd >= 0 ? 'var(--green-light)' : 'var(--orange-light)'};font-size:2rem">${netUnitsYtd >= 0 ? '+' : ''}${fmt(netUnitsYtd)}</div>
+        ${sparkline(sparkNet)}
+        ${badge(netUnitsYtd, netUnitsYtdPrev)}
+      </div>
+      <div class="kpi-card hero blue" style="animation-delay:0.08s;padding:1rem 1.25rem">
+        <div class="kpi-label">Pitches This Week <span style="font-size:0.55rem;color:var(--silver);font-weight:500;letter-spacing:normal;text-transform:none">unique companies</span></div>
+        <div class="kpi-value" style="color:var(--blue-glow);font-size:2rem">${fmt(pitchThisWeek)}</div>
+        <div style="font-size:0.7rem;color:var(--silver);margin-top:2px">${pitchLastWeek ? (pitchThisWeek >= pitchLastWeek ? '+' : '') + fmt(pitchThisWeek - pitchLastWeek) + ' vs last week · ' : ''}${fmt(pitchYtdCur)} YTD</div>
+        <div style="font-size:0.65rem;color:var(--silver);margin-top:4px;letter-spacing:0.04em">${catBreakdownLine(pitchCat.thisWeek || {})}</div>
+        ${sparkline(sparkPitches)}
+      </div>
+    </div>`;
 
   // ─── SECONDARY KPI CARDS ───
   html += `<div class="kpi-secondary">
@@ -2098,9 +2317,10 @@ function render(deals, deinstalls, dealMap, pitchData) {
       ${badge(sum(qCur), sum(qPrev))}
     </div>
     <div class="kpi-card" style="animation-delay:0.21s">
-      <div class="kpi-label">Pitches This Month</div>
+      <div class="kpi-label">Pitches This Month <span style="font-size:0.55rem;color:var(--silver);font-weight:500;letter-spacing:normal;text-transform:none">unique companies</span></div>
       <div class="kpi-value">${fmt(pitchThisMonth)}</div>
-      ${badge(pitchThisMonth, pitchPrevMonth)}
+      <div style="font-size:0.65rem;color:var(--silver);margin-top:4px;letter-spacing:0.04em">${catBreakdownLine(pitchCat.thisMonth || {})}</div>
+      ${pitchPrevMonth > 0 ? badge(pitchThisMonth, pitchPrevMonth) : '<span class="kpi-badge neutral">vs ' + fmt(pitchLastMonth) + ' last mo</span>'}
     </div>
     <div class="kpi-card" style="animation-delay:0.22s">
       <div class="kpi-label">Deals This Month</div>
@@ -2369,25 +2589,43 @@ function render(deals, deinstalls, dealMap, pitchData) {
       var isTop = i < 3;
       var initials = name.charAt(0);
       var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
-      var zd = function(n) { return n === 0 ? '<span class="sc-zero">0</span>' : fmt(n); };
-      // Pitch cell with prior period comparison
-      var pitchCell = function(cur, prev, col) {
-        var badge = scBadge(name, col, cur);
-        if (!prev && !cur) return '<span class="sc-zero">0</span>';
-        if (!prev) return badge;
-        var diff = cur - prev;
-        var color = diff > 0 ? 'var(--green-light)' : diff < 0 ? 'var(--orange-light)' : 'var(--silver)';
-        var arrow = diff > 0 ? '+' + diff : diff < 0 ? String(diff) : '=';
-        return badge + '<div style="font-size:0.5rem;color:' + color + ';margin-top:1px;font-weight:500">' + arrow + '</div>';
+      var zd = function(n) { return n === 0 ? '<span class="sc-zero">&mdash;</span>' : fmt(n); };
+      // Per-rep pitch counts by category × window. pitchRepCat is keyed thisWeek/thisMonth → rep → category.
+      var wkCats = (pitchRepCat.thisWeek || {})[name] || {};
+      var moCats = (pitchRepCat.thisMonth || {})[name] || {};
+      // Total cell (Σ): rep's unique-company count for the window. ALWAYS renders a 2-line
+      // structure (value + delta line) so row heights stay consistent across the scorecard,
+      // even when prev-period was zero (placeholder &nbsp; reserves the line).
+      var totalCell = function(cur, prev, col) {
+        var topPart = (!prev && !cur) ? '<span class="sc-zero">&mdash;</span>' : scBadge(name, col, cur);
+        var deltaText, deltaColor, deltaGlyph;
+        if (!cur && !prev) {
+          deltaText = ' '; deltaColor = 'transparent';
+        } else if (!prev) {
+          deltaText = 'new'; deltaColor = 'var(--ink-3)';
+        } else {
+          var diff = cur - prev;
+          deltaText = diff > 0 ? '+' + diff : diff < 0 ? String(diff) : ' ';
+          deltaColor = diff > 0 ? 'var(--green-light)' : diff < 0 ? 'var(--orange-light)' : 'var(--ink-3)';
+          deltaGlyph = diff > 0 ? '▲' : diff < 0 ? '▼' : '';
+        }
+        var glyphSpan = deltaGlyph ? '<span class="pitch-delta__glyph">' + deltaGlyph + '</span>' : '';
+        return topPart + '<div class="pitch-delta" style="color:' + deltaColor + '">' + glyphSpan + deltaText + '</div>';
       };
       return '<tr class="' + (isTop ? 'sc-top' : '') + '">' +
-        '<td><span class="sc-rank ' + (isTop ? 'top' : '') + (i === 0 ? ' first' : '') + '">' + (i + 1) + '</span><span class="sc-avatar">' + initials + '</span>' + name + '</td>' +
+        '<td><span class="sc-rank ' + (isTop ? 'top' : '') + (i === 0 ? ' rank-1' : i === 1 ? ' rank-2' : i === 2 ? ' rank-3' : '') + '">' + (i + 1) + '</span><span class="sc-avatar">' + initials + '</span>' + name + '</td>' +
         '<td>' + zd(v.ytdDeals) + '</td>' +
         '<td class="sc-bar-cell ' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '<div class="sc-bar"><div class="sc-bar-fill" style="width:' + barWidth + '%"></div></div></td>' +
         '<td class="col-div">' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
         '<td>' + scBadge(name, 'monthUnits', v.monthUnits) + '</td>' +
-        '<td class="col-div">' + pitchCell(v.weekPitches, v.lastWeekPitches, 'weekPitches') + '</td>' +
-        '<td>' + pitchCell(v.monthPitches, v.lastMonthPitches, 'monthPitches') + '</td>' +
+        '<td class="col-div pitch-newlogo">' + zd(wkCats['New Logo'] || 0) + '</td>' +
+        '<td class="exp-band-first pitch-exp">' + zd(wkCats['Expansion New'] || 0) + '</td>' +
+        '<td class="pitch-exp">' + zd(wkCats['Expansion Existing'] || 0) + '</td>' +
+        '<td class="pitch-sigma col-sigma">' + totalCell(v.weekPitches, v.lastWeekPitches, 'weekPitches') + '</td>' +
+        '<td class="col-div pitch-newlogo">' + zd(moCats['New Logo'] || 0) + '</td>' +
+        '<td class="exp-band-first pitch-exp">' + zd(moCats['Expansion New'] || 0) + '</td>' +
+        '<td class="pitch-exp">' + zd(moCats['Expansion Existing'] || 0) + '</td>' +
+        '<td class="pitch-sigma col-sigma">' + totalCell(v.monthPitches, v.lastMonthPitches, 'monthPitches') + '</td>' +
       '</tr>';
     }).join('');
   }

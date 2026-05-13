@@ -1,81 +1,168 @@
-// Netlify serverless function: fetches AP Pipeline deals from HubSpot
-// Returns: deal name→ID mapping (Closed Won) + pitch counts (matching ops monitor logic)
+// Netlify serverless function: fetches AP + Expansion pipeline deals from HubSpot
+// Returns:
+//   - dealMap: name→ID for Closed Won AP deals (property linking)
+//   - pitches: company-deduped pitch counts across both pipelines, by window + category + rep
 
-const PIPELINE_ID = '64402505';
+const aliases = require('./_partner-aliases.js');
+
+const AP_PIPELINE = '64402505';
+const EXPANSION_PIPELINE = '877479748';
+const PITCH_PIPELINES = [AP_PIPELINE, EXPANSION_PIPELINE];
 const CLOSED_WON_STAGE = '126194579';
 const BATCH_SIZE = 200;
-const MAX_PAGES = 25;
+const MAX_PAGES = 50;
+const CATEGORY_KEYS = ['New Logo', 'Expansion Existing', 'Expansion New', 'Other'];
 
-// Active pipeline stages — matches ops monitor (New Opportunities → Contract Redline)
-const ACTIVE_STAGE_IDS = [
-  '126194574',  // New Opportunities
-  '128203694',  // Contacted
-  '185461262',  // Defining Call Schedule
-  '126194575',  // Call Scheduled
-  '1225117962', // IC Review
-  '126194576',  // Active Opportunities
-  '126194577',  // Late Stage Opportunities
-  '128915635',  // Contract Discussions
-  '126194578',  // Contract Redline
-  '126194579',  // Closed Won
-  '1321371563', // Email Campaign - Needs Assignment
-];
+// Normalize HubSpot deal_category values into the buckets the dashboard cares about.
+// Real values observed in HubSpot (both pipelines combined):
+//   "New Logo" · "Expansion" · "Expansion - New" · "" (untagged)
+// We map:
+//   "New Logo"                                  → New Logo
+//   anything with both "new" and "expansion"    → Expansion New (catches "Expansion - New", "Net New Expansion")
+//   anything containing "expansion" otherwise    → Expansion Existing (catches bare "Expansion", "Existing Expansion")
+//   else                                         → Other (includes untagged — see memory: ~85/109 BDR-pitched deals have empty/wrong deal_category)
+function normalizeCategory(raw) {
+  if (!raw) return 'Other';
+  const s = String(raw).toLowerCase().trim();
+  if (s.includes('new logo')) return 'New Logo';
+  if (/\bnew\b/.test(s) && s.includes('expansion')) return 'Expansion New';
+  if (s.includes('expansion')) return 'Expansion Existing';
+  return 'Other';
+}
 
-// Central Time helper — returns YYYY-MM-DD in CT
+function emptyCatMap() { return Object.fromEntries(CATEGORY_KEYS.map(k => [k, 0])); }
+
 function toCTDate(date) {
   return new Date(date.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 }
-function toCTDateStr(date) {
-  const ct = toCTDate(date);
-  return ct.getFullYear() + '-' + String(ct.getMonth() + 1).padStart(2, '0') + '-' + String(ct.getDate()).padStart(2, '0');
+function ymd(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+function toCTDateStr(date) { return ymd(toCTDate(date)); }
+
+// Hard 20s per-request timeout via AbortController so a hung HubSpot connection
+// can't lock up the whole function. Retries up to 3x on 429 (rate limit) or
+// network/timeout error; surfaces non-429 errors back to the caller.
+async function fetchWithRetry(url, opts, retries = 3) {
+  for (let i = 0; i <= retries; i++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const resp = await fetch(url, { ...opts, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (resp.status === 429 && i < retries) {
+        await new Promise(r => setTimeout(r, Math.pow(2, i + 1) * 1000));
+        continue;
+      }
+      return resp;
+    } catch (err) {
+      clearTimeout(timer);
+      if (i < retries) {
+        await new Promise(r => setTimeout(r, Math.pow(2, i + 1) * 500));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
-async function fetchWithRetry(url, opts, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    const resp = await fetch(url, opts);
-    if (resp.status === 429) {
-      const wait = Math.pow(2, i + 1) * 1000;
-      await new Promise(r => setTimeout(r, wait));
-      continue;
-    }
-    return resp;
-  }
-  return fetch(url, opts);
+async function hsApi(token, method, path, body) {
+  const opts = { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetchWithRetry(`https://api.hubapi.com${path}`, opts);
+  if (!resp.ok) return null;
+  return resp.json();
 }
 
 async function searchDeals(token, filters, properties, maxPages = MAX_PAGES) {
   const results = [];
   let after = 0;
   let pages = 0;
-
   while (pages < maxPages) {
     const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filterGroups: [{ filters }],
-        properties,
-        limit: BATCH_SIZE,
-        after
-      })
+      body: JSON.stringify({ filterGroups: [{ filters }], properties, limit: BATCH_SIZE, after })
     });
-
     if (!resp.ok) {
       const err = await resp.text();
       throw new Error(`HubSpot ${resp.status}: ${err}`);
     }
-
     const data = await resp.json();
     results.push(...(data.results || []));
-
-    if (data.paging && data.paging.next && data.paging.next.after) {
-      after = data.paging.next.after;
-      pages++;
-    } else {
-      break;
-    }
+    if (data.paging?.next?.after) { after = data.paging.next.after; pages++; }
+    else break;
   }
   return results;
+}
+
+// Picks the "canonical" company for a deal — the capital owner, not the PMC.
+// HubSpot portal has user-defined labels Owner(75) / PMC(77) / Owner & PMC(73),
+// but in practice most deals don't use them; they just flag the owner as
+// "Primary" (typeId 5). Preference order:
+//   1. Explicit user-defined Owner / Owner & PMC label (typeId 75 or 73)
+//   2. The Primary-flagged association (typeId 5)
+//   3. The first non-PMC association
+//   4. First association (last resort)
+function pickCanonicalCompany(toArray) {
+  if (!toArray || !toArray.length) return null;
+  const hasType = (assoc, id) => (assoc.associationTypes || []).some(t => t.typeId === id);
+  const ownerLabeled = toArray.find(a => hasType(a, 75) || hasType(a, 73));
+  if (ownerLabeled) return ownerLabeled.toObjectId;
+  const primary = toArray.find(a => hasType(a, 5));
+  if (primary) return primary.toObjectId;
+  const nonPmc = toArray.find(a => !hasType(a, 77));
+  if (nonPmc) return nonPmc.toObjectId;
+  return toArray[0].toObjectId;
+}
+
+async function batchGetCompanyAssociations(token, dealIds) {
+  const map = {};
+  for (let i = 0; i < dealIds.length; i += 100) {
+    const chunk = dealIds.slice(i, i + 100);
+    const data = await hsApi(token, 'POST', '/crm/v4/associations/deals/companies/batch/read', {
+      inputs: chunk.map(id => ({ id }))
+    });
+    if (data?.results) {
+      for (const r of data.results) {
+        const dealId = r.from?.id;
+        const companyId = pickCanonicalCompany(r.to);
+        if (dealId && companyId) map[dealId] = String(companyId);
+      }
+    }
+    if (i + 100 < dealIds.length) await new Promise(r => setTimeout(r, 150));
+  }
+  return map;
+}
+
+async function batchGetCompanyNames(token, companyIds) {
+  const map = {};
+  const unique = [...new Set(companyIds)];
+  for (let i = 0; i < unique.length; i += 100) {
+    const chunk = unique.slice(i, i + 100);
+    const data = await hsApi(token, 'POST', '/crm/v3/objects/companies/batch/read', {
+      inputs: chunk.map(id => ({ id })), properties: ['name']
+    });
+    if (data?.results) {
+      for (const c of data.results) {
+        if (c.id && c.properties?.name) map[c.id] = c.properties.name;
+      }
+    }
+    if (i + 100 < unique.length) await new Promise(r => setTimeout(r, 150));
+  }
+  return map;
+}
+
+// Build a canonical partner key for dedup. Pulls the company's NAME, runs it
+// through the partner-aliases resolver (handles "Stoltz" / "Stolz" style variants),
+// then lowercases + trims. Two HubSpot company records with the same display
+// name (e.g. duplicate "RREAF Holdings" records) collapse to one partner key.
+function partnerKeyFor(companyId, nameMap) {
+  if (!companyId) return null;
+  const raw = nameMap[companyId];
+  if (!raw) return 'company:' + companyId; // fallback when name missing
+  const canonical = aliases.lookup(raw) || raw;
+  return canonical.toLowerCase().trim();
 }
 
 exports.handler = async () => {
@@ -85,12 +172,11 @@ exports.handler = async () => {
   }
 
   try {
-    // 1. Closed Won deals for property linking
+    // ─── 1. Closed Won AP deals → name/ID map for property linking (AP pipeline only) ───
     const wonDeals = await searchDeals(token, [
-      { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
+      { propertyName: 'pipeline', operator: 'EQ', value: AP_PIPELINE },
       { propertyName: 'dealstage', operator: 'EQ', value: CLOSED_WON_STAGE }
     ], ['dealname', 'property_name']);
-
     const dealMap = {};
     for (const deal of wonDeals) {
       const dealName = (deal.properties.dealname || '').trim();
@@ -99,22 +185,9 @@ exports.handler = async () => {
       if (propName) dealMap[propName.toLowerCase()] = deal.id;
     }
 
-    // 2. Pitches — count of unique deals with `first_pitch_date__ap_` set in the
-    //    date range. Pitch count is a measure of REP ACTIVITY in the period; it
-    //    must NOT depend on where the deal ended up afterward. We previously
-    //    filtered to ACTIVE_STAGE_IDS (which excludes Lost Deal, Not Qualified,
-    //    Doesn't Meet Standards, Not Reached, Existing Opp Follow Up, etc.), but
-    //    that silently dropped real pitches and made rep counts ~11% too low
-    //    portfolio-wide and as much as 73% too low for individual reps doing
-    //    heavy CoStar outreach (where most pitches end up Lost / Not Qualified).
-    //    The previous comment "matches ops monitor logic exactly" was the
-    //    reason for the filter; reps reported the resulting numbers as wrong.
-    //
-    //    - first_pitch_date__ap_ in date range
-    //    - Exclude future dates (Central Time)
-    //    - Week = Monday → today (CT)
+    // ─── 2. Date window setup (Central Time) ───
     const nowCT = toCTDate(new Date());
-    const todayStr = toCTDateStr(new Date());
+    const todayStr = ymd(nowCT);
     const curYear = nowCT.getFullYear();
     const prevYear = curYear - 1;
     const curMonth = nowCT.getMonth();
@@ -122,62 +195,89 @@ exports.handler = async () => {
     // Week boundaries in CT (Monday-based)
     const dayOfWeek = nowCT.getDay();
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const weekStartDate = new Date(nowCT);
-    weekStartDate.setDate(nowCT.getDate() - daysSinceMonday);
-    weekStartDate.setHours(0, 0, 0, 0);
-    const weekStartStr = weekStartDate.getFullYear() + '-' + String(weekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(weekStartDate.getDate()).padStart(2, '0');
-
-    // Previous week: Mon-Sun before current week
-    const prevWeekStartDate = new Date(weekStartDate);
-    prevWeekStartDate.setDate(prevWeekStartDate.getDate() - 7);
-    const prevWeekEndDate = new Date(weekStartDate);
-    prevWeekEndDate.setDate(prevWeekEndDate.getDate() - 1);
-    const prevWeekStartStr = prevWeekStartDate.getFullYear() + '-' + String(prevWeekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekStartDate.getDate()).padStart(2, '0');
-    const prevWeekEndStr = prevWeekEndDate.getFullYear() + '-' + String(prevWeekEndDate.getMonth() + 1).padStart(2, '0') + '-' + String(prevWeekEndDate.getDate()).padStart(2, '0');
-
-    // Fetch all pipeline deals with first_pitch_date__ap_ in the date range,
-    // then filter for CT accuracy and future-date exclusion. NO stage filter:
-    // pitch counts reflect rep activity regardless of subsequent deal outcome.
-    async function fetchPitchesInRange(gteStr, lteStr) {
-      // HubSpot date-type properties are stored at 00:00 UTC, so filter against UTC midnight.
-      // Using a CT offset here pushes GTE to 06:00 UTC and silently drops deals whose pitch date == gteStr.
-      const gteMs = new Date(gteStr + 'T00:00:00Z').getTime();
-      const lteMs = new Date(lteStr + 'T23:59:59Z').getTime();
-      // 25 pages × 200 = 5000 deals/range — well above any plausible single-month pitch volume.
-      const results = await searchDeals(token, [
-        { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-        { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
-        { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
-      ], ['first_pitch_date__ap_', 'hubspot_owner_id', 'dealstage']);
-
-      // Date string check (CT) + no future dates. No stage filter — see comment above.
-      return results.filter(d => {
-        const pd = (d.properties.first_pitch_date__ap_ || '').slice(0, 10);
-        if (!pd || pd > todayStr) return false;
-        return pd >= gteStr && pd <= lteStr;
-      });
-    }
+    const weekStartDate = new Date(nowCT); weekStartDate.setDate(nowCT.getDate() - daysSinceMonday); weekStartDate.setHours(0, 0, 0, 0);
+    const weekStartStr = ymd(weekStartDate);
+    const prevWeekStartDate = new Date(weekStartDate); prevWeekStartDate.setDate(prevWeekStartDate.getDate() - 7);
+    const prevWeekEndDate = new Date(weekStartDate); prevWeekEndDate.setDate(prevWeekEndDate.getDate() - 1);
+    const prevWeekStartStr = ymd(prevWeekStartDate);
+    const prevWeekEndStr = ymd(prevWeekEndDate);
 
     // Month boundaries in CT
-    const monthStartStr = nowCT.getFullYear() + '-' + String(nowCT.getMonth() + 1).padStart(2, '0') + '-01';
-
-    // Last month boundaries in CT
-    const lastMonthEnd = new Date(nowCT.getFullYear(), nowCT.getMonth(), 0); // last day of prev month
+    const monthStartStr = curYear + '-' + String(curMonth + 1).padStart(2, '0') + '-01';
+    const lastMonthEnd = new Date(curYear, curMonth, 0);
     const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1);
-    const lastMonthStartStr = lastMonthStart.getFullYear() + '-' + String(lastMonthStart.getMonth() + 1).padStart(2, '0') + '-01';
-    const lastMonthEndStr = lastMonthEnd.getFullYear() + '-' + String(lastMonthEnd.getMonth() + 1).padStart(2, '0') + '-' + String(lastMonthEnd.getDate()).padStart(2, '0');
+    const lastMonthStartStr = ymd(lastMonthStart);
+    const lastMonthEndStr = ymd(lastMonthEnd);
 
-    // Parallel: this week + last week + this month + last month
-    const [thisWeekDeals, lastWeekDeals, thisMonthDeals, lastMonthDeals] = await Promise.all([
-      fetchPitchesInRange(weekStartStr, todayStr),
-      fetchPitchesInRange(prevWeekStartStr, prevWeekEndStr),
-      fetchPitchesInRange(monthStartStr, todayStr),
-      fetchPitchesInRange(lastMonthStartStr, lastMonthEndStr)
-    ]);
-    const thisWeek = thisWeekDeals.length;
-    const lastWeek = lastWeekDeals.length;
+    // YTD-only range: 2026-01-01 → today. Earlier history isn't needed; the dashboard
+    // is forward-looking from 2026. This is the single biggest perf lever — bounds the
+    // pitch search to one year of deals across both pipelines.
+    const sparkStartStr = '2026-01-01';
 
-    // Fetch owners for rep name mapping
+    // ─── 3. Single fetch of all pitched deals (both pipelines) since 2026-01-01 ───
+    // HubSpot date-type props are stored at 00:00 UTC, so filter on UTC midnight bounds.
+    const gteMs = new Date(sparkStartStr + 'T00:00:00Z').getTime();
+    const lteMs = new Date(todayStr + 'T23:59:59Z').getTime();
+    const t0 = Date.now();
+    const pitchedDeals = await searchDeals(token, [
+      { propertyName: 'pipeline', operator: 'IN', values: PITCH_PIPELINES },
+      { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
+      { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
+    ], ['first_pitch_date__ap_', 'hubspot_owner_id', 'dealstage', 'deal_category', 'pipeline']);
+    console.log(`[hubspot-deals] fetched ${pitchedDeals.length} pitched deals in ${Date.now() - t0}ms`);
+    // TEMP DEBUG: per-rep audit for May. Logs every pitched deal in May with owner,
+    // company association, pipeline, category, dealstage. Helps verify the dedupe math.
+    const _debugAll = {};
+    for (const d of pitchedDeals) {
+      const pd = (d.properties.first_pitch_date__ap_ || '').slice(0, 10);
+      if (pd < '2026-05-01' || pd > todayStr) continue;
+      const owner = d.properties.hubspot_owner_id || 'unassigned';
+      if (!_debugAll[owner]) _debugAll[owner] = [];
+      _debugAll[owner].push({
+        id: d.id,
+        pd,
+        pipe: d.properties.pipeline === EXPANSION_PIPELINE ? 'EXP' : 'AP',
+        cat: d.properties.deal_category || '',
+        stage: d.properties.dealstage || ''
+      });
+    }
+    console.log('[hubspot-deals] May raw-deal audit by owner_id:');
+    console.log(JSON.stringify(_debugAll, null, 2));
+
+    // ─── 4. Fetch company associations + names for every pitched deal ───
+    // Two-step: (a) deal→canonical company id, (b) company id→name. The name is
+    // then normalized through partner-aliases so dedup is by canonical PARTNER,
+    // not by HubSpot record id. This collapses HubSpot duplicates like two
+    // separate "RREAF Holdings" records pointing to the same logical partner.
+    const t1 = Date.now();
+    const dealIds = pitchedDeals.map(d => d.id);
+    const dealToCompany = await batchGetCompanyAssociations(token, dealIds);
+    const allCompanyIds = Object.values(dealToCompany);
+    const companyNameMap = await batchGetCompanyNames(token, allCompanyIds);
+    console.log(`[hubspot-deals] fetched ${Object.keys(dealToCompany).length} company assocs + ${Object.keys(companyNameMap).length} names in ${Date.now() - t1}ms`);
+
+    // Annotate each deal. The `companyId` field is actually a PARTNER KEY now —
+    // a normalized canonical partner name. Deals with no company association get
+    // a unique `deal:<id>` key so they still count once as their own bucket.
+    const annotated = pitchedDeals
+      .map(d => {
+        const pd = (d.properties.first_pitch_date__ap_ || '').slice(0, 10);
+        if (!pd || pd > todayStr) return null;
+        const cid = dealToCompany[d.id];
+        const partnerKey = cid ? partnerKeyFor(cid, companyNameMap) : ('deal:' + d.id);
+        return {
+          id: d.id,
+          pitchDate: pd,
+          ownerId: d.properties.hubspot_owner_id || '',
+          category: normalizeCategory(d.properties.deal_category),
+          companyId: partnerKey,
+        };
+      })
+      .filter(Boolean)
+      // Sort by pitch date ASC so "earliest pitched deal in window" wins on dedup.
+      .sort((a, b) => a.pitchDate.localeCompare(b.pitchDate));
+
+    // ─── 5. Fetch owner names ───
     const ownersResp = await fetchWithRetry('https://api.hubapi.com/crm/v3/owners', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     });
@@ -189,97 +289,96 @@ exports.handler = async () => {
       }
     }
 
-    // Per-rep breakdown for this week
-    const pitchesByRep = {};
-    for (const deal of thisWeekDeals) {
-      const ownerId = deal.properties.hubspot_owner_id;
-      const repName = ownerMap[ownerId] || 'Unassigned';
-      pitchesByRep[repName] = (pitchesByRep[repName] || 0) + 1;
+    // ─── 6. Bucket by company within each window ───
+    // For each window, walk pitchedDeals in chronological order. Two dedup layers:
+    //   - GLOBAL dedup (for team total + team-level category): a company counts once
+    //     team-wide, categorized by its earliest pitched deal across all reps.
+    //   - PER-REP dedup (for per-rep counts + per-rep category): a company counts once
+    //     per rep, categorized by THAT rep's earliest pitched deal of the company.
+    //
+    // Consequence: sum(byRep) ≥ team total when 2+ reps pitch the same company in the
+    // window. Each rep gets credit for unique companies they pitched. The team-level
+    // total represents unique companies team-wide (no double counting).
+    function bucketWindow(deals, gteStr, lteStr) {
+      const seenGlobal = new Set();
+      const seenByRep = {};
+      const byRep = {};
+      const byCategory = emptyCatMap();
+      const byRepCategory = {};
+      let total = 0;
+      for (const d of deals) {
+        if (d.pitchDate < gteStr || d.pitchDate > lteStr) continue;
+        const rep = ownerMap[d.ownerId] || 'Unassigned';
+        // Team-level dedup → total + team byCategory
+        if (!seenGlobal.has(d.companyId)) {
+          seenGlobal.add(d.companyId);
+          byCategory[d.category] = (byCategory[d.category] || 0) + 1;
+          total++;
+        }
+        // Per-rep dedup → byRep + byRepCategory
+        if (!seenByRep[rep]) seenByRep[rep] = new Set();
+        if (!seenByRep[rep].has(d.companyId)) {
+          seenByRep[rep].add(d.companyId);
+          byRep[rep] = (byRep[rep] || 0) + 1;
+          if (!byRepCategory[rep]) byRepCategory[rep] = emptyCatMap();
+          byRepCategory[rep][d.category] = (byRepCategory[rep][d.category] || 0) + 1;
+        }
+      }
+      return { total, byRep, byCategory, byRepCategory };
     }
 
-    // Per-rep breakdown for last week
-    const lastWeekByRep = {};
-    for (const deal of lastWeekDeals) {
-      const ownerId = deal.properties.hubspot_owner_id;
-      const repName = ownerMap[ownerId] || 'Unassigned';
-      lastWeekByRep[repName] = (lastWeekByRep[repName] || 0) + 1;
-    }
+    const thisWeekW = bucketWindow(annotated, weekStartStr, todayStr);
+    const lastWeekW = bucketWindow(annotated, prevWeekStartStr, prevWeekEndStr);
+    const thisMonthW = bucketWindow(annotated, monthStartStr, todayStr);
+    const lastMonthW = bucketWindow(annotated, lastMonthStartStr, lastMonthEndStr);
 
-    // Per-rep breakdown for this month
-    const monthlyPitchesByRep = {};
-    for (const deal of thisMonthDeals) {
-      const ownerId = deal.properties.hubspot_owner_id;
-      const repName = ownerMap[ownerId] || 'Unassigned';
-      monthlyPitchesByRep[repName] = (monthlyPitchesByRep[repName] || 0) + 1;
-    }
-
-    // Per-rep breakdown for last month
-    const lastMonthByRep = {};
-    for (const deal of lastMonthDeals) {
-      const ownerId = deal.properties.hubspot_owner_id;
-      const repName = ownerMap[ownerId] || 'Unassigned';
-      lastMonthByRep[repName] = (lastMonthByRep[repName] || 0) + 1;
-    }
-
-    // Monthly pitch counts — simple pipeline-wide count for sparklines/YoY.
-    // For the CURRENT month we cap the upper bound at today so the headline
-    // doesn't include future-dated pitches (would otherwise show e.g. "9 pitches
-    // in May" on May 1 when only 1 has actually happened, and the per-rep
-    // breakdown — which already excludes future dates — would disagree).
-    async function countPitchesInMonth(year, month) {
-      const mStartStr = year + '-' + String(month + 1).padStart(2, '0') + '-01';
-      const lastDay = new Date(year, month + 1, 0).getDate();
-      const mEndStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
-      const isCurrentMonth = year === curYear && month === curMonth;
-      const effectiveEndStr = isCurrentMonth ? todayStr : mEndStr;
-      const gteMs = new Date(mStartStr + 'T00:00:00Z').getTime();
-      const lteMs = new Date(effectiveEndStr + 'T23:59:59Z').getTime();
-      const resp = await fetchWithRetry('https://api.hubapi.com/crm/v3/objects/deals/search', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filterGroups: [{ filters: [
-            { propertyName: 'pipeline', operator: 'EQ', value: PIPELINE_ID },
-            { propertyName: 'first_pitch_date__ap_', operator: 'GTE', value: String(gteMs) },
-            { propertyName: 'first_pitch_date__ap_', operator: 'LTE', value: String(lteMs) }
-          ]}],
-          properties: ['first_pitch_date__ap_'],
-          limit: 1
-        })
-      });
-      if (!resp.ok) return 0;
-      const data = await resp.json();
-      return data.total || 0;
-    }
-
+    // ─── 7. Sparkline: unique-company count per month, 2026-01 → current month ───
     const pitchByMonth = {};
     const monthList = [];
-    for (let y = prevYear; y <= curYear; y++) {
+    for (let y = 2026; y <= curYear; y++) {
       const maxM = y === curYear ? curMonth : 11;
       for (let m = 0; m <= maxM; m++) {
         monthList.push({ year: y, month: m, key: y + '-' + String(m + 1).padStart(2, '0') });
       }
     }
-    // Batch 6 months at a time (6 API calls per batch)
-    for (let i = 0; i < monthList.length; i += 6) {
-      const batch = monthList.slice(i, i + 6);
-      const results = await Promise.all(batch.map(({ year, month }) => countPitchesInMonth(year, month)));
-      batch.forEach(({ key }, idx) => { pitchByMonth[key] = results[idx]; });
+    for (const { year, month, key } of monthList) {
+      const mStart = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const mEndRaw = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+      const isCurrentMonth = year === curYear && month === curMonth;
+      const mEnd = isCurrentMonth ? todayStr : mEndRaw;
+      pitchByMonth[key] = bucketWindow(annotated, mStart, mEnd).total;
     }
 
-    const pitchByWeek = { thisWeek, lastWeek };
+    // ─── 8. Response shape ───
+    // - byWeek/byMonth/byRep/etc retained for backwards compatibility, now unique-company counts
+    // - byCategory + byRepCategory are the new breakdowns
+    const pitches = {
+      byWeek: { thisWeek: thisWeekW.total, lastWeek: lastWeekW.total },
+      byMonth: pitchByMonth,
+      byRep: thisWeekW.byRep,
+      lastWeekByRep: lastWeekW.byRep,
+      monthlyByRep: thisMonthW.byRep,
+      lastMonthByRep: lastMonthW.byRep,
+      byCategory: {
+        thisWeek: thisWeekW.byCategory,
+        lastWeek: lastWeekW.byCategory,
+        thisMonth: thisMonthW.byCategory,
+        lastMonth: lastMonthW.byCategory,
+      },
+      byRepCategory: {
+        thisWeek: thisWeekW.byRepCategory,
+        lastWeek: lastWeekW.byRepCategory,
+        thisMonth: thisMonthW.byRepCategory,
+        lastMonth: lastMonthW.byRepCategory,
+      },
+      total: Object.values(pitchByMonth).reduce((s, v) => s + v, 0),
+    };
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600'
-      },
-      body: JSON.stringify({
-        deals: dealMap,
-        count: Object.keys(dealMap).length,
-        pitches: { byWeek: pitchByWeek, byMonth: pitchByMonth, byRep: pitchesByRep, lastWeekByRep, monthlyByRep: monthlyPitchesByRep, lastMonthByRep, total: Object.values(pitchByMonth).reduce((s,v) => s+v, 0) }
-      })
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
+      body: JSON.stringify({ deals: dealMap, count: Object.keys(dealMap).length, pitches })
     };
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
