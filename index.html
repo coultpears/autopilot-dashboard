@@ -1281,7 +1281,9 @@ tbody td {
    numeral position alone. No need for a separate "first" treatment. */
 .sc-rank.top.first { background: var(--landing-blue); }
 
-/* TV-optimized: larger text at wide viewports */
+/* TV-optimized: larger text at wide viewports. Each tier scales Σ
+   proportionally so it stays ~1.6× the size of peer body cells and keeps
+   its color (landing-navy body, landing-blue top-3 + footer). */
 @media (min-width: 1600px) {
   .command-center { grid-template-columns: 320px 1fr !important; }
   .scorecard-table tbody td { font-size: 1.2rem; padding: 14px 18px; }
@@ -1289,6 +1291,8 @@ tbody td {
   .scorecard-table thead th { font-size: 0.78rem; padding: 14px 18px; }
   .scorecard-table thead tr.col-groups th { font-size: 0.9rem; }
   .scorecard-table tfoot td { font-size: 1.2rem; padding: 14px 18px; }
+  .scorecard-table tbody td.pitch-sigma { font-size: 1.85rem; }
+  .scorecard-table tfoot td.pitch-sigma { font-size: 2.05rem; }
 }
 @media (min-width: 2400px) {
   .command-center { grid-template-columns: 380px 1fr !important; gap: 2rem !important; }
@@ -1298,6 +1302,8 @@ tbody td {
   .scorecard-table thead tr.col-groups th { font-size: 1.05rem; padding: 14px 24px 4px; }
   .scorecard-table tfoot td { font-size: 1.5rem; }
   .main { padding: 2rem 3rem 4rem; }
+  .scorecard-table tbody td.pitch-sigma { font-size: 2.3rem; }
+  .scorecard-table tfoot td.pitch-sigma { font-size: 2.55rem; }
 }
 @media (min-width: 3200px) {
   .command-center { grid-template-columns: 440px 1fr !important; }
@@ -1308,6 +1314,8 @@ tbody td {
   .scorecard-table tfoot td { font-size: 1.8rem; }
   .topnav { height: 80px; }
   .topnav h1 { font-size: 1.5rem; }
+  .scorecard-table tbody td.pitch-sigma { font-size: 2.75rem; }
+  .scorecard-table tfoot td.pitch-sigma { font-size: 3.05rem; }
 }
 
 .error-card h2 {
@@ -1538,11 +1546,31 @@ tbody td {
   }
   .scorecard-table tbody tr.sc-top:hover td { background: #DBEAFE !important; }
 
+  /* Σ COLUMN — pick up the new color treatment in TV portrait mode too.
+     Standard rules use --landing-navy / --landing-blue but those were getting
+     clobbered by the universal `color: #111827 !important` override above. */
+  .scorecard-table tbody td.pitch-sigma {
+    font-size: 1.45rem !important;
+    font-weight: 800 !important;
+    color: #15192D !important;            /* --landing-navy hex */
+    letter-spacing: -0.025em !important;
+  }
+  .scorecard-table tbody tr.sc-top td.pitch-sigma {
+    color: #1D4ED8 !important;            /* landing-blue hex */
+    font-weight: 800 !important;
+  }
+  .scorecard-table tfoot td.pitch-sigma {
+    font-size: 1.7rem !important;
+    font-weight: 800 !important;
+    color: #1D4ED8 !important;
+    letter-spacing: -0.025em !important;
+  }
+
   /* Footer totals */
   .scorecard-table tfoot td {
     font-size: 1.05rem !important; padding: 10px 8px !important;
     font-weight: 800 !important; color: #111827 !important;
-    border-top: 2px solid #9CA3AF !important;
+    border-top: 2px solid #1D4ED8 !important;
     background: #F3F4F6 !important;
     border-bottom: none !important;
   }
