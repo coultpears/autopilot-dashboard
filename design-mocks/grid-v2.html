@@ -1,0 +1,2467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autopilot Dashboard · Grid v2 (with Neon DB)</title>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════════
+  GRID v2 · comprehensive redesign of the grid view
+  Assumes Neon Postgres backing the dashboard. Every section labeled
+  "NEW" requires the DB; sections marked "PRESERVED" come from prod.
+  ═══════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   PALETTE & TYPOGRAPHY (preserved from production design vocabulary)
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:           #FAFAF9;
+  --paper:        #FFFFFF;
+  --paper-warm:   #FBF7EF;
+  --paper-cream:  #F7F2E8;
+
+  --ink-0:        #15192D;
+  --ink-1:        #2D3654;
+  --ink-2:        #52566B;
+  --ink-3:        #8A8D99;
+  --ink-4:        #B5B9C3;
+
+  --line-0:       rgba(21, 25, 45, 0.05);
+  --line-1:       rgba(21, 25, 45, 0.10);
+  --line-2:       rgba(21, 25, 45, 0.16);
+
+  --landing-blue: #1A61D9;
+  --landing-deep: #154FB3;
+  --success:      #08786C;
+  --warning:      #B95B00;
+  --error:        #EE533D;
+  --str:          #D2552E;
+
+  --blue-tint:    rgba(26, 97, 217, 0.08);
+  --blue-tint-2:  rgba(26, 97, 217, 0.14);
+  --success-tint: rgba(8, 120, 108, 0.10);
+  --warning-tint: rgba(185, 91, 0, 0.10);
+  --error-tint:   rgba(238, 83, 61, 0.10);
+  --str-tint:     rgba(210, 85, 46, 0.12);
+
+  --implied-bg:   rgba(21, 25, 45, 0.035);
+  --implied-edge: rgba(21, 25, 45, 0.12);
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  --elev-1: 0 1px 0 rgba(21,25,45,0.04), 0 1px 2px rgba(21,25,45,0.04);
+  --elev-2: 0 1px 0 rgba(21,25,45,0.04), 0 8px 20px -8px rgba(21,25,45,0.10);
+
+  --font-display: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink-0);
+  font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  font-feature-settings: 'tnum' 1, 'ss01' 1, 'cv11' 1;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+
+/* Subtle paper grain — atmospheric, matches the editorial direction */
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+    radial-gradient(circle at 76% 58%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+    radial-gradient(circle at 42% 83%, rgba(0,0,0,0.012) 0 1px, transparent 1px);
+  background-size: 7px 7px, 11px 11px, 13px 13px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PAGE HEADER (refreshed treatment, same Map|Grid switch)
+   ════════════════════════════════════════════════════════════════════ */
+.page-shell { position: relative; z-index: 1; }
+
+.page-header {
+  background: var(--paper);
+  border-bottom: 1px solid var(--line-1);
+  padding: 18px 40px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 24px;
+}
+.brand-mark {
+  display: flex; align-items: baseline; gap: 12px;
+  font-family: var(--font-display);
+}
+.brand-mark .logo {
+  width: 28px; height: 28px;
+  background: var(--ink-0); color: var(--paper);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px;
+  letter-spacing: -0.02em;
+  border-radius: var(--r-sm);
+  align-self: center;
+}
+.brand-mark .name {
+  font-weight: 600; font-size: 16px;
+  letter-spacing: -0.015em;
+  color: var(--ink-0);
+}
+.brand-mark .name em {
+  font-style: italic; font-weight: 400; color: var(--ink-3);
+  margin-left: 2px;
+}
+
+.view-switch {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--paper-warm);
+  box-shadow: inset 0 1px 1px rgba(21,25,45,0.04);
+}
+.view-switch a {
+  padding: 6px 16px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-3); font-weight: 600;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.view-switch a.active {
+  background: var(--ink-0); color: var(--paper);
+}
+
+.header-stamps {
+  display: flex; align-items: center; gap: 14px;
+  justify-self: end;
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+.header-stamps .stamp {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.header-stamps .stamp .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--success); display: inline-block;
+  box-shadow: 0 0 0 3px rgba(8,120,108,0.18);
+  animation: heartbeat 2.4s ease-in-out infinite;
+}
+@keyframes heartbeat {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(8,120,108,0.18); }
+  50%      { box-shadow: 0 0 0 5px rgba(8,120,108,0.06); }
+}
+.header-stamps .v-badge {
+  padding: 3px 7px;
+  background: var(--paper-warm);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+main { padding: 28px 40px 80px; max-width: 1480px; margin: 0 auto; }
+
+/* ════════════════════════════════════════════════════════════════════
+   SECTION HEADERS — a recurring band that frames each region
+   ════════════════════════════════════════════════════════════════════ */
+.sec-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 0 0 14px;
+  gap: 18px;
+}
+.sec-head .title {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--ink-1);
+  display: flex; align-items: baseline; gap: 14px;
+}
+.sec-head .title em {
+  font-family: var(--font-body); font-style: italic;
+  font-size: 12px; color: var(--ink-3);
+  letter-spacing: 0; text-transform: none; font-weight: 400;
+}
+.sec-head .ctx {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PORTFOLIO KPI STRIP (NEW · DB-enabled)
+   What it shows: cross-property aggregates — counts, sums, take rate,
+     at-risk count, next-month projection across all properties.
+   DB query: SELECT counts and sums from properties + monthly_revshare
+     tables (one query). With JSON bundle this would require scanning
+     the whole file in memory; with Postgres it's <50ms.
+   Why it justifies the DB: this strip is the "morning report" reps
+     check before opening the grid. It needs cross-property aggregates
+     fresh on every page load — exactly what a DB does cheaply.
+   ════════════════════════════════════════════════════════════════════ */
+.kpi-strip {
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  padding: 22px 26px 18px;
+  margin-bottom: 28px;
+  box-shadow: var(--elev-1);
+  position: relative; overflow: hidden;
+}
+/* Subtle accent corner — visual marker for the "headline" tile */
+.kpi-strip::before {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 3px; height: 48px; background: var(--landing-blue);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px 36px;
+  align-items: end;
+}
+.kpi-grid.secondary {
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line-1);
+  align-items: start;
+}
+
+.kpi {
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;
+}
+.kpi .label {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-3); font-weight: 600;
+}
+.kpi .value {
+  font-family: var(--font-mono); font-weight: 700;
+  font-size: 30px; letter-spacing: -0.02em;
+  color: var(--ink-0); line-height: 1;
+  display: inline-flex; align-items: baseline; gap: 5px;
+}
+.kpi .value .unit {
+  font-size: 14px; font-weight: 600; color: var(--ink-2);
+  letter-spacing: 0;
+}
+.kpi .delta {
+  font-family: var(--font-mono); font-size: 10.5px;
+  margin-top: 4px;
+  color: var(--ink-2);
+}
+.kpi .delta b.up   { color: var(--success); font-weight: 700; }
+.kpi .delta b.down { color: var(--error);   font-weight: 700; }
+.kpi .delta b.warn { color: var(--warning); font-weight: 700; }
+
+/* Secondary tiles: smaller numbers, more context */
+.kpi.secondary .value { font-size: 18px; letter-spacing: -0.01em; }
+.kpi.secondary .value .frac { color: var(--ink-3); font-size: 13px; font-weight: 500; }
+
+/* The at-risk tile gets a warning accent */
+.kpi.kpi-warn .value { color: var(--warning); }
+.kpi.kpi-warn .label { color: var(--warning); }
+
+.kpi.kpi-blue .value { color: var(--landing-blue); }
+.kpi.kpi-blue .label { color: var(--landing-blue); }
+
+/* Animation: count-up reveal */
+.kpi .value {
+  animation: kpiRise 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes kpiRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SEGMENTS + FILTERS (NEW · DB-enabled)
+   What it shows: pre-computed property cohorts (STR-enabled, Mixed,
+     LT-only, At-risk, Ramping, Top performers).
+   DB query: each cohort is a saved view (Postgres view or materialized
+     view). Click = WHERE cohort_membership = X. Counts come from
+     aggregation refreshed nightly.
+   Why DB: cohort membership requires looking across all properties'
+     reservation patterns + recent trend. JSON bundle can't do this fast.
+   ════════════════════════════════════════════════════════════════════ */
+.segments-bar {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 24px;
+}
+.segments {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.seg-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: 999px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.04em; color: var(--ink-2);
+  font-weight: 600;
+  cursor: pointer; user-select: none;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.seg-chip:hover { border-color: var(--line-2); color: var(--ink-0); }
+.seg-chip.active {
+  background: var(--ink-0); color: var(--paper); border-color: var(--ink-0);
+}
+.seg-chip .count {
+  font-size: 9.5px; opacity: 0.7;
+  padding: 1px 6px; border-radius: 999px;
+  background: rgba(21,25,45,0.08);
+}
+.seg-chip.active .count { background: rgba(255,255,255,0.18); opacity: 0.9; }
+
+/* Color-coded chips for special categories */
+.seg-chip[data-tone="str"] .dot   { background: var(--str); }
+.seg-chip[data-tone="lt"]  .dot   { background: var(--landing-blue); }
+.seg-chip[data-tone="risk"].active{ background: var(--error); border-color: var(--error); }
+.seg-chip[data-tone="ramp"].active{ background: var(--landing-blue); border-color: var(--landing-blue); }
+.seg-chip[data-tone="top"] .dot   { background: var(--success); }
+.seg-chip .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-3);
+}
+
+.filter-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.search-input {
+  flex: 1; min-width: 220px;
+  padding: 9px 14px 9px 36px;
+  background: var(--paper) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8D99' stroke-width='2'><circle cx='11' cy='11' r='7'/><path d='m21 21-4.3-4.3'/></svg>") no-repeat 13px center;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--ink-0);
+  letter-spacing: -0.005em;
+}
+.search-input:focus { outline: 0; border-color: var(--landing-blue); box-shadow: 0 0 0 3px var(--blue-tint); }
+.search-input::placeholder { color: var(--ink-3); }
+
+.filter-select {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-2); font-weight: 600;
+  cursor: pointer;
+}
+.filter-select::after { content: '▾'; font-size: 8px; color: var(--ink-3); margin-left: 2px; }
+.filter-select:hover { color: var(--ink-0); border-color: var(--line-2); }
+
+.save-view {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3); font-weight: 600;
+  cursor: pointer;
+}
+.save-view::before { content: '+'; font-size: 13px; line-height: 1; color: var(--ink-2); }
+.save-view:hover { color: var(--ink-1); border-color: var(--ink-3); }
+
+/* Reset filters button — shown only when at least one filter is active. */
+.reset-filters {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: var(--blue-tint);
+  border: 1px solid rgba(26, 97, 217, 0.30);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--landing-blue); font-weight: 700;
+  cursor: pointer;
+}
+.reset-filters:hover { background: rgba(26, 97, 217, 0.14); }
+
+/* Dropdown popover for partner/market/period selects. */
+.filter-popover {
+  display: none;
+  position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--paper);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: 0 14px 32px -10px rgba(15, 19, 45, 0.18), 0 2px 6px rgba(15, 19, 45, 0.06);
+  padding: 6px 0;
+  min-width: 200px; max-width: 320px;
+  max-height: 320px; overflow-y: auto;
+  z-index: 50;
+  text-align: left;
+}
+.filter-popover.open { display: block; }
+.filter-popover button {
+  display: block; width: 100%;
+  padding: 8px 14px;
+  background: transparent; border: 0;
+  font-family: var(--font-body); font-size: 12px;
+  color: var(--ink-1); text-align: left;
+  cursor: pointer;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.filter-popover button:hover { background: var(--paper-warm); color: var(--landing-blue); }
+
+/* Hover affordance on KPI tiles and leaderboard items (they're clickable). */
+.kpi[style*="cursor: pointer"]:hover,
+.kpi[style*="cursor:pointer"]:hover {
+  border-color: rgba(26, 97, 217, 0.30);
+  transform: translateY(-1px);
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.board-item { transition: background 120ms ease; }
+.board-item:hover { background: var(--paper-warm); }
+.board-action { transition: color 120ms ease; }
+.board-action:hover { color: var(--landing-blue); }
+
+/* ════════════════════════════════════════════════════════════════════
+   SMART LEADERBOARDS (NEW · DB-enabled)
+   What they show: top/bottom property lists computed across the full
+     portfolio. Top by Landing net, biggest STR ramp, biggest at-risk.
+   DB query: ORDER BY landing_net DESC LIMIT 5; for ramp it's a window
+     function on monthly_revshare. Trivially fast in Postgres.
+   Why DB: these are "the answer to a question across all 705 properties."
+     A scan in JSON would mean loading every property into memory and
+     sorting — Postgres returns 5 rows in ms.
+   ════════════════════════════════════════════════════════════════════ */
+.boards-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 26px;
+}
+@media (max-width: 1100px) { .boards-row { grid-template-columns: 1fr; } }
+
+.board {
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  padding: 14px 16px 12px;
+  box-shadow: var(--elev-1);
+  position: relative; overflow: hidden;
+}
+.board::before {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 100%; height: 2px; background: var(--landing-blue);
+}
+.board[data-tone="risk"]::before { background: var(--error); }
+.board[data-tone="ramp"]::before { background: var(--str); }
+.board[data-tone="top"]::before  { background: var(--success); }
+
+.board-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.board-title {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-1); font-weight: 700;
+}
+.board-action {
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3); font-weight: 600;
+  cursor: pointer;
+}
+.board-action:hover { color: var(--landing-blue); }
+
+.board-list { display: flex; flex-direction: column; gap: 4px; }
+.board-item {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 10px; align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px dashed var(--line-0);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.board-item:first-child { border-top: 0; }
+.board-item:hover { background: var(--paper-warm); }
+.board-item .rank {
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--ink-3); font-weight: 700;
+  text-align: right;
+}
+.board-item .name {
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--ink-0); font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.board-item .metric {
+  font-family: var(--font-mono); font-size: 11.5px;
+  font-weight: 700; color: var(--ink-1);
+  letter-spacing: -0.01em;
+}
+.board-item .metric.good { color: var(--success); }
+.board-item .metric.bad  { color: var(--error); }
+.board-item .metric.str  { color: var(--str); }
+
+/* ════════════════════════════════════════════════════════════════════
+   MAIN GRID TABLE (redesigned column set · partial preservation)
+   ════════════════════════════════════════════════════════════════════ */
+.grid-wrap {
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  box-shadow: var(--elev-1);
+}
+.grid-wrap::-webkit-scrollbar { height: 8px; }
+.grid-wrap::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+.grid-wrap::-webkit-scrollbar-track { background: var(--paper-warm); }
+.grid-table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--font-body); font-size: 13px;
+}
+.grid-table thead th {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3); font-weight: 600;
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line-1);
+  background: var(--paper-warm);
+  white-space: nowrap;
+}
+.grid-table thead th.num { text-align: right; }
+.grid-table thead th.center { text-align: center; }
+.grid-table tbody tr {
+  border-top: 1px solid var(--line-0);
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.grid-table tbody tr:first-child { border-top: 0; }
+.grid-table tbody tr:hover { background: var(--paper-warm); }
+.grid-table tbody tr.expanded-row { cursor: default; }
+.grid-table tbody tr.expanded {
+  background: var(--paper-warm);
+  border-top: 2px solid var(--ink-0);
+}
+.grid-table tbody td {
+  padding: 14px 10px;
+  vertical-align: middle;
+  border-bottom: 0;
+}
+.grid-table tbody td.num { text-align: right; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+.grid-table tbody td.center { text-align: center; }
+
+/* Expand chevron */
+.expand-cell { width: 28px; padding-left: 16px !important; }
+.expand-chevron {
+  display: inline-block;
+  font-size: 8px; color: var(--ink-3);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+tr.expanded .expand-chevron { transform: rotate(90deg); color: var(--ink-0); }
+
+/* Property cell — name + chips */
+.prop-cell {
+  min-width: 180px;
+  max-width: 260px;
+}
+.prop-name {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 14px; letter-spacing: -0.015em;
+  color: var(--ink-0);
+}
+.prop-meta {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--ink-3); margin-top: 2px;
+}
+.prop-name .pill-str {
+  display: inline-flex; align-items: center;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--str-tint); color: var(--str);
+  border: 1px solid var(--str);
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: help;
+}
+.prop-name .pill-mixed {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--paper); color: var(--ink-1);
+  border: 1px solid var(--line-2);
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.prop-name .pill-mixed::before {
+  content: ''; width: 8px; height: 6px; border-radius: 1px;
+  background: linear-gradient(90deg, var(--landing-blue) 0%, var(--landing-blue) 50%, var(--str) 50%, var(--str) 100%);
+}
+.prop-name .pill-deinstall {
+  display: inline-flex; align-items: center;
+  padding: 2px 5px; border-radius: 3px;
+  background: var(--warning-tint); color: var(--warning);
+  border: 1px solid var(--warning);
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.prop-trend-glyph {
+  margin-left: 4px; font-size: 11px;
+  color: var(--ink-3); font-weight: 700;
+}
+.prop-trend-glyph.up   { color: var(--success); }
+.prop-trend-glyph.down { color: var(--error); }
+
+/* Partner / market / units cells */
+.partner-cell { color: var(--ink-1); font-size: 13px; min-width: 110px; max-width: 180px; }
+.partner-sub  { color: var(--ink-3); font-size: 10.5px; margin-top: 2px; font-family: var(--font-mono); }
+.market-cell  { color: var(--ink-2); font-size: 12px; font-family: var(--font-mono); letter-spacing: 0.02em; }
+.units-cell   { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--ink-0); }
+.units-cell .str-sub { font-size: 9.5px; color: var(--str); font-weight: 600; letter-spacing: 0.04em; }
+
+/* Occupancy cell — preserved from production grid v1.
+   Lightweight slim bar + filled / total split so operators can spot
+   vacant inventory at a glance without expanding the row. */
+.occ-cell { min-width: 96px; max-width: 130px; }
+.occ-wrap { display: flex; flex-direction: column; gap: 4px; }
+.occ-bar {
+  height: 6px; border-radius: 2px; overflow: hidden;
+  background: rgba(21, 25, 45, 0.06);
+  border: 1px solid var(--line-0);
+}
+.occ-fill { height: 100%; transition: width 240ms ease; }
+.occ-bar.good .occ-fill { background: var(--success); }
+.occ-bar.warn .occ-fill { background: var(--warning); }
+.occ-bar.bad  .occ-fill { background: var(--error); }
+.occ-meta {
+  display: flex; align-items: baseline; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-2);
+}
+.occ-meta .occ-pct { color: var(--ink-1); font-weight: 700; font-size: 12px; letter-spacing: -0.01em; }
+.occ-meta .occ-sub { color: var(--ink-3); font-size: 9.5px; }
+
+/* This month — split mini bar + numbers */
+.tm-cell { min-width: 180px; max-width: 240px; }
+.tm-split-bar {
+  display: flex; height: 8px;
+  border-radius: 2px; overflow: hidden;
+  background: var(--implied-bg);
+  border: 1px solid var(--implied-edge);
+  margin-bottom: 4px;
+}
+.tm-split-bar .seg-lt   { background: var(--landing-blue); }
+.tm-split-bar .seg-part { background: var(--blue-tint-2); }
+.tm-split-bar .seg-gap  {
+  background: repeating-linear-gradient(45deg,
+    rgba(238,83,61,0.30) 0 2px, transparent 2px 4px);
+}
+.tm-numbers {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-2);
+}
+.tm-numbers .l-net { color: var(--landing-blue); font-weight: 700; }
+.tm-numbers .p-net { color: var(--ink-1); font-weight: 600; }
+.tm-numbers .sep   { color: var(--ink-4); }
+
+/* Recovery cell */
+.rec-cell {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-flex; align-items: baseline; gap: 6px;
+}
+.rec-cell .pct-sub {
+  font-size: 9px; font-weight: 600; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+.rec-cell.good { color: var(--success); }
+.rec-cell.warn { color: var(--warning); }
+.rec-cell.bad  { color: var(--error); }
+
+/* Sparkline cell — DB-enabled */
+.spark-cell { width: 90px; min-width: 80px; }
+.spark-svg {
+  width: 100%; height: 32px; display: block;
+}
+.spark-bar { transition: fill 160ms ease; }
+.spark-bar.real { fill: var(--landing-blue); opacity: 0.85; }
+.spark-bar.ghost {
+  fill: var(--implied-bg); stroke: var(--implied-edge); stroke-width: 0.4;
+  stroke-dasharray: 1 1;
+}
+.spark-bar.zero { fill: var(--ink-4); opacity: 0.6; }
+
+/* Projection cell — DB-enabled */
+.proj-cell {
+  font-family: var(--font-mono); font-size: 12px;
+  display: inline-flex; align-items: baseline; gap: 5px;
+}
+.proj-cell .v { color: var(--landing-blue); font-weight: 700; font-size: 13px; }
+.proj-cell .dots { font-size: 10px; letter-spacing: 0.6px; }
+.proj-cell .dots.high { color: var(--success); }
+.proj-cell .dots.med  { color: var(--warning); }
+.proj-cell .dots.low  { color: var(--ink-3); }
+.proj-cell .refused { color: var(--ink-3); font-style: italic; font-size: 10.5px; font-family: var(--font-body); }
+
+/* Status pill */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700;
+}
+.status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; }
+.status-pill.strong { background: var(--success-tint); color: var(--success); }
+.status-pill.strong::before { background: var(--success); }
+.status-pill.moderate { background: var(--warning-tint); color: var(--warning); }
+.status-pill.moderate::before { background: var(--warning); }
+.status-pill.low { background: var(--error-tint); color: var(--error); }
+.status-pill.low::before { background: var(--error); }
+.status-pill.atrisk {
+  background: var(--ink-0); color: var(--paper);
+}
+.status-pill.atrisk::before { background: var(--error); }
+
+.admin-link {
+  color: var(--ink-3); text-decoration: none;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 4px;
+}
+.admin-link:hover { color: var(--landing-blue); }
+
+/* Page-load row stagger */
+.grid-table tbody tr {
+  opacity: 0; transform: translateY(4px);
+  animation: rowIn 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.grid-table tbody tr:nth-child(1) { animation-delay: 220ms; }
+.grid-table tbody tr:nth-child(2) { animation-delay: 250ms; }
+.grid-table tbody tr:nth-child(3) { animation-delay: 280ms; }
+.grid-table tbody tr:nth-child(4) { animation-delay: 310ms; }
+.grid-table tbody tr:nth-child(5) { animation-delay: 340ms; }
+.grid-table tbody tr:nth-child(6) { animation-delay: 370ms; }
+.grid-table tbody tr:nth-child(7) { animation-delay: 400ms; }
+.grid-table tbody tr:nth-child(8) { animation-delay: 430ms; }
+.grid-table tbody tr:nth-child(9) { animation-delay: 460ms; }
+.grid-table tbody tr:nth-child(10){ animation-delay: 490ms; }
+@keyframes rowIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EXPANDED ROW · embeds the v4 Partner P&L module + units table
+   This is "preserved from production" + the v4 design we iterated on.
+   ════════════════════════════════════════════════════════════════════ */
+/* Expanded row visual treatment — refined editorial.
+   Selector `> td` only targets the direct child cell (the colspan
+   container), NOT every nested td inside res-table / units-table. */
+.expanded-row > td {
+  padding: 0 !important;
+  background:
+    linear-gradient(180deg, var(--paper-warm) 0%, var(--paper-cream) 100%);
+  border-left: 2px solid var(--landing-blue);
+  box-shadow:
+    inset 0 1px 0 var(--line-1),
+    inset 0 6px 12px -8px rgba(21,25,45,0.10);
+}
+.expanded-shell {
+  padding: 22px 24px 26px;
+  animation: expandIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes expandIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   v4 PARTNER P&L MODULE · embedded styles (carryover from v4 mock)
+   ════════════════════════════════════════════════════════════════════ */
+.pnl-module {
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--elev-1);
+  margin-bottom: 18px;
+}
+.pnl-eyebrow {
+  padding: 14px 22px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line-0);
+}
+.pnl-eyebrow .left { display: flex; flex-direction: column; gap: 4px; }
+.pnl-title {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--ink-1); font-weight: 700;
+}
+.pnl-subtitle { font-family: var(--font-body); font-size: 12.5px; color: var(--ink-3); font-style: italic; }
+.pnl-eyebrow .right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.pov-toggle {
+  display: flex; background: var(--paper-warm);
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  padding: 3px;
+}
+.pov-toggle button {
+  background: transparent; border: 0; padding: 5px 12px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  border-radius: var(--r-sm);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pov-toggle button[data-pov="partner"].active {
+  background: var(--paper); color: var(--error);
+  box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--error);
+}
+.pov-toggle button[data-pov="landing"].active {
+  background: var(--paper); color: var(--landing-blue);
+  box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--landing-blue);
+}
+
+.aux-toggle-wrap { display: inline-flex; align-items: center; gap: 7px; }
+.aux-toggle-label {
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  cursor: help; border-bottom: 1px dotted var(--ink-4);
+}
+.aux-toggle {
+  display: flex; border: 1px solid var(--line-1);
+  border-radius: var(--r-sm); overflow: hidden;
+}
+.aux-toggle button {
+  background: transparent; border: 0; padding: 5px 9px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3);
+}
+.aux-toggle button.active { background: var(--ink-0); color: var(--paper-warm); }
+
+.pnl-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 0;
+}
+@media (max-width: 980px) {
+  .pnl-body { grid-template-columns: 1fr; }
+  .pnl-summary { border-left: 0; border-top: 1px solid var(--line-1); }
+}
+
+.pnl-chart-wrap { padding: 20px 22px 16px; position: relative; }
+.pnl-chart-canvas { width: 100%; height: 220px; display: block; overflow: visible; }
+.implied-bar { fill: var(--implied-bg); stroke: var(--implied-edge); stroke-width: 0.6; }
+.actual-lt   { fill: var(--landing-blue); }
+.actual-str  { fill: var(--str); }
+.implied-line     { fill: none; stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 3; }
+.lt-realistic-line{ fill: none; stroke: var(--warning); stroke-width: 1.2; stroke-dasharray: 1.5 3; }
+.axis-label  { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; fill: var(--ink-3); }
+.axis-label-strong { fill: var(--ink-1); font-weight: 600; }
+.coverage-label { font-family: var(--font-mono); font-size: 9px; font-weight: 700; }
+.coverage-label.good { fill: var(--success); }
+.coverage-label.warn { fill: var(--warning); }
+.coverage-label.bad  { fill: var(--error); }
+
+.proj-bar-lt  { fill: var(--landing-blue); opacity: 0.55; }
+.proj-bar-str { fill: var(--str); opacity: 0.55; }
+.proj-divider { stroke: var(--ink-3); stroke-width: 0.6; stroke-dasharray: 3 2; }
+.proj-band-label { font-family: var(--font-mono); font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; fill: var(--landing-blue); }
+.proj-conf-dots { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+.proj-conf-dots.high { fill: var(--success); }
+.proj-conf-dots.med  { fill: var(--warning); }
+.proj-conf-dots.low  { fill: var(--ink-3); }
+
+.pnl-legend {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-bottom: 12px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase;
+}
+.pnl-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pnl-legend .sw { width: 12px; height: 8px; display: inline-block; border-radius: 1px; }
+.pnl-legend .sw-lt   { background: var(--landing-blue); }
+.pnl-legend .sw-str  { background: var(--str); }
+.pnl-legend .sw-shortfall {
+  width: 12px; height: 8px;
+  background: repeating-linear-gradient(45deg, rgba(238,83,61,0.30) 0 2px, transparent 2px 4px);
+  border: 1px solid rgba(238,83,61,0.4);
+}
+.pnl-legend .sw-baseline    { width: 12px; height: 0; border-top: 1.2px dashed var(--ink-2); margin-top: 4px; }
+.pnl-legend .sw-baseline-lt { width: 12px; height: 0; border-top: 1.3px dashed var(--warning); margin-top: 4px; }
+
+.pnl-summary {
+  border-left: 1px solid var(--line-1);
+  padding: 18px 20px;
+  background: linear-gradient(180deg, var(--paper-warm) 0%, var(--paper) 100%);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.pov-pane { display: none; flex-direction: column; gap: 14px; }
+.pov-pane.active { display: flex; }
+
+.verdict { display: flex; flex-direction: column; gap: 4px; }
+.verdict-label {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-3); font-weight: 600;
+}
+.verdict-number {
+  font-family: var(--font-mono); font-size: 26px; font-weight: 700;
+  letter-spacing: -0.015em; line-height: 1;
+}
+.verdict-number.shortfall { color: var(--error); }
+.verdict-number.surplus   { color: var(--success); }
+.verdict-number.even      { color: var(--ink-1); }
+.verdict-number.incremental { color: var(--landing-blue); }
+.verdict-number .sign { font-size: 19px; margin-right: 2px; }
+.verdict-pct { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); margin-top: 2px; line-height: 1.5; }
+.verdict-pct b.bad  { color: var(--error);   font-weight: 700; }
+.verdict-pct b.good { color: var(--success); font-weight: 700; }
+.verdict-pct b.blue { color: var(--landing-blue); font-weight: 700; }
+
+.breakdown {
+  display: flex; flex-direction: column;
+  padding: 10px 0;
+  border-top: 1px dashed var(--line-1);
+  border-bottom: 1px dashed var(--line-1);
+  gap: 6px;
+}
+.bk-row { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); }
+.bk-row .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); }
+.bk-row .v { font-size: 12px; font-weight: 600; color: var(--ink-0); }
+.bk-row .v.muted { color: var(--ink-3); font-weight: 500; }
+.bk-row .v.blue  { color: var(--landing-blue); }
+.bk-row .v.coral { color: var(--str); }
+.bk-row .v.green { color: var(--success); }
+.bk-row .v.red   { color: var(--error); }
+.bk-row.sub .l { padding-left: 10px; font-size: 9px; color: var(--ink-3); }
+.bk-row.sub .v { font-size: 11px; color: var(--ink-2); font-weight: 500; }
+
+.source-mix {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px;
+  background: var(--paper-warm);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+}
+.source-mix .label { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); font-weight: 600; white-space: nowrap; }
+.source-mix .bar { flex: 1; height: 14px; display: flex; border-radius: 2px; overflow: hidden; background: var(--line-0); }
+.source-mix .bar .seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: white; letter-spacing: 0.02em; }
+.source-mix .bar .seg.lt  { background: var(--landing-blue); }
+.source-mix .bar .seg.str { background: var(--str); }
+
+.trajectory { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+.trajectory.widening { color: var(--error); }
+.trajectory.surplus  { color: var(--success); }
+.trajectory.incremental { color: var(--landing-blue); }
+.trajectory .glyph { font-size: 15px; line-height: 1; }
+.narrative { font-family: var(--font-body); font-size: 12px; line-height: 1.55; color: var(--ink-2); font-style: italic; }
+.narrative b { color: var(--ink-0); font-style: normal; font-weight: 600; }
+
+/* Tabs at the bottom of the expanded shell: Units | Reservations.
+   Mirrors the production detail-panel pattern. Refined treatment —
+   the active tab gets an inked underline, others stay quiet. */
+.eu-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--line-1);
+  padding: 0 22px;
+  background: var(--paper);
+  border-top-left-radius: var(--r-md);
+  border-top-right-radius: var(--r-md);
+}
+.eu-tab {
+  background: transparent; border: 0;
+  padding: 14px 0; margin-right: 22px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-3); font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 140ms ease, border-color 140ms ease;
+  display: inline-flex; align-items: baseline; gap: 7px;
+}
+.eu-tab:hover { color: var(--ink-1); }
+.eu-tab.active {
+  color: var(--ink-0);
+  border-bottom-color: var(--ink-0);
+}
+.eu-tab .tab-count {
+  font-size: 9.5px; color: var(--ink-3);
+  padding: 1px 6px; background: var(--paper-warm);
+  border-radius: 999px; border: 1px solid var(--line-1);
+  letter-spacing: 0.02em; font-weight: 600;
+}
+.eu-tab.active .tab-count { color: var(--ink-1); background: var(--paper); border-color: var(--line-2); }
+
+.eu-pane { display: none; }
+.eu-pane.active { display: block; }
+
+/* Reservations table — same vocabulary as units table */
+.res-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 760px; }
+.res-table th {
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  text-align: left; padding: 9px 10px;
+  background: var(--paper-warm);
+  border-bottom: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.res-table th.num { text-align: right; }
+.res-table td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--line-0);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.res-table td.num { text-align: right; font-family: var(--font-mono); }
+.res-status-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 7px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+}
+.res-status-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; }
+.res-status-chip.active { background: var(--success-tint); color: var(--success); }
+.res-status-chip.active::before { background: var(--success); }
+.res-status-chip.future { background: var(--blue-tint); color: var(--landing-blue); }
+.res-status-chip.future::before { background: var(--landing-blue); }
+.res-status-chip.past { background: var(--paper-warm); color: var(--ink-3); }
+.res-status-chip.past::before { background: var(--ink-4); }
+.res-date-pill {
+  font-family: var(--font-mono); font-size: 10.5px;
+  background: var(--paper-warm); color: var(--ink-1);
+  padding: 2px 7px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.res-date-pill .arrow { color: var(--ink-3); margin: 0 3px; }
+.res-nights-pill {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  background: var(--blue-tint); color: var(--landing-blue);
+  padding: 2px 6px; border-radius: var(--r-sm);
+  margin-left: 5px;
+}
+.res-nights-pill.str { background: var(--str-tint); color: var(--str); }
+.res-nights-pill.long { background: var(--success-tint); color: var(--success); }
+.res-type-chip {
+  display: inline-block;
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  padding: 2px 6px; border-radius: var(--r-sm);
+}
+.res-type-chip.str { background: var(--str-tint); color: var(--str); border: 1px solid var(--str); }
+.res-type-chip.lt  { background: var(--blue-tint); color: var(--landing-blue); border: 1px solid var(--landing-blue); }
+.res-type-chip.mt  { background: var(--paper-warm); color: var(--ink-2); border: 1px solid var(--line-2); }
+
+/* Units table inside expanded — horizontal scroll if cells overflow */
+.expanded-units {
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  box-shadow: var(--elev-1);
+  overflow: hidden;
+}
+.expanded-units .units-scroll {
+  overflow-x: auto;
+}
+.expanded-units .units-scroll::-webkit-scrollbar { height: 6px; }
+.expanded-units .units-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+.expanded-units .units-scroll::-webkit-scrollbar-track { background: var(--paper-warm); }
+.eu-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 14px 22px 12px;
+  border-bottom: 1px solid var(--line-0);
+}
+.eu-title {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.18em; color: var(--ink-1);
+}
+.eu-stats {
+  display: flex; gap: 18px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-2);
+}
+.eu-stats b { color: var(--ink-0); font-weight: 700; }
+
+.units-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 760px; }
+.units-table th {
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  text-align: left; padding: 9px 10px;
+  background: var(--paper-warm);
+  border-bottom: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.units-table th.num { text-align: right; }
+.units-table td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--line-0);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.units-table td.num { text-align: right; font-family: var(--font-mono); }
+.unit-num {
+  font-family: var(--font-mono); font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.s-mark {
+  width: 15px; height: 15px;
+  background: var(--str-tint); color: var(--str);
+  border: 1px solid var(--str);
+  border-radius: 2px;
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+.gd-badge {
+  display: inline-block; padding: 2px 6px; border-radius: 2px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.gd-badge.occupied  { background: var(--success-tint); color: var(--success); }
+.gd-badge.shortterm { background: var(--str-tint); color: var(--str); border: 1px solid var(--str); }
+
+/* ════════════════════════════════════════════════════════════════════
+   FOOTER — design context for the reviewer
+   ════════════════════════════════════════════════════════════════════ */
+.notes {
+  margin-top: 32px;
+  background: var(--paper);
+  border: 1px solid var(--line-1);
+  padding: 18px 22px;
+  border-radius: var(--r-md);
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--ink-2); line-height: 1.55;
+}
+.notes h3 {
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-0); margin: 0 0 10px; font-weight: 700;
+}
+.notes ul { margin: 0 0 16px; padding-left: 18px; }
+.notes li { margin-bottom: 5px; }
+.notes .new   { color: var(--landing-blue); font-weight: 700; }
+.notes .pres  { color: var(--ink-3); font-weight: 600; }
+.notes .db    { color: var(--str); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+
+/* Responsive — preserve usability down to 880px */
+@media (max-width: 1280px) {
+  .kpi-grid, .kpi-grid.secondary { grid-template-columns: repeat(4, 1fr); }
+  .boards-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 980px) {
+  main { padding-left: 22px; padding-right: 22px; }
+  .page-header { padding: 16px 22px; }
+  .kpi-grid, .kpi-grid.secondary { grid-template-columns: 1fr 1fr; }
+  .boards-row { grid-template-columns: 1fr; }
+  .grid-table thead th, .grid-table tbody td { padding: 10px 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-shell">
+
+  <!-- ═══════════════ PAGE HEADER (refreshed, Map|Grid switch PRESERVED) ═══════════════ -->
+  <header class="page-header">
+    <div class="brand-mark">
+      <span class="logo">L</span>
+      <div>
+        <div class="name">Landing Autopilot <em>· Operator</em></div>
+      </div>
+    </div>
+
+    <nav class="view-switch" aria-label="View switcher">
+      <a href="#" data-view="map">Map</a>
+      <a href="#" data-view="grid" class="active">Grid</a>
+    </nav>
+
+    <div class="header-stamps">
+      <span class="stamp"><span class="dot"></span>Live · Neon Postgres</span>
+      <span class="v-badge">v2.0 · 2026-05-17</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PORTFOLIO KPI STRIP · NEW · DB-required
+         Cross-property aggregates. Without the DB this would mean
+         scanning the full 685-property JSON bundle on every page load.
+         With Postgres it's two SQL queries totalling ~30ms.
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="kpi-strip" aria-label="Portfolio snapshot">
+      <div class="sec-head">
+        <div class="title">Portfolio <em>· trailing 12 months</em></div>
+        <div class="ctx">Refreshed 2 min ago</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi">
+          <span class="label">Active properties</span>
+          <span class="value">705</span>
+          <span class="delta">+18 onboarded vs prior 90d</span>
+        </div>
+        <div class="kpi">
+          <span class="label">Active partners</span>
+          <span class="value">125</span>
+          <span class="delta"><b class="up">+6</b> new since Feb</span>
+        </div>
+        <div class="kpi">
+          <span class="label">Gross 12mo</span>
+          <span class="value">$23.0<span class="unit">M</span></span>
+          <span class="delta">Across all properties</span>
+        </div>
+        <div class="kpi kpi-blue">
+          <span class="label">Landing net 12mo</span>
+          <span class="value">$7.2<span class="unit">M</span></span>
+          <span class="delta"><b class="up">31% take</b> · partner kept $15.8M</span>
+        </div>
+      </div>
+
+      <div class="kpi-grid secondary">
+        <div class="kpi secondary">
+          <span class="label">Installed units</span>
+          <span class="value">6,127</span>
+          <span class="delta">across 705 properties</span>
+        </div>
+        <div class="kpi secondary">
+          <span class="label">STR-enabled units</span>
+          <span class="value">3,576 <span class="frac">/ 6,127</span></span>
+          <span class="delta"><b class="up">58%</b> of portfolio</span>
+        </div>
+        <div class="kpi secondary kpi-warn">
+          <span class="label">At-risk properties</span>
+          <span class="value">120</span>
+          <span class="delta"><b class="warn">Recovery &lt; 60%</b> · review queue</span>
+        </div>
+        <div class="kpi secondary kpi-blue">
+          <span class="label">Projected next mo · Landing</span>
+          <span class="value">$615<span class="unit">K</span></span>
+          <span class="delta">Sum of property projections · ●●● 78% booked</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SMART SEGMENTS + FILTERS · NEW (segments DB-required)
+         Each segment is a saved view backed by a Postgres VIEW or
+         materialized view. Counts come from nightly aggregate refresh.
+         "Save view" stores a custom WHERE clause per user.
+         ═══════════════════════════════════════════════════════════════ -->
+    <section class="segments-bar" aria-label="Filters and segments">
+      <div class="segments" role="tablist">
+        <button class="seg-chip active" data-seg="all"><span class="dot"></span>All<span class="count">705</span></button>
+        <button class="seg-chip" data-seg="str" data-tone="str"><span class="dot"></span>STR-enabled<span class="count">286</span></button>
+        <button class="seg-chip" data-seg="mixed"><span class="dot"></span>Mixed<span class="count">192</span></button>
+        <button class="seg-chip" data-seg="lt" data-tone="lt"><span class="dot"></span>LT-only<span class="count">227</span></button>
+        <button class="seg-chip" data-seg="risk" data-tone="risk"><span class="dot"></span>At-risk<span class="count">120</span></button>
+        <button class="seg-chip" data-seg="ramp" data-tone="ramp"><span class="dot"></span>STR ramping<span class="count">47</span></button>
+        <button class="seg-chip" data-seg="top" data-tone="top"><span class="dot"></span>Top performers<span class="count">50</span></button>
+      </div>
+
+      <div class="filter-row">
+        <input class="search-input" type="search" placeholder="Search property, partner, market…">
+        <button class="filter-select" type="button">Period · 12mo</button>
+        <button class="filter-select" type="button">All partners</button>
+        <button class="filter-select" type="button">All markets</button>
+        <button class="save-view" type="button">Save view</button>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SMART LEADERBOARDS · NEW · DB-required
+         Top-N queries across the full portfolio. Without DB you'd have
+         to load every property's monthly data into memory and sort.
+         These cards are why the operator opens the dashboard in the
+         morning — "what changed overnight" answered immediately.
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="sec-head">
+      <div class="title">Smart leaderboards <em>· auto-computed across 705 properties</em></div>
+      <div class="ctx">DB ▸ top-N per cohort</div>
+    </div>
+    <section class="boards-row" aria-label="Leaderboards">
+
+      <div class="board" data-tone="top">
+        <div class="board-head">
+          <span class="board-title">Top 5 · Landing net (30d)</span>
+          <span class="board-action">View →</span>
+        </div>
+        <div class="board-list">
+          <div class="board-item"><span class="rank">1</span><span class="name">20 Midtown</span><span class="metric good">$11.8K</span></div>
+          <div class="board-item"><span class="rank">2</span><span class="name">Cortland Castle Hills</span><span class="metric good">$10.4K</span></div>
+          <div class="board-item"><span class="rank">3</span><span class="name">The Compass · Atlanta</span><span class="metric good">$9.4K</span></div>
+          <div class="board-item"><span class="rank">4</span><span class="name">The Heyward</span><span class="metric good">$8.9K</span></div>
+          <div class="board-item"><span class="rank">5</span><span class="name">2206 Arroyo</span><span class="metric good">$8.1K</span></div>
+        </div>
+      </div>
+
+      <div class="board" data-tone="ramp">
+        <div class="board-head">
+          <span class="board-title">Top 5 · STR ramping (MoM)</span>
+          <span class="board-action">View →</span>
+        </div>
+        <div class="board-list">
+          <div class="board-item"><span class="rank">1</span><span class="name">Mast Sky · Miami</span><span class="metric str">+142%</span></div>
+          <div class="board-item"><span class="rank">2</span><span class="name">Quarter Hudson</span><span class="metric str">+88%</span></div>
+          <div class="board-item"><span class="rank">3</span><span class="name">Ascent at Metropolitan</span><span class="metric str">+71%</span></div>
+          <div class="board-item"><span class="rank">4</span><span class="name">Riverside Lofts</span><span class="metric str">+47%</span></div>
+          <div class="board-item"><span class="rank">5</span><span class="name">The Monroe</span><span class="metric str">+34%</span></div>
+        </div>
+      </div>
+
+      <div class="board" data-tone="risk">
+        <div class="board-head">
+          <span class="board-title">At-risk 5 · review queue</span>
+          <span class="board-action">View →</span>
+        </div>
+        <div class="board-list">
+          <div class="board-item"><span class="rank">1</span><span class="name">One Club Gulf Shores</span><span class="metric bad">19% rec</span></div>
+          <div class="board-item"><span class="rank">2</span><span class="name">Liv+ Arlington</span><span class="metric bad">28% rec</span></div>
+          <div class="board-item"><span class="rank">3</span><span class="name">The Beck</span><span class="metric bad">37% rec</span></div>
+          <div class="board-item"><span class="rank">4</span><span class="name">Calloway</span><span class="metric bad">42% rec</span></div>
+          <div class="board-item"><span class="rank">5</span><span class="name">8 Metro Station</span><span class="metric bad">51% rec</span></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         MAIN GRID TABLE — redesigned column set
+         PRESERVED: chevron, Property, Partner, Market, Units, Status, Admin
+         NEW: This-month split bar, Recovery %, 12mo sparkline (DB),
+              Next 3mo projection (DB), trend glyph next to property name
+         DROPPED FROM DEFAULT VIEW: Daily Rev, Daily AP Cost, RevPAH —
+              less actionable than trend + recovery + projection. Available
+              via column picker (future).
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="sec-head" style="margin-top:30px">
+      <div class="title">Properties <em>· 705 total · 10 shown</em></div>
+      <div class="ctx">Sort · Recovery ↓ · Click a row to drill in</div>
+    </div>
+
+    <div class="grid-wrap">
+      <table class="grid-table" id="grid-table">
+        <thead>
+          <tr>
+            <th class="expand-cell"></th>
+            <th>Property</th>
+            <th>Partner</th>
+            <th>Market</th>
+            <th class="num">Units</th>
+            <th>Occupancy</th>
+            <th>This month · split</th>
+            <th class="num">Recovery</th>
+            <th>Trend · 12mo</th>
+            <th class="num">Proj next 3mo</th>
+            <th>Status</th>
+            <th class="center">Admin</th>
+          </tr>
+        </thead>
+        <tbody id="grid-body"></tbody>
+      </table>
+    </div>
+
+    <div class="notes">
+      <h3>Grid v2 · what's new vs production</h3>
+      <ul>
+        <li><span class="new">NEW · </span> Portfolio KPI strip — cross-property aggregates as a morning report. <span class="db">DB</span></li>
+        <li><span class="new">NEW · </span> Smart segments (chips with counts) — pre-computed cohorts: STR/Mixed/LT/At-risk/Ramping/Top. <span class="db">DB · materialized views</span></li>
+        <li><span class="new">NEW · </span> Smart leaderboards — top/at-risk lists across the full portfolio. <span class="db">DB · top-N queries</span></li>
+        <li><span class="new">NEW · </span> Trend sparkline per row — last 12mo Landing net at-a-glance without expanding. <span class="db">DB · per-property time-series</span></li>
+        <li><span class="new">NEW · </span> Projection column — next 3mo expected Landing net + confidence dot. <span class="db">DB · forward booking aggregates</span></li>
+        <li><span class="new">NEW · </span> This-month split bar — Landing / Partner / shortfall in one glanceable cell.</li>
+        <li><span class="new">NEW · </span> Recovery % column — % of contract base earned this month. Color-coded.</li>
+        <li><span class="new">NEW · </span> Trend glyph next to property name (↗ / ↘ / →) — instant directional signal.</li>
+        <li><span class="pres">PRESERVED · </span> Chevron / Property / Partner / Market / Units / Status / Admin columns, expand-row pattern.</li>
+        <li><span class="pres">PRESERVED · </span> Expanded row embeds the v4 Partner P&amp;L module + the units table verbatim.</li>
+        <li><span class="pres">PRESERVED · </span> STR coral pill on row, deinstall flag, Mixed-mode chip when applicable.</li>
+      </ul>
+      <h3>What this view requires from the data layer</h3>
+      <ul>
+        <li><b>Neon Postgres</b> (or equivalent) with tables: <code>properties</code>, <code>monthly_revshare</code>, <code>daily_metrics</code>, <code>reservations</code>, <code>property_projections</code>.</li>
+        <li><b>Nightly ETL</b> from Looker into Postgres — populates rolling 12mo per property + recomputes projections + recomputes cohort memberships.</li>
+        <li><b>Materialized views</b> for the segments (refresh nightly): <code>v_str_enabled</code>, <code>v_mixed</code>, <code>v_at_risk</code>, etc.</li>
+        <li><b>Read endpoints</b>: <code>/api/portfolio-kpis</code>, <code>/api/leaderboard?type=top|ramp|risk</code>, <code>/api/grid?segment=…&amp;sort=…</code>. The grid endpoint replaces the existing <code>/api/grid-data</code> with paginated, server-sorted, cohort-filtered output.</li>
+        <li>Estimated migration effort: ~1 working day for schema + ETL + endpoint stubs. The dashboard frontend code already structured to accept this shape.</li>
+      </ul>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SAMPLE DATA · 10 properties representing the portfolio mix.
+// In production these come from /api/grid (Postgres), already sorted/
+// filtered/projected by the server.
+// ═══════════════════════════════════════════════════════════════════════
+const PROPS = [
+  {
+    name: "20 Midtown", partner: "Mark-Taylor", partnerSub: "Standard property",
+    market: "Birmingham, AL", units: 26, strUnits: 26, mode: "str", occ: 88,
+    mtd: { l: 11800, p: 7400, base: 24000 }, // recovery = 19200/24000 = 80%
+    recovery: 80,
+    trend: [8200, 9100, 9800, 10400, 11200, 10800, 9600, 9200, 10100, 11400, 12200, 11800],
+    projection: { next3: 36800, conf: 'high' },
+    status: 'strong',
+    trendDir: 'up',
+  },
+  {
+    name: "The Compass · Atlanta", partner: "Cortland", partnerSub: "(operated by Greystar)",
+    market: "Atlanta, GA", units: 12, strUnits: 6, ltUnits: 6, mode: "mixed", occ: 92,
+    mtd: { l: 9400, p: 19400, base: 28000 }, // recovery = 28800/28000 ~99% (slight surplus actually)
+    recovery: 103,
+    trend: [12200, 13800, 14100, 14500, 13900, 13100, 11800, 12900, 13400, 13800, 14400, 14800],
+    projection: { next3: 28400, conf: 'high' },
+    status: 'strong',
+    trendDir: 'up',
+  },
+  {
+    name: "Cortland Castle Hills", partner: "Cortland", partnerSub: null,
+    market: "Dallas, TX", units: 30, strUnits: 0, ltUnits: 30, mode: "lt", occ: 95,
+    mtd: { l: 10400, p: 24800, base: 41000 }, // recovery = 86%
+    recovery: 86,
+    trend: [9800, 9900, 10100, 10200, 10300, 10400, 10300, 10200, 10300, 10400, 10500, 10400],
+    projection: { next3: 31200, conf: 'high' },
+    status: 'moderate',
+    trendDir: 'flat',
+  },
+  {
+    name: "Riverside Lofts", partner: "Mast Capital", partnerSub: "(operated by RPM Living)",
+    market: "Nashville, TN", units: 20, strUnits: 10, ltUnits: 10, mode: "mixed", occ: 90,
+    mtd: { l: 11200, p: 16500, base: 28000 }, // recovery = 99%
+    recovery: 99,
+    trend: [25700, 29400, 28000, 24600, 21000, 16400, 15000, 16700, 20400, 26000, 27700, null],
+    projection: { next3: 72400, conf: 'high' },
+    status: 'strong',
+    trendDir: 'up',
+    expanded: true,    // PRE-EXPANDED for the mock demonstration
+  },
+  {
+    name: "The Heyward", partner: "Carlton Companies", partnerSub: "(operated by American Landmark)",
+    market: "Atlanta, GA", units: 14, strUnits: 0, ltUnits: 14, mode: "lt", occ: 96,
+    mtd: { l: 8900, p: 21100, base: 32500 }, // 92%
+    recovery: 92,
+    trend: [7800, 8100, 8200, 8300, 8500, 8700, 8800, 8800, 8900, 8800, 8900, 8900],
+    projection: { next3: 26900, conf: 'high' },
+    status: 'strong',
+    trendDir: 'up',
+  },
+  {
+    name: "Mast Sky · Miami", partner: "Mast Capital", partnerSub: null,
+    market: "Miami, FL", units: 18, strUnits: 6, ltUnits: 12, mode: "mixed", occ: 78,
+    mtd: { l: 7800, p: 13900, base: 32000 }, // 68%
+    recovery: 68,
+    trend: [12100, 13400, 14800, 15200, 14600, 13100, 11800, 11200, 12800, 17400, 21100, 21700],
+    projection: { next3: 71200, conf: 'med' },
+    status: 'moderate',
+    trendDir: 'up',
+  },
+  {
+    name: "11th & Spruce", partner: "Stoltz Management", partnerSub: null,
+    market: "Philadelphia, PA", units: 18, strUnits: 0, ltUnits: 18, mode: "lt", occ: 94,
+    mtd: { l: 7200, p: 17400, base: 31600 }, // 78%
+    recovery: 78,
+    trend: [7100, 7200, 7300, 7250, 7300, 7350, 7250, 7150, 7200, 7250, 7300, 7200],
+    projection: { next3: 21800, conf: 'high' },
+    status: 'moderate',
+    trendDir: 'flat',
+  },
+  {
+    name: "1111 Stratford", partner: "Greystar", partnerSub: null,
+    market: "Hartford, CT", units: 8, strUnits: 8, ltUnits: 0, mode: "str", occ: 62,
+    mtd: { l: 5100, p: 9200, base: 16200 }, // 88% — STR-eligible but currently LT-leasing
+    recovery: 88, mostlyDormant: true,
+    trend: [4800, 4900, 5000, 5050, 5100, 5050, 5000, 4900, 5050, 5100, 5150, 5100],
+    projection: { next3: 15400, conf: 'high' },
+    status: 'moderate',
+    trendDir: 'flat',
+  },
+  {
+    name: "2001 East", partner: "Wells Asset Management", partnerSub: null,
+    market: "Phoenix, AZ", units: 2, strUnits: 0, ltUnits: 2, mode: "lt", occ: 50,
+    deinstall: 1,
+    mtd: { l: 1068, p: 2403, base: 4900 }, // 71%
+    recovery: 71,
+    trend: [2200, 1640, 1573, 1567, 1626, 974, 1068, 1068, 1068, 1068, 1068, 1068],
+    projection: { next3: 3200, conf: 'med' },
+    status: 'low',
+    trendDir: 'down',
+  },
+  {
+    name: "One Club Gulf Shores", partner: "Resort Lifestyle Communities", partnerSub: null,
+    market: "Gulf Shores, AL", units: 15, strUnits: 15, ltUnits: 0, mode: "str", occ: 42,
+    mtd: { l: 8008, p: 4806, base: 24060 }, // 53%
+    recovery: 53,
+    trend: [null, null, null, null, null, null, null, 0, 1050, 12215, 8008, null],
+    projection: { refused: true, reason: '4mo · needs 6+' },
+    status: 'atrisk',
+    trendDir: 'down',
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+const gEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtK = v => v == null ? '—' : (Math.abs(v) >= 1000 ? '$' + (v/1000).toFixed(1) + 'K' : '$' + Math.round(v));
+const fmtKShort = v => v == null ? '—' : (Math.abs(v) >= 1000 ? '$' + Math.round(v/1000) + 'K' : '$' + Math.round(v));
+
+function recoveryClass(pct) {
+  if (pct == null) return '';
+  if (pct >= 95) return 'good';
+  if (pct >= 60) return 'warn';
+  return 'bad';
+}
+function trendGlyph(dir) {
+  if (dir === 'up')   return '<span class="prop-trend-glyph up">↗</span>';
+  if (dir === 'down') return '<span class="prop-trend-glyph down">↘</span>';
+  return '<span class="prop-trend-glyph">→</span>';
+}
+
+// Sparkline — minimalist, 12 bars
+function sparkline(arr, width = 100, height = 32) {
+  const N = arr.length;
+  const colW = width / N;
+  const barW = colW * 0.62;
+  const max = Math.max(...arr.filter(v => v != null && v >= 0), 1);
+  let html = `<svg class="spark-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">`;
+  for (let i = 0; i < N; i++) {
+    const v = arr[i];
+    const cx = i * colW + colW / 2;
+    const x = cx - barW / 2;
+    if (v == null) {
+      html += `<rect class="spark-bar ghost" x="${x}" y="${height - 4}" width="${barW}" height="3" rx="0.5"/>`;
+    } else if (v === 0) {
+      html += `<rect class="spark-bar zero" x="${x}" y="${height - 2}" width="${barW}" height="2" rx="0.5"/>`;
+    } else {
+      const h = Math.max(2, (v / max) * (height - 4));
+      html += `<rect class="spark-bar real" x="${x}" y="${height - h - 1}" width="${barW}" height="${h}" rx="0.5"/>`;
+    }
+  }
+  html += '</svg>';
+  return html;
+}
+
+// Occupancy cell — % + slim bar. Color-coded against thresholds.
+function occCell(p) {
+  const occ = p.occ;
+  if (occ == null) return '<span style="color:var(--ink-3);font-size:11px">—</span>';
+  const filled = Math.round((p.units || 0) * (occ / 100));
+  const cls = occ >= 90 ? 'good' : occ >= 70 ? 'warn' : 'bad';
+  return `<div class="occ-wrap" title="${filled} of ${p.units} units occupied">
+    <div class="occ-bar ${cls}"><div class="occ-fill" style="width:${Math.min(100, occ)}%"></div></div>
+    <div class="occ-meta"><span class="occ-pct">${occ}%</span><span class="occ-sub">${filled}/${p.units}</span></div>
+  </div>`;
+}
+
+// Mini split bar for the "this month · split" column
+function splitBar(mtd) {
+  const total = mtd.base;
+  if (!total) return '';
+  const lPct  = Math.min(100, (mtd.l / total) * 100);
+  const pPct  = Math.min(100 - lPct, (mtd.p / total) * 100);
+  const gap   = Math.max(0, 100 - lPct - pPct);
+  return `<div class="tm-split-bar" title="Landing ${fmtKShort(mtd.l)} · Partner ${fmtKShort(mtd.p)} · Shortfall ${fmtKShort(mtd.base - mtd.l - mtd.p)}">
+    <div class="seg-lt"   style="width:${lPct}%"></div>
+    <div class="seg-part" style="width:${pPct}%"></div>
+    <div class="seg-gap"  style="width:${gap}%"></div>
+  </div>
+  <div class="tm-numbers">
+    <span class="l-net">${fmtKShort(mtd.l)}</span>
+    <span class="sep">·</span>
+    <span class="p-net">${fmtKShort(mtd.p)}</span>
+    <span style="color:var(--ink-3);font-size:9.5px">of ${fmtKShort(total)} base</span>
+  </div>`;
+}
+
+// Property name cell with chips
+function propCell(p) {
+  let chips = '';
+  if (p.mode === 'str') chips += ' <span class="pill-str" title="STR-enabled property">STR</span>';
+  if (p.mode === 'mixed') chips += ' <span class="pill-mixed">Mixed</span>';
+  if (p.deinstall) chips += ` <span class="pill-deinstall" title="${p.deinstall} unit(s) deinstalling">${p.deinstall} DI</span>`;
+  const glyph = trendGlyph(p.trendDir);
+  return `<div class="prop-name">${gEsc(p.name)}${chips}${glyph}</div>
+          <div class="prop-meta">${p.units} units${p.strUnits ? ' · ' + p.strUnits + ' STR-eligible' : ''}</div>`;
+}
+
+// Projection cell
+function projCell(p) {
+  if (!p.projection || p.projection.refused) {
+    return `<span class="proj-cell"><span class="refused" title="${gEsc(p.projection?.reason || '')}">— ${gEsc(p.projection?.reason || 'n/a')}</span></span>`;
+  }
+  const dots = p.projection.conf === 'high' ? '●●●' : p.projection.conf === 'med' ? '●●○' : '●○○';
+  const dotCls = p.projection.conf || 'low';
+  return `<span class="proj-cell" title="Projected next 3mo Landing net based on booked reservations + run-rate fill">
+    <span class="v">${fmtK(p.projection.next3)}</span>
+    <span class="dots ${dotCls}">${dots}</span>
+  </span>`;
+}
+
+// Status pill
+function statusPill(s) {
+  const labels = { strong: 'Strong', moderate: 'Moderate', low: 'Low', atrisk: 'At-risk' };
+  return `<span class="status-pill ${s}">${labels[s] || s}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER GRID
+// ═══════════════════════════════════════════════════════════════════════
+// Filter state — mutated by wireSearchAndFilters(). Each render reads it.
+const FILTER = {
+  segment: 'all',     // all | str | mixed | lt | risk | ramp | top
+  search: '',         // case-insensitive substring on name/partner/market
+  partner: 'all',     // exact partner name match
+  market:  'all',     // exact market match
+  pinned: null,       // optional array of property names (leaderboard pin)
+};
+
+// Classify a property into the segment cohorts shown in chips.
+function inSegment(p, seg) {
+  if (seg === 'all')   return true;
+  if (seg === 'str')   return p.mode === 'str' || p.strUnits > 0;
+  if (seg === 'mixed') return p.mode === 'mixed';
+  if (seg === 'lt')    return p.mode === 'lt';
+  if (seg === 'risk')  return p.recovery < 60;
+  if (seg === 'ramp')  return p.trendDir === 'up' && (p.mode === 'str' || p.mode === 'mixed');
+  if (seg === 'top')   return p.recovery >= 90;
+  return true;
+}
+
+function filteredProps() {
+  const q = (FILTER.search || '').trim().toLowerCase();
+  return PROPS.filter(p => {
+    if (FILTER.pinned && !FILTER.pinned.includes(p.name)) return false;
+    if (!inSegment(p, FILTER.segment)) return false;
+    if (FILTER.partner !== 'all' && p.partner !== FILTER.partner) return false;
+    if (FILTER.market  !== 'all' && p.market  !== FILTER.market)  return false;
+    if (q) {
+      const hay = `${p.name} ${p.partner} ${p.partnerSub || ''} ${p.market}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderGrid() {
+  const tbody = document.getElementById('grid-body');
+  const list = filteredProps();
+  // Update the "10 shown" caption
+  const cap = document.querySelector('.sec-head .title em');
+  if (cap && cap.textContent.includes('total')) cap.textContent = `· 705 total · ${list.length} shown`;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="12" style="padding:48px 24px;text-align:center;color:var(--ink-3);font-style:italic;">No properties match the current filters.</td></tr>`;
+    return;
+  }
+  let html = '';
+  list.forEach(p => {
+    const recCls = recoveryClass(p.recovery);
+    const idx = PROPS.indexOf(p);
+    html += `<tr data-idx="${idx}">
+      <td class="expand-cell"><span class="expand-chevron">▶</span></td>
+      <td class="prop-cell">${propCell(p)}</td>
+      <td><div class="partner-cell">${gEsc(p.partner)}${p.partnerSub ? `<div class="partner-sub">${gEsc(p.partnerSub)}</div>` : ''}</div></td>
+      <td><span class="market-cell">${gEsc(p.market)}</span></td>
+      <td class="num"><span class="units-cell">${p.units}${p.strUnits ? `<div class="str-sub">${p.strUnits} STR</div>` : ''}</span></td>
+      <td class="occ-cell">${occCell(p)}</td>
+      <td class="tm-cell">${splitBar(p.mtd)}</td>
+      <td class="num"><span class="rec-cell ${recCls}">${p.recovery}%<span class="pct-sub">vs base</span></span></td>
+      <td class="spark-cell">${sparkline(p.trend)}</td>
+      <td class="num">${projCell(p)}</td>
+      <td>${statusPill(p.status)}</td>
+      <td class="center"><a href="#" class="admin-link">↗</a></td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+  // Re-attach click handlers since rows were re-rendered.
+  wireExpand();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXPANDED ROW · v4 Partner P&L module + units table
+// ═══════════════════════════════════════════════════════════════════════
+function expandedShell(p) {
+  return `<div class="expanded-shell">
+    ${pnlModule(p)}
+    ${unitsTable(p)}
+  </div>`;
+}
+
+function pnlModule(p) {
+  // Riverside data baked into the v4 module
+  return `<section class="pnl-module" data-key="${gEsc(p.name)}" data-pov="partner">
+    <div class="pnl-eyebrow">
+      <div class="left">
+        <span class="pnl-title">Partner P&amp;L vs market rent</span>
+        <span class="pnl-subtitle">From LT vs from STR partner net, against contract base for all 20 units</span>
+      </div>
+      <div class="right">
+        <div class="pov-toggle">
+          <button data-pov="partner" class="active">Partner POV</button>
+          <button data-pov="landing">Landing POV</button>
+        </div>
+        <div class="aux-toggle-wrap">
+          <span class="aux-toggle-label" title="Hypothetical occupancy if these units were LT-leased instead">LT counterfactual</span>
+          <div class="aux-toggle">
+            <button data-lt="0.75">75%</button>
+            <button data-lt="0.85" class="active">85%</button>
+            <button data-lt="0.95">95%</button>
+          </div>
+        </div>
+        <div class="aux-toggle-wrap">
+          <span class="aux-toggle-label" title="Project forward using booked reservations + run-rate fill">Project forward</span>
+          <div class="aux-toggle">
+            <button data-proj="off" class="active">Off</button>
+            <button data-proj="3">+3mo</button>
+            <button data-proj="6">+6mo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pnl-body">
+      <div class="pnl-chart-wrap">
+        <div class="pnl-legend">
+          <span><span class="sw sw-lt"></span>From LT (monthly leases)</span>
+          <span><span class="sw sw-str"></span>From STR (nightly bookings)</span>
+          <span><span class="sw sw-shortfall"></span>Shortfall (missing $)</span>
+          <span><span class="sw-baseline"></span>Contract base (100% occ)</span>
+          <span><span class="sw-baseline-lt"></span>Realistic LT alt</span>
+        </div>
+        <svg class="pnl-chart-canvas" viewBox="0 0 660 220" preserveAspectRatio="none"></svg>
+      </div>
+      <aside class="pnl-summary">
+        <div class="pov-pane active" data-pov="partner">
+          <div class="verdict">
+            <span class="verdict-label">Cumulative · 11mo</span>
+            <span class="verdict-number shortfall"><span class="sign">−</span>$57.1K</span>
+            <span class="verdict-pct">Partner received <b class="bad">81%</b> of contract base ($250.9K of $308.0K)</span>
+          </div>
+          <div class="source-mix">
+            <span class="label">Source mix</span>
+            <div class="bar">
+              <div class="seg lt"  style="flex-basis: 49.1%">49% LT</div>
+              <div class="seg str" style="flex-basis: 50.9%">51% STR</div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">Actual to partner</span><span class="v">$250.9K</span></div>
+            <div class="bk-row sub"><span class="l">From LT</span><span class="v blue">$123.2K</span></div>
+            <div class="bk-row sub"><span class="l">From STR</span><span class="v coral">$127.7K</span></div>
+            <div class="bk-row"><span class="l">Contract base</span><span class="v muted">$308.0K</span></div>
+            <div class="bk-row sub"><span class="l">Realistic LT @ 85% occ</span><span class="v">$261.8K</span></div>
+            <div class="bk-row"><span class="l">Actual occ · avg</span><span class="v">82%</span></div>
+          </div>
+          <div class="trajectory widening">
+            <span class="glyph">▾</span><span>Winter STR drag · LT held the line</span>
+          </div>
+          <div class="narrative">
+            LT delivered a <b>stable $11.2K/mo floor</b>. STR added <b>$3.8K-$18.2K/mo</b> on top with a sharp winter dip (Nov-Jan ran at ~30-50% of seasonal peak). <b>LT carried the partnership</b> through Q4-Q1; STR is now recovering with summer demand.
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>`;
+}
+
+function unitsTable(p) {
+  // Synthesize a realistic mix of units + reservations per property type.
+  // Production would pull from /api/property-detail (units + reservations).
+  const sample = sampleUnitsAndRes(p);
+  const units = sample.units;
+  const res = sample.res;
+
+  const occ = units.filter(u => u.status === 'Occupied').length;
+  const avail = units.filter(u => u.status === 'Available').length;
+  const di = p.deinstall || 0;
+  const strElig = units.filter(u => u.type === 'STR').length;
+  const adr = strElig ? '$' + Math.round(units.filter(u => u.type === 'STR' && u.rent && u.rent.includes('/nt')).reduce((s,u)=>s+parseInt(u.rent.replace(/[^\d]/g,''))||0,0) / Math.max(1, units.filter(u => u.type === 'STR' && u.rent && u.rent.includes('/nt')).length)) : null;
+
+  return `<section class="expanded-units">
+    <div class="eu-head">
+      <span class="eu-title">Property detail · ${gEsc(p.name)}</span>
+      <div class="eu-stats">
+        <span>Occupied <b>${occ}</b></span>
+        <span>Available <b>${avail}</b></span>
+        ${di ? `<span>Deinstall <b>${di}</b></span>` : ''}
+        ${strElig ? `<span>STR-eligible <b>${strElig}</b></span>` : ''}
+        ${adr ? `<span>ADR · 30d <b style="color:var(--str)">${adr}</b></span>` : ''}
+      </div>
+    </div>
+    <div class="eu-tabs">
+      <button class="eu-tab active" data-tab="units">Units &amp; status <span class="tab-count">${units.length}</span></button>
+      <button class="eu-tab" data-tab="res">Reservations <span class="tab-count">${res.length}</span></button>
+    </div>
+    <div class="eu-pane active" data-pane="units">
+      <div class="units-scroll">
+        <table class="units-table">
+          <thead><tr>
+            <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th>
+            <th class="num">Base Rent</th><th class="num">Landing Rent</th><th class="num">MTD $</th><th class="num">Markup</th>
+          </tr></thead>
+          <tbody>
+            ${units.map(r => `<tr>
+              <td><span class="unit-num">${r.num}${r.type === 'STR' ? '<span class="s-mark">S</span>' : ''}</span></td>
+              <td>${r.status}</td>
+              <td>${r.status === 'Available' ? '<span class="gd-badge" style="background:var(--warning-tint);color:var(--warning)">Vacant</span>' : `<span class="gd-badge ${r.type === 'STR' ? 'shortterm' : 'occupied'}">${r.type === 'STR' ? 'Short-term' : 'Extended'}</span>`}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;color:var(--ink-2)">${r.res}</td>
+              <td class="num">${r.base}</td>
+              <td class="num" style="${r.type === 'STR' && r.rent.includes('/nt') ? 'color:#B33F1A;font-weight:700' : 'font-weight:700'}">${r.rent}</td>
+              <td class="num" style="color:${r.mtd === '$0' ? 'var(--error)' : 'var(--success)'};font-weight:600">${r.mtd}</td>
+              <td class="num" style="color:${r.markup.startsWith('+') ? 'var(--success)' : 'var(--error)'};font-weight:700">${r.markup}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="eu-pane" data-pane="res">
+      <div class="units-scroll">
+        <table class="res-table">
+          <thead><tr>
+            <th>Unit</th><th>Type</th><th>Status</th><th>Dates</th>
+            <th class="num">Nightly / Monthly</th><th class="num">Booking $</th><th class="num">Nights</th>
+          </tr></thead>
+          <tbody>
+            ${res.map(r => `<tr>
+              <td><span class="unit-num">${r.unit}${r.type === 'STR' ? '<span class="s-mark">S</span>' : ''}</span></td>
+              <td><span class="res-type-chip ${r.type.toLowerCase()}">${r.type}</span></td>
+              <td><span class="res-status-chip ${r.state}">${r.state === 'active' ? 'Active' : r.state === 'future' ? 'Upcoming' : 'Past'}</span></td>
+              <td><span class="res-date-pill">${r.start}<span class="arrow">→</span>${r.end}</span></td>
+              <td class="num" style="${r.type === 'STR' ? 'color:#B33F1A;font-weight:700' : 'font-weight:600'}">${r.rate}</td>
+              <td class="num" style="font-weight:600">${r.total}</td>
+              <td class="num">${r.nights}<span class="res-nights-pill ${r.type === 'STR' ? 'str' : (r.nights >= 30 ? 'long' : '')}">${r.nights >= 30 ? 'long' : 'short'}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>`;
+}
+
+// Generate sample units + reservations for any property. Mix matches property mode.
+function sampleUnitsAndRes(p) {
+  // RIVERSIDE — keep its rich sample
+  if (p.name === 'Riverside Lofts') {
+    return {
+      units: [
+        { num: '101', type: 'LT',  status: 'Occupied', res: 'Apr 15 → ongoing', base: '$1,100', rent: '$1,420', mtd: '$710', markup: '+29%' },
+        { num: '203', type: 'LT',  status: 'Occupied', res: 'Mar 01 → Mar 01 2027', base: '$1,250', rent: '$1,610', mtd: '$805', markup: '+29%' },
+        { num: '204', type: 'STR', status: 'Occupied', res: 'May 13 → May 18 · 5nt', base: '$1,475', rent: '$172/nt', mtd: '$1,290', markup: '+18%' },
+        { num: '207', type: 'STR', status: 'Occupied', res: 'May 14 → May 17 · 3nt', base: '$1,550', rent: '$165/nt', mtd: '$1,485', markup: '−4%' },
+        { num: '208', type: 'STR', status: 'Available', res: '— · vacant 9d', base: '$1,575', rent: '—', mtd: '$0', markup: '−100%' },
+        { num: '110', type: 'LT',  status: 'Occupied', res: 'Feb 12 → Aug 12', base: '$1,500', rent: '$1,920', mtd: '$960', markup: '+28%' },
+      ],
+      res: [
+        { unit: '207', type: 'STR', state: 'active', start: 'May 14', end: 'May 17', rate: '$165/nt', total: '$495', nights: 3 },
+        { unit: '204', type: 'STR', state: 'active', start: 'May 13', end: 'May 18', rate: '$172/nt', total: '$860', nights: 5 },
+        { unit: '101', type: 'LT',  state: 'active', start: 'Apr 15', end: 'ongoing', rate: '$1,420/mo', total: '—', nights: 60 },
+        { unit: '110', type: 'LT',  state: 'active', start: 'Feb 12', end: 'Aug 12', rate: '$1,920/mo', total: '$11,520', nights: 181 },
+        { unit: '203', type: 'LT',  state: 'active', start: 'Mar 01', end: "Mar 01 '27", rate: '$1,610/mo', total: '$19,320', nights: 365 },
+        { unit: '204', type: 'STR', state: 'future', start: 'May 22', end: 'May 28', rate: '$185/nt', total: '$1,110', nights: 6 },
+        { unit: '207', type: 'STR', state: 'future', start: 'Jun 03', end: 'Jun 09', rate: '$175/nt', total: '$1,050', nights: 6 },
+        { unit: '208', type: 'STR', state: 'past',   start: 'May 01', end: 'May 04', rate: '$170/nt', total: '$510', nights: 3 },
+      ],
+    };
+  }
+  // Generic sample by mode
+  const units = [];
+  const res = [];
+  const baseRent = p.mtd && p.mtd.base ? Math.round(p.mtd.base / p.units) : 1500;
+  const ltCount = p.ltUnits || (p.mode === 'lt' ? p.units : 0);
+  const strCount = p.strUnits || (p.mode === 'str' ? p.units : 0);
+  for (let i = 0; i < Math.min(6, p.units); i++) {
+    const isStr = i < strCount;
+    const base = baseRent + ((i % 3) - 1) * 50;
+    const unitNum = (100 + i * 2);
+    if (isStr) {
+      const nightly = Math.round(base * 1.6 / 30.42);
+      units.push({
+        num: '' + unitNum, type: 'STR', status: 'Occupied',
+        res: `May ${10 + i*2} → May ${15 + i*2} · 5nt`,
+        base: '$' + base.toLocaleString(),
+        rent: '$' + nightly + '/nt',
+        mtd: '$' + (nightly * 8).toLocaleString(),
+        markup: '+' + Math.round((nightly * 30.42 / base - 1) * 100) + '%',
+      });
+      res.push({ unit: '' + unitNum, type: 'STR', state: 'active', start: `May ${10+i*2}`, end: `May ${15+i*2}`, rate: '$' + nightly + '/nt', total: '$' + (nightly*5).toLocaleString(), nights: 5 });
+    } else {
+      const landingRent = Math.round(base * 1.3);
+      units.push({
+        num: '' + unitNum, type: 'LT', status: 'Occupied',
+        res: `Mar ${10+i} → Sep ${15+i}`,
+        base: '$' + base.toLocaleString(),
+        rent: '$' + landingRent.toLocaleString(),
+        mtd: '$' + Math.round(landingRent * 0.55).toLocaleString(),
+        markup: '+' + Math.round((landingRent/base - 1) * 100) + '%',
+      });
+      res.push({ unit: '' + unitNum, type: 'LT', state: 'active', start: `Mar ${10+i}`, end: `Sep ${15+i}`, rate: '$' + landingRent.toLocaleString() + '/mo', total: '$' + (landingRent * 6).toLocaleString(), nights: 184 });
+    }
+  }
+  // Add one future res for variety
+  res.push({ unit: '' + 200, type: p.mode === 'lt' ? 'LT' : 'STR', state: 'future', start: 'Jun 02', end: p.mode === 'lt' ? 'Dec 02' : 'Jun 07', rate: p.mode === 'lt' ? '$' + (baseRent*1.3) + '/mo' : '$185/nt', total: p.mode === 'lt' ? '$' + (baseRent*1.3*6).toLocaleString() : '$925', nights: p.mode === 'lt' ? 183 : 5 });
+  return { units, res };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PNL CHART · v4-style stacked LT+STR bars, occupancy line, reference lines
+// Accepts an optional SVG element so it can be called on any newly-injected
+// chart canvas (e.g. when user re-opens Riverside after closing it).
+// ═══════════════════════════════════════════════════════════════════════
+function paintPnlChart(targetSvg) {
+  const RIVERSIDE_MONTHS = [
+    { label: "Jun '25", lt: 11200, str: 14500, base: 28000 },
+    { label: "Jul '25", lt: 11200, str: 18200, base: 28000 },
+    { label: "Aug '25", lt: 11200, str: 16800, base: 28000 },
+    { label: "Sep '25", lt: 11200, str: 13400, base: 28000 },
+    { label: "Oct '25", lt: 11200, str:  9800, base: 28000 },
+    { label: "Nov '25", lt: 11200, str:  5200, base: 28000 },
+    { label: "Dec '25", lt: 11200, str:  3800, base: 28000 },
+    { label: "Jan '26", lt: 11200, str:  5500, base: 28000 },
+    { label: "Feb '26", lt: 11200, str:  9200, base: 28000 },
+    { label: "Mar '26", lt: 11200, str: 14800, base: 28000 },
+    { label: "Apr '26", lt: 11200, str: 16500, base: 28000 },
+  ];
+  const svg = targetSvg || document.querySelector('.pnl-chart-canvas');
+  if (!svg) return;
+  const N = RIVERSIDE_MONTHS.length;
+  const left = 36, right = 660, top = 18, bottom = 180;
+  const colW = (right - left) / N;
+  const barW = colW * 0.62;
+  const niceMax = 35000;
+  const yToPx = v => bottom - (v / niceMax) * (bottom - top);
+
+  let html = `<defs>
+    <pattern id="rs-stripe" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(238, 83, 61, 0.30)" stroke-width="2"/>
+    </pattern>
+  </defs>`;
+  [0.25, 0.5, 0.75, 1.0].forEach(t => {
+    const y = yToPx(niceMax * t);
+    html += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="var(--line-0)" stroke-width="0.6"/>`;
+    html += `<text class="axis-label" x="${left - 6}" y="${y + 3}" text-anchor="end">$${Math.round(niceMax * t / 1000)}K</text>`;
+  });
+
+  const implPts = [], ltPts = [];
+  for (let i = 0; i < N; i++) {
+    const m = RIVERSIDE_MONTHS[i];
+    const cx = left + i * colW + colW / 2;
+    const x  = cx - barW / 2;
+    const implY = yToPx(m.base);
+    html += `<rect class="implied-bar" x="${x}" y="${implY}" width="${barW}" height="${bottom - implY}" rx="2"/>`;
+    const ltH = (m.lt / niceMax) * (bottom - top);
+    const strH = (m.str / niceMax) * (bottom - top);
+    html += `<rect class="actual-lt" x="${x}" y="${bottom - ltH}" width="${barW}" height="${ltH}" rx="2"/>`;
+    html += `<rect class="actual-str" x="${x}" y="${bottom - ltH - strH}" width="${barW}" height="${strH}" rx="${ltH === 0 ? 2 : 0}"/>`;
+    // Shortfall stripes
+    const totalActual = m.lt + m.str;
+    if (totalActual < m.base) {
+      const totalY = yToPx(totalActual);
+      html += `<rect x="${x}" y="${implY}" width="${barW}" height="${totalY - implY}" fill="url(#rs-stripe)" rx="2"/>`;
+    }
+    // Coverage label
+    const pct = Math.round((totalActual / m.base) * 100);
+    const lblCls = pct >= 100 ? 'good' : (pct >= 60 ? 'warn' : 'bad');
+    html += `<text class="coverage-label ${lblCls}" x="${cx}" y="${Math.max(implY - 5, top + 4)}" text-anchor="middle">${pct}%</text>`;
+    // X label
+    const lblClass = (i === 0 || i === N - 1) ? 'axis-label axis-label-strong' : 'axis-label';
+    html += `<text class="${lblClass}" x="${cx}" y="200" text-anchor="middle">${m.label}</text>`;
+    implPts.push(`${cx},${implY}`);
+    ltPts.push(`${cx},${yToPx(m.base * 0.85)}`);
+  }
+  html += `<polyline class="lt-realistic-line" points="${ltPts.join(' ')}"/>`;
+  html += `<polyline class="implied-line" points="${implPts.join(' ')}"/>`;
+
+  svg.innerHTML = html;
+}
+
+// Wire POV toggle inside expanded row (minimal — just visual)
+function wireToggles() {
+  document.querySelectorAll('.pov-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const group = b.closest('.pov-toggle');
+      group.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.aux-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const group = b.closest('.aux-toggle');
+      group.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.seg-chip').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.seg-chip').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  // Also wire any .eu-tab present at initial render (e.g. Riverside pre-expanded)
+  document.querySelectorAll('.eu-tab').forEach(b => {
+    b.addEventListener('click', () => {
+      const tabName = b.dataset.tab;
+      const section = b.closest('.expanded-units');
+      section.querySelectorAll('.eu-tab').forEach(x => x.classList.toggle('active', x === b));
+      section.querySelectorAll('.eu-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === tabName));
+    });
+  });
+}
+
+// Lightweight expanded panel for any property — uses the property's actual
+// data from PROPS. Generates a per-property version of the partner P&L
+// summary card + a properties-summary header instead of the full v4 chart
+// (the chart needs 12 months of trend data which only a few have for the mock).
+function expandedShellLite(p) {
+  const totalAct = (p.mtd?.l || 0) + (p.mtd?.p || 0);
+  const shortfall = (p.mtd?.base || 0) - totalAct;
+  const recCls = recoveryClass(p.recovery);
+  const ltAlt = (p.mtd?.base || 0) * 0.85;
+  const netVsLT = totalAct - ltAlt;
+  const netSign = netVsLT >= 0 ? '+' : '−';
+  const netCls = netVsLT >= 0 ? 'surplus' : 'shortfall';
+
+  return `<div class="expanded-shell">
+    <section class="pnl-module" data-key="${gEsc(p.name)}">
+      <div class="pnl-eyebrow">
+        <div class="left">
+          <span class="pnl-title">Partner P&amp;L · ${gEsc(p.name)}</span>
+          <span class="pnl-subtitle">This-month detail · ${p.mode === 'mixed' ? 'mixed LT + STR' : p.mode === 'str' ? 'pure STR' : 'LT-only'} · ${p.units} units</span>
+        </div>
+        <div class="right">
+          <div class="pov-toggle">
+            <button data-pov="partner" class="active">Partner POV</button>
+            <button data-pov="landing">Landing POV</button>
+          </div>
+          <div class="aux-toggle-wrap">
+            <span class="aux-toggle-label" title="Hypothetical LT-only occupancy benchmark">LT counterfactual</span>
+            <div class="aux-toggle">
+              <button data-lt="0.75">75%</button>
+              <button data-lt="0.85" class="active">85%</button>
+              <button data-lt="0.95">95%</button>
+            </div>
+          </div>
+          <div class="aux-toggle-wrap">
+            <span class="aux-toggle-label" title="Forward projection using booked + run-rate">Project forward</span>
+            <div class="aux-toggle">
+              <button data-proj="off" class="active">Off</button>
+              <button data-proj="3">+3mo</button>
+              <button data-proj="6">+6mo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pnl-body">
+        <div class="pnl-chart-wrap">
+          <div class="pnl-legend">
+            <span><span class="sw sw-lt"></span>From LT</span>
+            <span><span class="sw sw-str"></span>From STR</span>
+            <span><span class="sw sw-shortfall"></span>Shortfall</span>
+            <span><span class="sw-baseline"></span>Contract base</span>
+            <span><span class="sw-baseline-lt"></span>LT alt 85%</span>
+          </div>
+          <svg class="pnl-chart-canvas" viewBox="0 0 660 200" preserveAspectRatio="none" data-prop-trend="${gEsc(p.name)}"></svg>
+        </div>
+        <aside class="pnl-summary">
+          <div class="pov-pane active" data-pov="partner">
+            <div class="verdict">
+              <span class="verdict-label">This month · recovery</span>
+              <span class="verdict-number ${recCls === 'good' ? 'surplus' : recCls === 'warn' ? 'even' : 'shortfall'}">${p.recovery}%</span>
+              <span class="verdict-pct">Partner received ${fmtK(totalAct)} of ${fmtK(p.mtd.base)} contract base</span>
+            </div>
+            <div class="breakdown">
+              <div class="bk-row"><span class="l">Landing net (mo)</span><span class="v blue">${fmtK(p.mtd.l)}</span></div>
+              <div class="bk-row"><span class="l">Partner net (mo)</span><span class="v">${fmtK(p.mtd.p)}</span></div>
+              <div class="bk-row"><span class="l">Total net</span><span class="v">${fmtK(totalAct)}</span></div>
+              <div class="bk-row"><span class="l">Contract base</span><span class="v muted">${fmtK(p.mtd.base)}</span></div>
+              <div class="bk-row sub"><span class="l">Shortfall vs base</span><span class="v ${shortfall > 0 ? 'red' : 'green'}">${shortfall > 0 ? '−' : '+'}${fmtK(Math.abs(shortfall))}</span></div>
+            </div>
+            <div class="trajectory ${p.trendDir === 'up' ? 'surplus' : p.trendDir === 'down' ? 'widening' : 'incremental'}">
+              <span class="glyph">${p.trendDir === 'up' ? '↗' : p.trendDir === 'down' ? '▾' : '→'}</span>
+              <span>${p.trendDir === 'up' ? 'Trending up · MoM' : p.trendDir === 'down' ? 'Trending down · MoM' : 'Holding · MoM'}</span>
+            </div>
+            <div class="narrative">
+              ${p.mode === 'str' ? 'Pure-STR property — variance is structural. ' : p.mode === 'mixed' ? 'Mixed-mode — LT provides the floor, STR is the variable add. ' : 'LT-only — stable recovery pattern. '}
+              ${p.projection?.refused ? 'Projection unavailable (insufficient history).' : `Projected next 3mo: <b>${fmtK(p.projection.next3)}</b>.`}
+            </div>
+          </div>
+          <div class="pov-pane" data-pov="landing">
+            <div class="verdict">
+              <span class="verdict-label">Net vs LT-only @ 85%</span>
+              <span class="verdict-number ${netCls}">${netSign}${fmtK(Math.abs(netVsLT))}</span>
+              <span class="verdict-pct">Actual ${fmtK(totalAct)} vs LT alt ${fmtK(ltAlt)} this month</span>
+            </div>
+            <div class="breakdown">
+              <div class="bk-row"><span class="l">Landing kept</span><span class="v blue">${fmtK(p.mtd.l)}</span></div>
+              <div class="bk-row"><span class="l">Partner kept</span><span class="v">${fmtK(p.mtd.p)}</span></div>
+              <div class="bk-row"><span class="l">LT alt @ 85%</span><span class="v muted">${fmtK(ltAlt)}</span></div>
+              <div class="bk-row sub"><span class="l">Net vs LT alt</span><span class="v ${netCls === 'surplus' ? 'green' : 'red'}">${netSign}${fmtK(Math.abs(netVsLT))}</span></div>
+            </div>
+            <div class="trajectory incremental">
+              <span class="glyph">${p.trendDir === 'up' ? '↗' : '→'}</span>
+              <span>${p.mode === 'str' ? 'STR program active' : p.mode === 'mixed' ? 'Mixed program · LT + STR' : 'LT operations'}</span>
+            </div>
+            <div class="narrative" style="font-size:11.5px">
+              <b>Talking points (placeholder):</b> wire the full v4 Partner P&amp;L module here in production — historical trend chart, methodology disclosure, and rich projection methodology will populate once the DB is wired and per-property 12mo history is available.
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>`;
+}
+
+// Wire expand/collapse on rows. Injects per-property expanded content
+// when opened; removes the row when closed. Riverside is pre-expanded
+// with the rich v4 module; other rows get the lite version above.
+function wireExpand() {
+  document.querySelectorAll('#grid-body tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      const idx = +tr.getAttribute('data-idx');
+      const p = PROPS[idx];
+      const isOpen = tr.classList.contains('expanded');
+      const next = tr.nextElementSibling;
+      // If this row was opened and the next row is its expanded panel, remove
+      if (isOpen && next && next.classList.contains('expanded-row')) {
+        next.remove();
+        tr.classList.remove('expanded');
+        return;
+      }
+      // Otherwise, close any other open row first
+      document.querySelectorAll('#grid-body tr.expanded').forEach(other => {
+        if (other === tr) return;
+        const otherNext = other.nextElementSibling;
+        if (otherNext && otherNext.classList.contains('expanded-row')) otherNext.remove();
+        other.classList.remove('expanded');
+      });
+      // Inject the expanded panel for this property
+      const panel = document.createElement('tr');
+      panel.className = 'expanded-row';
+      panel.innerHTML = `<td colspan="12">${p.expanded ? expandedShell(p) : expandedShellLite(p)}</td>`;
+      tr.after(panel);
+      tr.classList.add('expanded');
+      // Re-wire toggles inside the new panel
+      panel.querySelectorAll('.pov-toggle button').forEach(b => {
+        b.addEventListener('click', () => {
+          const group = b.closest('.pov-toggle');
+          group.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          // Show corresponding pane
+          const pov = b.dataset.pov;
+          const summary = group.closest('.pnl-eyebrow').nextElementSibling?.querySelector('.pnl-summary')
+                       || panel.querySelector('.pnl-summary');
+          summary.querySelectorAll('.pov-pane').forEach(pane => {
+            pane.classList.toggle('active', pane.dataset.pov === pov);
+          });
+        });
+      });
+      panel.querySelectorAll('.aux-toggle button').forEach(b => {
+        b.addEventListener('click', () => {
+          const group = b.closest('.aux-toggle');
+          group.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+        });
+      });
+      // Wire Units | Reservations tabs in the expanded units section
+      panel.querySelectorAll('.eu-tab').forEach(b => {
+        b.addEventListener('click', () => {
+          const tabName = b.dataset.tab;
+          const section = b.closest('.expanded-units');
+          section.querySelectorAll('.eu-tab').forEach(x => x.classList.toggle('active', x === b));
+          section.querySelectorAll('.eu-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === tabName));
+        });
+      });
+      // Paint the chart inside the newly-injected panel:
+      // - Rich v4 chart for properties with p.expanded (Riverside-style)
+      // - Mini per-property trend for the lite version
+      const liteSvg = panel.querySelector('svg[data-prop-trend]');
+      const richSvg = panel.querySelector('.pnl-chart-canvas:not([data-prop-trend])');
+      if (liteSvg && p.trend) paintMiniTrend(liteSvg, p);
+      if (richSvg && p.expanded) paintPnlChart(richSvg);
+    });
+  });
+}
+
+// Paint a mini per-property trend chart inside an expanded panel.
+// Simple monthly LT-net visualization — doesn't try to replicate the full v4
+// chart (no LT/STR split, no projection band) since that needs more data.
+function paintMiniTrend(svg, p) {
+  const trend = p.trend || [];
+  const N = trend.length;
+  if (!N) { svg.innerHTML = '<text x="330" y="100" text-anchor="middle" class="axis-label">No trend data</text>'; return; }
+  const left = 36, right = 660, top = 18, bottom = 160;
+  const colW = (right - left) / N;
+  const barW = colW * 0.62;
+  const validVals = trend.filter(v => v != null && v >= 0);
+  const max = Math.max(...validVals, 1) * 1.15;
+  const yToPx = v => bottom - (v / max) * (bottom - top);
+
+  let html = '';
+  // Grid lines
+  [0.25, 0.5, 0.75, 1.0].forEach(t => {
+    const y = yToPx(max * t);
+    html += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="var(--line-0)" stroke-width="0.6"/>`;
+    html += `<text class="axis-label" x="${left - 6}" y="${y + 3}" text-anchor="end">${fmtKShort(max * t)}</text>`;
+  });
+  // Bars
+  const labels = ['Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May'].slice(0, N);
+  for (let i = 0; i < N; i++) {
+    const v = trend[i];
+    const cx = left + i * colW + colW / 2;
+    const x  = cx - barW / 2;
+    html += `<text class="axis-label${i === 0 || i === N-1 ? ' axis-label-strong' : ''}" x="${cx}" y="178" text-anchor="middle">${labels[i] || ''}</text>`;
+    if (v == null) {
+      html += `<rect x="${x}" y="${bottom - 22}" width="${barW}" height="22" rx="1.5" fill="rgba(26,97,217,0.025)" stroke="var(--line-1)" stroke-width="0.5" stroke-dasharray="1.4 1.4"/>`;
+    } else if (v === 0) {
+      html += `<rect x="${x}" y="${bottom - 3}" width="${barW}" height="3" rx="1" fill="var(--landing-blue)" opacity="0.5"/>`;
+    } else {
+      const h = (v / max) * (bottom - top);
+      html += `<rect class="actual-lt" x="${x}" y="${bottom - h}" width="${barW}" height="${h}" rx="2"/>`;
+    }
+  }
+  svg.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIRE INTERACTIVE FILTERS
+// Hooks up: segment chips, search input, partner/market/period dropdowns,
+// KPI tile clicks (drill into a cohort), leaderboard item clicks (pin to
+// that single property), and the "reset" affordance shown when filtered.
+// ═══════════════════════════════════════════════════════════════════════
+function uniqueSorted(key) {
+  return Array.from(new Set(PROPS.map(p => p[key]).filter(Boolean))).sort();
+}
+
+function updateChipCounts() {
+  document.querySelectorAll('.seg-chip').forEach(chip => {
+    const seg = chip.dataset.seg;
+    const count = PROPS.filter(p => inSegment(p, seg)).length;
+    const span = chip.querySelector('.count');
+    if (span) span.textContent = count;
+  });
+}
+
+function setSegment(seg) {
+  FILTER.segment = seg;
+  FILTER.pinned = null;
+  document.querySelectorAll('.seg-chip').forEach(c => c.classList.toggle('active', c.dataset.seg === seg));
+  renderGrid();
+  syncResetButton();
+}
+
+function syncResetButton() {
+  const hasFilter = FILTER.segment !== 'all' || FILTER.search || FILTER.partner !== 'all' || FILTER.market !== 'all' || FILTER.pinned;
+  let btn = document.getElementById('reset-filters');
+  if (!btn) return;
+  btn.style.display = hasFilter ? '' : 'none';
+}
+
+function resetAll() {
+  FILTER.segment = 'all'; FILTER.search = ''; FILTER.partner = 'all'; FILTER.market = 'all'; FILTER.pinned = null;
+  document.querySelectorAll('.seg-chip').forEach(c => c.classList.toggle('active', c.dataset.seg === 'all'));
+  const input = document.querySelector('.search-input'); if (input) input.value = '';
+  document.querySelectorAll('.filter-select').forEach(b => { b.textContent = b.dataset.defaultLabel || b.textContent; });
+  document.querySelectorAll('.filter-popover.open').forEach(p => p.classList.remove('open'));
+  renderGrid();
+  syncResetButton();
+}
+
+// Build a simple popover dropdown for partner/market/period selectors.
+function buildPopover(button, options, onSelect) {
+  // Remember default label so reset can restore it.
+  if (!button.dataset.defaultLabel) button.dataset.defaultLabel = button.textContent.trim();
+  const pop = document.createElement('div');
+  pop.className = 'filter-popover';
+  pop.innerHTML = options.map(o => `<button type="button" data-val="${gEsc(o.value)}">${gEsc(o.label)}</button>`).join('');
+  button.style.position = 'relative';
+  button.appendChild(pop);
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Close other popovers first
+    document.querySelectorAll('.filter-popover.open').forEach(p => { if (p !== pop) p.classList.remove('open'); });
+    pop.classList.toggle('open');
+  });
+  pop.addEventListener('click', (e) => {
+    const t = e.target.closest('button[data-val]');
+    if (!t) return;
+    e.stopPropagation();
+    pop.classList.remove('open');
+    button.firstChild.textContent = t.textContent + ' ';
+    onSelect(t.dataset.val, t.textContent);
+  });
+}
+
+function wireSearchAndFilters() {
+  // Reset button — appears in the filter row, hidden when no filters active.
+  const filterRow = document.querySelector('.filter-row');
+  if (filterRow && !document.getElementById('reset-filters')) {
+    const reset = document.createElement('button');
+    reset.id = 'reset-filters';
+    reset.className = 'reset-filters';
+    reset.type = 'button';
+    reset.innerHTML = '✕ Reset filters';
+    reset.style.display = 'none';
+    reset.addEventListener('click', resetAll);
+    filterRow.appendChild(reset);
+  }
+
+  // Segment chips
+  document.querySelectorAll('.seg-chip').forEach(chip => {
+    chip.addEventListener('click', () => setSegment(chip.dataset.seg));
+  });
+  updateChipCounts();
+
+  // Search input
+  const input = document.querySelector('.search-input');
+  if (input) {
+    input.addEventListener('input', () => { FILTER.search = input.value; renderGrid(); syncResetButton(); });
+  }
+
+  // Period dropdown (mock — cosmetic only since trend data is fixed length)
+  const buttons = document.querySelectorAll('.filter-select');
+  if (buttons[0]) {
+    // Wrap text in a span so we can update without nuking the popover child.
+    const b = buttons[0];
+    const label = b.firstChild;
+    if (label.nodeType !== 3) { /* not a text node — skip */ }
+    buildPopover(b, [
+      { value: '3',  label: 'Period · 3mo' },
+      { value: '6',  label: 'Period · 6mo' },
+      { value: '12', label: 'Period · 12mo' },
+    ], (val) => { renderGrid(); syncResetButton(); });
+  }
+
+  // Partner dropdown
+  if (buttons[1]) {
+    const partners = [{ value: 'all', label: 'All partners' }, ...uniqueSorted('partner').map(p => ({ value: p, label: p }))];
+    buildPopover(buttons[1], partners, (val) => { FILTER.partner = val; renderGrid(); syncResetButton(); });
+  }
+
+  // Market dropdown
+  if (buttons[2]) {
+    const markets = [{ value: 'all', label: 'All markets' }, ...uniqueSorted('market').map(m => ({ value: m, label: m }))];
+    buildPopover(buttons[2], markets, (val) => { FILTER.market = val; renderGrid(); syncResetButton(); });
+  }
+
+  // Save view — visual feedback only (no DB)
+  const saveBtn = document.querySelector('.save-view');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const orig = saveBtn.textContent;
+      saveBtn.textContent = '✓ Saved';
+      setTimeout(() => { saveBtn.textContent = orig; }, 1400);
+    });
+  }
+
+  // KPI tile clicks — each maps to a segment drill-in.
+  // Tiles: properties, partners, gross, landing-net, units, str-units, at-risk, projected
+  const kpiTiles = document.querySelectorAll('.kpi');
+  const kpiSegmentMap = ['all', 'all', 'all', 'all', 'all', 'str', 'risk', 'all'];
+  kpiTiles.forEach((tile, i) => {
+    const seg = kpiSegmentMap[i];
+    if (!seg) return;
+    tile.style.cursor = 'pointer';
+    tile.title = `Filter to: ${seg}`;
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.delta')) return;
+      setSegment(seg);
+      scrollToGrid();
+    });
+  });
+
+  // Leaderboard item clicks — pin the grid to that single property.
+  document.querySelectorAll('.board-item').forEach(item => {
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', () => {
+      const name = item.querySelector('.name')?.textContent?.trim();
+      if (!name) return;
+      // Pin if the property exists in our PROPS sample; otherwise visual flash only.
+      const exists = PROPS.some(p => p.name === name);
+      if (exists) {
+        FILTER.pinned = [name];
+        FILTER.segment = 'all';
+        document.querySelectorAll('.seg-chip').forEach(c => c.classList.toggle('active', c.dataset.seg === 'all'));
+        renderGrid();
+        syncResetButton();
+        scrollToGrid();
+        // Auto-expand the only matching row
+        const tr = document.querySelector('#grid-body tr[data-idx]');
+        if (tr) tr.querySelector('.prop-cell')?.click();
+      } else {
+        item.style.background = 'rgba(26,97,217,0.10)';
+        setTimeout(() => { item.style.background = ''; }, 600);
+      }
+    });
+  });
+
+  // "View →" header in each leaderboard card → set segment to top/ramp/risk.
+  document.querySelectorAll('.board').forEach(card => {
+    const action = card.querySelector('.board-action');
+    if (!action) return;
+    action.style.cursor = 'pointer';
+    const tone = card.dataset.tone;
+    const segMap = { top: 'top', ramp: 'ramp', risk: 'risk' };
+    if (tone && segMap[tone]) {
+      action.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setSegment(segMap[tone]);
+        scrollToGrid();
+      });
+    }
+  });
+
+  // Close popovers when clicking outside
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.filter-popover.open').forEach(p => p.classList.remove('open'));
+  });
+
+  // Header view-switch — Map link in the mock is a placeholder.
+  document.querySelectorAll('.view-switch a').forEach(a => {
+    if (a.dataset.view === 'map') {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.href = '/map.html';
+      });
+    } else {
+      a.addEventListener('click', (e) => e.preventDefault());
+    }
+  });
+}
+
+function scrollToGrid() {
+  const grid = document.getElementById('grid-table');
+  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// INIT
+renderGrid();
+paintPnlChart();
+wireToggles();
+wireExpand();
+wireSearchAndFilters();
+</script>
+
+</body>
+</html>

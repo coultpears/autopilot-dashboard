@@ -681,13 +681,227 @@ code, pre, kbd { font-variant-numeric: tabular-nums; font-feature-settings: "tnu
 }
 
 /* ─── GRID VIEW ─── */
+/* Whole grid-view scrolls as a single document. The inner .grid-scroll keeps
+   horizontal-scroll on the wide table but no longer captures vertical scroll —
+   that way the KPI strip + segments + leaderboards push the table down and the
+   user uses the page scrollbar to reach the data. */
 .grid-view {
-  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
   background: var(--surface-0);
 }
+.grid-view .grid-scroll { flex: 0 0 auto; overflow-x: auto; overflow-y: visible; }
+/* Sticky table header relative to .grid-view (the new scroll container). */
+.grid-view .grid-table thead { top: 0; z-index: 10; }
+/* Center the data table on ultra-wide displays so it doesn't anchor to the
+   left edge with a giant empty band on the right. Capped at the same
+   content-max so it visually aligns with the bands above it. */
+.grid-view .grid-table {
+  margin: 0 auto;
+  max-width: var(--grid-content-max);
+}
+
+/* Content-width cap across the grid view so it doesn't stretch into a
+   horizontal mess on ultra-wide displays. Each section's inner content is
+   capped at --grid-content-max and centered. */
+.grid-view { --grid-content-max: 1680px; }
+
+/* ─── KPI strip ─── compact 8-tile horizontal row of cross-property aggregates */
+.gv-kpi-strip {
+  padding: 10px max(24px, calc((100% - var(--grid-content-max)) / 2)) 8px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--line-0);
+}
+.gv-kpi-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
+  max-width: var(--grid-content-max);
+  margin: 0 auto;
+}
+.gv-kpi-grid + .gv-kpi-grid { display: none; }   /* merged into single row */
+.gv-kpi-tile {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-0); border-radius: var(--r-md);
+  cursor: pointer; transition: border-color 0.12s, transform 0.12s;
+  min-width: 0;   /* allow truncation */
+}
+.gv-kpi-tile:hover { border-color: rgba(26,97,217,0.30); transform: translateY(-1px); }
+.gv-kpi-tile .lbl {
+  font-family: var(--font-mono); font-size: 8.5px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gv-kpi-tile .val {
+  font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+  color: var(--ink-0); letter-spacing: -0.02em;
+  line-height: 1.05;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gv-kpi-tile .val .unit { font-size: 11px; color: var(--ink-2); margin-left: 1px; }
+.gv-kpi-tile .val .frac { font-size: 10px; color: var(--ink-3); font-weight: 500; }
+.gv-kpi-tile .delta {
+  font-family: var(--font-body); font-size: 9.5px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gv-kpi-tile .delta .up { color: var(--green); font-weight: 700; }
+.gv-kpi-tile .delta .warn { color: #B95B00; font-weight: 700; }
+.gv-kpi-tile.blue .val { color: var(--landing-blue); }
+.gv-kpi-tile.warn { border-color: rgba(185, 91, 0, 0.30); }
+
+/* ─── Segments chips bar ─── */
+.gv-segments-wrap {
+  padding: 8px max(24px, calc((100% - var(--grid-content-max)) / 2)) 6px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--line-0);
+}
+.gv-segments {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  max-width: var(--grid-content-max);
+  margin: 0 auto;
+}
+.gv-seg-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  border-radius: 999px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  color: var(--ink-1); cursor: pointer;
+  transition: all 0.12s;
+}
+.gv-seg-chip:hover { border-color: var(--ink-3); color: var(--ink-0); }
+.gv-seg-chip.active {
+  background: var(--ink-0); color: #fff; border-color: var(--ink-0);
+}
+.gv-seg-chip.active .dot { background: #fff; }
+.gv-seg-chip .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3);
+}
+.gv-seg-chip[data-tone="str"]   .dot { background: #D2552E; }
+.gv-seg-chip[data-tone="lt"]    .dot { background: var(--landing-blue); }
+.gv-seg-chip[data-tone="risk"]  .dot { background: #EE533D; }
+.gv-seg-chip[data-tone="ramp"]  .dot { background: var(--green); }
+.gv-seg-chip[data-tone="top"]   .dot { background: var(--green); }
+.gv-seg-chip .count {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  color: var(--ink-3); margin-left: 2px;
+}
+.gv-seg-chip.active .count { color: rgba(255,255,255,0.75); }
+
+/* ─── Leaderboards ─── */
+.gv-boards-row {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  /* padding-inline grows on wide viewports so the centered content stays
+     within --grid-content-max even though the band itself still extends
+     full-width via background-color on the element. */
+  padding: 0 max(24px, calc((100% - var(--grid-content-max)) / 2)) 8px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--line-1);
+}
+.gv-board {
+  background: var(--surface-1);
+  border: 1px solid var(--line-0); border-radius: var(--r-md);
+  padding: 8px 10px;
+}
+.gv-board-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line-0);
+}
+.gv-board-title {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-2); font-weight: 700;
+}
+.gv-board-action {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3); cursor: pointer;
+}
+.gv-board-action:hover { color: var(--landing-blue); }
+.gv-board-list { display: flex; flex-direction: column; gap: 2px; }
+.gv-board-item {
+  display: grid; grid-template-columns: 16px 1fr auto; gap: 8px;
+  align-items: center; padding: 4px 6px; border-radius: 4px;
+  cursor: pointer; transition: background 0.12s;
+}
+.gv-board-item:hover { background: var(--surface-2); }
+.gv-board-item .rank {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); font-weight: 700;
+}
+.gv-board-item .name {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gv-board-item .metric {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+.gv-board-item .metric.good { color: var(--green); }
+.gv-board-item .metric.bad  { color: #EE533D; }
+.gv-board-item .metric.str  { color: #D2552E; }
+
+@media (max-width: 1280px) {
+  .gv-kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .gv-boards-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 980px) {
+  .gv-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .gv-boards-row { grid-template-columns: 1fr; }
+}
+
+/* ─── Per-row sparkline + projection (new grid columns) ─── */
+.gv-spark-svg { width: 100%; height: 28px; display: block; }
+.gv-spark-bar { transition: fill 160ms ease; }
+.gv-spark-bar.real { fill: var(--landing-blue); opacity: 0.85; }
+.gv-spark-bar.ghost { fill: rgba(26,97,217,0.10); }
+.gv-spark-bar.zero  { fill: var(--ink-4); opacity: 0.6; }
+.gv-proj {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  font-family: var(--font-mono); font-size: 12px;
+  cursor: help;
+}
+.gv-proj .v { color: var(--landing-blue); font-weight: 700; font-size: 13px; }
+.gv-proj .dots { font-size: 10px; letter-spacing: 0.6px; }
+.gv-proj .dots.high { color: var(--green); }
+.gv-proj .dots.med  { color: #B95B00; }
+.gv-proj .refused {
+  color: var(--ink-3); font-style: italic; font-size: 10.5px; font-family: var(--font-body);
+}
+.gv-rec {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+  display: inline-flex; align-items: baseline; gap: 4px;
+}
+.gv-rec.good { color: var(--green); }
+.gv-rec.warn { color: #B95B00; }
+.gv-rec.bad  { color: #EE533D; }
+.gv-rec .sub { font-size: 9px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; }
+.gv-split-bar {
+  display: flex; height: 7px; border-radius: 2px; overflow: hidden;
+  background: rgba(21,25,45,0.06);
+  border: 1px solid var(--line-0); margin-bottom: 4px;
+}
+.gv-split-bar .lt   { background: var(--landing-blue); }
+.gv-split-bar .pt   { background: rgba(26,97,217,0.35); }
+.gv-split-bar .gap  { background: repeating-linear-gradient(45deg, rgba(238,83,61,0.30) 0 2px, transparent 2px 4px); }
+.gv-split-nums {
+  display: flex; gap: 6px; font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--ink-2); align-items: baseline;
+}
+.gv-split-nums .l { color: var(--landing-blue); font-weight: 700; }
+.gv-split-nums .p { color: var(--ink-1); font-weight: 600; }
+.gv-split-nums .sep { color: var(--ink-4); }
+.gv-split-nums .of  { color: var(--ink-3); font-size: 9px; }
+.gv-split-nums .syn { color: var(--ink-3); font-size: 10px; font-weight: 700; margin-left: 2px; cursor: help; }
+.gv-split-bar.synthetic { opacity: 0.75; }
+.gv-split-bar.synthetic .lt,
+.gv-split-bar.synthetic .pt { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 2px, transparent 2px 4px); }
+
 .grid-toolbar {
   display: flex; align-items: center; gap: 14px;
-  padding: 14px 24px;
+  padding: 14px max(24px, calc((100% - var(--grid-content-max, 1680px)) / 2));
   background: var(--surface-1);
   border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
@@ -973,7 +1187,20 @@ tr.expanded .expand-chevron {
   position: relative;
 }
 .grid-detail {
+  /* Stick to the viewport's left edge even when the parent table is wider
+     than the viewport. Without this the detail panel rendered off-screen on
+     viewports < table width (~1700px), clipping the right side of methodology
+     text. position:sticky lets the panel anchor while the table scrolls
+     horizontally underneath. */
+  position: sticky;
+  left: 0;
   padding: 18px 28px 22px;
+  /* Cap to BOTH viewport width AND a sensible reading width so the panel
+     doesn't stretch into a horizontal mess on ultra-wide displays. */
+  width: min(calc(100vw - 24px), var(--grid-content-max, 1680px));
+  max-width: min(calc(100vw - 24px), var(--grid-content-max, 1680px));
+  box-sizing: border-box;
+  overflow-x: auto;
   animation: gridSlideDown 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @keyframes gridSlideDown {
@@ -1037,6 +1264,776 @@ tr.expanded .expand-chevron {
   text-align: center; padding: 32px;
   color: var(--ink-3); font-size: 0.78rem;
   font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+/* ─── STR (short-term rental) — coral accent system ───
+   STR uses a deliberately warm coral, distinct from cool LT blue, so mixed
+   portfolios scan as two product lines. Applied to: chips, badges, bars,
+   per-unit S-mark, dormant-eligible variant. */
+:root {
+  --str:        #D2552E;
+  --str-2:      #B33F1A;
+  --str-tint:   rgba(210, 85, 46, 0.12);
+  --str-tint-2: rgba(210, 85, 46, 0.05);
+}
+
+.gd-chip-str {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--str); color: #FFFFFF;
+  font-family: var(--font-mono); font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600;
+  padding: 6px 11px; border-radius: var(--r-sm);
+  white-space: nowrap;
+  box-shadow: 0 1px 0 var(--str-2);
+}
+.gd-chip-str::before {
+  content: ''; width: 6px; height: 6px; background: #FFFFFF; border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.28);
+}
+.gd-chip-aux {
+  display: inline-flex; align-items: center;
+  background: transparent; color: var(--ink-2);
+  border: 1px solid var(--line-2);
+  font-family: var(--font-mono); font-size: 0.6rem;
+  text-transform: uppercase; letter-spacing: 0.12em; font-weight: 500;
+  padding: 5px 10px; border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.gd-badge-str {
+  background: var(--str-tint); color: var(--str-2);
+  border: 1px solid var(--str);
+  padding: 2px 8px; border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: 0.64rem; font-weight: 500;
+  white-space: nowrap; letter-spacing: -0.005em;
+}
+
+/* Per-unit STR marker — small square next to unit number.
+   "Active" (current res is nightly) = filled coral.
+   "Dormant" (STR-eligible but on monthly contract) = dashed outline. */
+.str-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  background: var(--str-tint); color: var(--str);
+  border: 1px solid var(--str);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: 0.55rem; font-weight: 700;
+  line-height: 1; margin-left: 6px;
+  cursor: help;
+  vertical-align: middle;
+}
+.str-mark.dormant {
+  background: transparent;
+  color: var(--str-2);
+  border: 1px dashed var(--str);
+}
+
+/* Opportunity tag — used on dormant-STR rows to say "this could earn nightly" */
+.gd-opportunity-tag {
+  display: inline-block;
+  font-family: var(--font-mono); font-size: 0.54rem;
+  text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  color: var(--str-2);
+  background: var(--str-tint); border: 1px solid var(--str);
+  padding: 1px 5px; border-radius: var(--r-sm);
+}
+
+/* Rent cell — for STR units the cell stacks: nightly rate (primary) /
+   stay total (secondary) / monthly equivalent (struck through, legacy noise). */
+.rent-stack {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-end;
+  line-height: 1.25;
+}
+.rent-primary       { font-family: var(--font-mono); font-weight: 700; font-size: 0.78rem; color: var(--ink-0); }
+.rent-primary.nt    { color: var(--str-2); }
+.rent-secondary     { font-family: var(--font-mono); font-size: 0.6rem; color: var(--ink-3); }
+.rent-secondary.struck { text-decoration: line-through; opacity: 0.55; }
+.rent-tag-potential { font-family: var(--font-mono); font-size: 0.6rem; color: var(--str-2); font-style: italic; }
+
+/* Markup column — multi-line treatment for STR rows.
+   Headline = realized MTD margin (can be red/negative — the truth).
+   Context line = nights MTD + break-even nights/occupancy threshold.
+   Tail line = per-stay rate quality (coral, secondary). */
+.markup-mtd-info  { display: block; font-family: var(--font-mono); font-size: 0.58rem; color: var(--ink-3); margin-top: 3px; letter-spacing: 0; font-weight: 400; }
+.markup-mtd-info b{ color: var(--ink-2); font-weight: 600; }
+.markup-per-stay  { display: block; font-family: var(--font-mono); font-size: 0.6rem; color: var(--str-2); margin-top: 2px; font-weight: 500; letter-spacing: 0; }
+.markup-per-stay b{ font-weight: 700; }
+.markup-be-warn   { color: var(--warning); font-weight: 600; }
+.markup-be-ok     { color: var(--success); font-weight: 600; }
+.markup-be-met    { color: var(--success); font-weight: 700; }
+
+/* Current-reservation cell — date pill + nights badge instead of raw text.
+   "May 10 → May 31" reads faster than "2026-05-10 → 2026-05-31" and the
+   night count gets its own little chip. */
+.res-cell { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.res-dates-pill {
+  font-family: var(--font-mono); font-size: 0.66rem;
+  background: var(--surface-2); color: var(--ink-1);
+  padding: 2px 8px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.res-dates-pill .arrow { color: var(--ink-3); margin: 0 4px; }
+.res-nights-badge {
+  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 600;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  letter-spacing: 0.02em; white-space: nowrap;
+  background: var(--blue-tint); color: var(--landing-blue);
+}
+.res-nights-badge.str  { background: var(--str-tint); color: var(--str-2); }
+.res-nights-badge.long { background: var(--success-tint); color: var(--success); }
+
+/* Row-level STR pill — visible in the property column without needing to
+   expand the row. Same coral system as the per-unit S-mark, scaled to fit
+   inline alongside the property name. */
+.grid-str-pill {
+  display: inline-flex; align-items: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: var(--str-tint); color: var(--str-2);
+  border: 1px solid var(--str);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* ─── Trend module ── the centerpiece, sits above the tabs in expanded row ───
+   Width control lives on .grid-detail now (max-width: 1140px) so the trend
+   module and the units table below share the same left AND right edges.
+   The chart fills its grid column without overflowing the parent. */
+.gd-trend-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 0;
+  margin: 12px 0 14px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+@media (max-width: 1080px) {
+  .gd-trend-wrap { grid-template-columns: 1fr; }
+  .gd-trend-side { border-left: 0; border-top: 1px solid var(--line-1); }
+}
+.gd-trend-chart-wrap { padding: 16px 18px 14px; position: relative; min-width: 0; }
+.gd-trend-eyebrow {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 10px; gap: 12px; flex-wrap: wrap;
+}
+/* POV + LT counterfactual toggles (v4 mock parity) */
+.gd-pov-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gd-pov-toggle {
+  display: inline-flex; padding: 2px; background: var(--surface-2);
+  border: 1px solid var(--line-1); border-radius: 6px;
+}
+.gd-pov-toggle button {
+  border: 0; background: transparent; padding: 5px 10px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); cursor: pointer; border-radius: 4px;
+}
+.gd-pov-toggle button.active {
+  background: var(--ink-0); color: #fff;
+}
+.gd-lt-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.gd-lt-label {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+  cursor: help;
+}
+.gd-lt-toggle {
+  display: inline-flex; padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1); border-radius: 5px;
+}
+.gd-lt-toggle button {
+  border: 0; background: transparent;
+  padding: 3px 8px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  color: var(--ink-3); cursor: pointer; border-radius: 3px;
+}
+.gd-lt-toggle button.active { background: var(--landing-blue); color: #fff; }
+
+/* POV panes — only one shown at a time, mirrors the v4 mock layout. */
+.gd-pov-pane { display: none; flex-direction: column; gap: 12px; }
+.gd-pov-pane.active { display: flex; }
+
+/* Landing POV verdict (the headline net-vs-LT number) */
+.gd-verdict {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-1); border-radius: var(--r-md);
+}
+.gd-verdict-label {
+  font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink-3); font-weight: 600;
+}
+.gd-verdict-number {
+  font-family: var(--font-mono); font-size: 22px; font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.gd-verdict-number.surplus { color: var(--success, var(--green)); }
+.gd-verdict-number.shortfall { color: #EE533D; }
+.gd-verdict-pct {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-2);
+}
+
+/* Breakdown rows in Landing POV pane */
+.gd-bk { display: flex; flex-direction: column; gap: 4px; }
+.gd-bk-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 4px 0;
+  font-family: var(--font-body); font-size: 11px;
+  color: var(--ink-2);
+}
+.gd-bk-row.sub { padding-left: 12px; color: var(--ink-3); font-size: 10.5px; }
+.gd-bk-row .v {
+  font-family: var(--font-mono); font-weight: 700; color: var(--ink-1);
+  font-feature-settings: 'tnum' 1;
+}
+.gd-bk-row .v.blue { color: var(--landing-blue); }
+.gd-bk-row .v.muted { color: var(--ink-3); font-weight: 500; }
+.gd-bk-row .v.good { color: var(--success, var(--green)); }
+.gd-bk-row .v.warn { color: #B95B00; }
+.gd-bk-row .v.bad  { color: #EE533D; }
+
+/* Trajectory line shown at the bottom of each POV pane */
+.gd-trajectory {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  color: var(--ink-2);
+}
+.gd-trajectory .glyph { font-size: 16px; line-height: 1; }
+.gd-trajectory.widening { color: #EE533D; }
+.gd-trajectory.surplus  { color: var(--success, var(--green)); }
+
+/* Italic narrative paragraph */
+.gd-narrative {
+  font-family: var(--font-body); font-size: 12.5px; line-height: 1.55;
+  color: var(--ink-2); font-style: italic;
+}
+.gd-narrative b { color: var(--ink-0); font-style: normal; font-weight: 600; }
+
+/* Source-mix bar (unit-ratio) inside POV panes */
+.gd-source-mix {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+}
+.gd-source-mix .lbl {
+  font-family: var(--font-mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-3); font-weight: 600;
+  white-space: nowrap;
+}
+/* Always-visible exact split next to the bar — guarantees the numbers are
+   readable even when one segment is too narrow to fit its inline label. */
+.gd-source-mix .lbl-detail {
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--ink-1); font-weight: 700;
+  white-space: nowrap;
+  margin-left: -2px;
+}
+.gd-source-mix .bar {
+  flex: 1; height: 14px;
+  display: flex; border-radius: 2px; overflow: hidden;
+  background: var(--line-0);
+}
+.gd-source-mix .bar .seg {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: #fff; letter-spacing: 0.02em;
+}
+.gd-source-mix .bar .seg.lt  { background: var(--landing-blue); }
+.gd-source-mix .bar .seg.str { background: #D2552E; }
+
+/* Per-month rollup grid (below the chart) */
+.gd-rollup-wrap {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--line-1);
+  overflow-x: auto;
+}
+.gd-rollup-grid {
+  display: grid; gap: 0;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+  min-width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.gd-rollup-cell {
+  padding: 6px 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-align: right;
+  border-right: 1px solid var(--line-0);
+  border-bottom: 1px solid var(--line-0);
+  white-space: nowrap;
+  color: var(--ink-1);
+}
+.gd-rollup-cell:last-child { border-right: 0; }
+.gd-rollup-cell.label {
+  text-align: left;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 9.5px; font-weight: 700; color: var(--ink-2);
+  background: var(--surface-2);
+  display: flex; align-items: center; gap: 6px;
+}
+.gd-rollup-cell.label .swatch {
+  width: 8px; height: 8px; display: inline-block; border-radius: 1px;
+}
+.gd-rollup-cell.label .swatch.lt      { background: var(--landing-blue); }
+.gd-rollup-cell.label .swatch.partner { background: rgba(26, 97, 217, 0.35); border: 1px solid var(--landing-blue); }
+.gd-rollup-cell.month-header {
+  text-align: center;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 9px; font-weight: 700; color: var(--ink-3);
+  background: var(--surface-2);
+}
+.gd-rollup-cell.lt      { color: var(--landing-blue); font-weight: 600; }
+.gd-rollup-cell.partner { color: var(--ink-1); font-weight: 500; }
+.gd-rollup-cell.total   { font-weight: 700; }
+.gd-rollup-cell.actual.good { color: var(--success, var(--green)); font-weight: 700; background: rgba(8,120,108,0.04); }
+.gd-rollup-cell.actual.warn { color: #B95B00; font-weight: 700; background: rgba(185,91,0,0.04); }
+.gd-rollup-cell.actual.bad  { color: #EE533D; font-weight: 700; background: rgba(238,83,61,0.04); }
+.gd-rollup-cell.ghost { color: var(--ink-4); font-style: italic; font-size: 9px; text-align: center; }
+
+/* Projection cells (and bars) — faded + diagonal hatch to read as "modeled". */
+.gd-rollup-cell.proj {
+  opacity: 0.62;
+  background-image: repeating-linear-gradient(45deg, rgba(26,97,217,0.04) 0 3px, transparent 3px 6px);
+}
+.gd-rollup-cell.month-header.proj { color: var(--landing-blue); opacity: 0.85; }
+.gd-rollup-cell .proj-tag {
+  display: inline-block; margin-left: 3px;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+  color: var(--landing-blue); background: rgba(26,97,217,0.10);
+  padding: 1px 3px; border-radius: 2px; letter-spacing: 0.04em;
+}
+
+/* Chart: projection bars are hatched, partner segment uses dashed outline */
+.bar-landing.proj { fill: var(--landing-blue); opacity: 0.45; }
+.bar-partner.proj { fill: rgba(26,97,217,0.20); stroke: var(--landing-blue); stroke-width: 0.6; stroke-dasharray: 2 2; }
+.proj-bar-label {
+  font-family: var(--font-mono); font-size: 7.5px; font-weight: 700;
+  fill: var(--landing-blue); letter-spacing: 0.05em;
+  text-transform: uppercase; opacity: 0.85;
+}
+
+/* Small annotation inside a breakdown label, e.g. "15u × $2.3K/mo" */
+.gd-bk-note {
+  display: inline-block;
+  margin-left: 4px;
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--ink-3); font-weight: 500;
+  letter-spacing: 0;
+  vertical-align: 1px;
+}
+
+/* Contracted-rev-share chip — sits next to realized take chip when
+   dimhome.revenue_share_percentage is populated for at least one unit.
+   Visually distinct (outline + landing-blue) so reps can see at a glance
+   that THIS one is the contracted rate and the dim chip next to it is realized. */
+.gd-take-contracted {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-mono); font-size: 8.5px;
+  font-weight: 700; letter-spacing: 0.04em;
+  background: rgba(26, 97, 217, 0.08);
+  border: 1px solid rgba(26, 97, 217, 0.45);
+  border-radius: 3px;
+  color: var(--landing-blue);
+  vertical-align: 1px;
+  cursor: help;
+}
+
+/* Take-rate chip displayed inline next to "Landing kept" / "Partner kept" */
+.gd-take {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono); font-size: 8.5px;
+  font-weight: 700; letter-spacing: 0.06em;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: 3px;
+  color: var(--ink-2);
+  vertical-align: 1px;
+}
+
+/* Cumulative vs last-month explainer — appears under the breakdown when the
+   two figures disagree by ≥25pp (typically on ramping or seasonal properties). */
+.gd-recovery-note {
+  margin-top: 4px;
+  padding: 9px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-left: 3px solid var(--landing-blue);
+  border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: 11px;
+  color: var(--ink-2); line-height: 1.55;
+}
+.gd-recovery-note b { color: var(--ink-0); font-weight: 700; }
+
+/* "Why is Landing > Partner?" explainer for STR-heavy properties */
+.gd-take-note {
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-left: 3px solid #D2552E;
+  border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: 11.5px;
+  color: var(--ink-2); line-height: 1.55;
+  cursor: help;
+}
+.gd-take-note b { color: var(--ink-0); font-weight: 700; }
+
+/* Verdict 'even' state */
+.gd-verdict-number.even { color: var(--ink-1); }
+
+/* Refused state for properties without bundle data */
+.gd-proj-refuse {
+  margin: 12px 0;
+  padding: 14px 16px;
+  background: var(--paper-warm, var(--surface-1));
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--ink-2); line-height: 1.55;
+}
+.gd-proj-refuse b { color: var(--ink-0); font-weight: 700; }
+
+/* ─── Methodology disclosure (collapsible audit trail) ─── */
+.gd-methodology {
+  grid-column: 1 / -1;           /* spans full width below chart + aside */
+  margin: 14px 18px 18px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--paper-warm, var(--surface-1));
+}
+.gd-methodology > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-2); font-weight: 600;
+  list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  user-select: none;
+}
+.gd-methodology > summary::-webkit-details-marker { display: none; }
+.gd-methodology > summary::before {
+  content: '▸'; font-size: 14px; color: var(--ink-3);
+  transition: transform 150ms ease;
+}
+.gd-methodology[open] > summary::before { transform: rotate(90deg); }
+.gd-methodology > summary:hover { color: var(--ink-0); }
+.gd-meth-body { padding: 8px 18px 18px; }
+.gd-meth-section { margin-bottom: 16px; }
+.gd-meth-section:last-child { margin-bottom: 0; }
+.gd-meth-h {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-0); font-weight: 700;
+  margin-bottom: 6px;
+}
+.gd-meth-p {
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--ink-1); line-height: 1.6;
+  /* Allow long mono words/codes to break instead of stretching the line. */
+  overflow-wrap: anywhere;
+}
+.gd-meth-p code {
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--surface-0); padding: 1px 4px; border-radius: 2px;
+  border: 1px solid var(--line-1);
+  /* Don't let inline code force a wide row */
+  word-break: break-all;
+}
+.gd-meth-p b { color: var(--ink-0); font-weight: 700; }
+
+.gd-meth-table {
+  width: 100%; border-collapse: collapse;
+  margin-top: 8px;
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--surface-0);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.gd-meth-table th, .gd-meth-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-0);
+  text-align: left;
+}
+.gd-meth-table th {
+  background: var(--paper-warm, var(--surface-1)); font-weight: 600;
+  color: var(--ink-2); text-transform: uppercase; font-size: 9.5px;
+  letter-spacing: 0.12em;
+}
+.gd-meth-table td.num, .gd-meth-table th.num { text-align: right; }
+.gd-meth-table tfoot td {
+  background: var(--paper-warm, var(--surface-1));
+  font-weight: 600; color: var(--ink-0); border-top: 1px solid var(--line-1);
+}
+.gd-meth-table tbody tr.lt  td { color: var(--landing-blue); }
+.gd-meth-table tbody tr.str td { color: #D2552E; }
+
+/* ─── Text-wrap fixes across POV pane content ───
+   The trend-side aside is ~320px wide. Flex children default to min-content
+   sizing — without min-width:0, a long inline-block child stretches the
+   parent beyond viewport. These rules constrain every direct child of the
+   POV pane to its container and let long text break safely. */
+/* RESET: the parent <td.grid-detail-cell> declares white-space:nowrap to
+   keep its main grid row tidy. That inherits into the entire trend module
+   and prevents text wrapping — explicitly reset it here. */
+.gd-trend-wrap, .gd-trend-wrap * { white-space: normal; }
+.gd-rollup-cell { white-space: nowrap; }   /* rollup cells stay single-line */
+
+.gd-trend-side, .gd-pov-pane {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.gd-pov-pane > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.gd-verdict, .gd-bk, .gd-source-mix, .gd-narrative, .gd-trajectory {
+  min-width: 0;
+  max-width: 100%;
+}
+/* Breakdown rows: label + value with guaranteed separation. flex: 1 on the
+   label fills the row width, but a gap ensures the numeric value never
+   visually butts up against the label. */
+.gd-bk-row {
+  flex-wrap: wrap;
+  min-width: 0; max-width: 100%;
+  gap: 14px;
+}
+.gd-bk-row .l {
+  flex: 1 1 auto; min-width: 0;
+  overflow-wrap: anywhere; word-break: break-word;
+  padding-right: 4px;
+}
+.gd-bk-row .v {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-align: right;
+}
+/* Verdict pct line — the long parenthetical must wrap cleanly. */
+.gd-verdict-pct {
+  overflow-wrap: anywhere; word-break: break-word;
+  line-height: 1.5;
+  max-width: 100%;
+}
+.gd-verdict-number {
+  /* Long values like "−$140.7K" mustn't push the column wider */
+  overflow-wrap: normal;
+  max-width: 100%;
+}
+/* Narrative + trajectory — wrap on whole words, no overflow. */
+.gd-narrative, .gd-trajectory {
+  word-break: break-word; overflow-wrap: break-word;
+  min-width: 0; max-width: 100%;
+}
+/* Source-mix bar — when segments are tiny, hide labels rather than overflow. */
+.gd-source-mix {
+  min-width: 0; max-width: 100%;
+  overflow: hidden;   /* segments don't push past the container */
+}
+.gd-source-mix .bar { min-width: 0; }
+.gd-source-mix .bar .seg { overflow: hidden; text-overflow: clip; min-width: 0; }
+
+/* Inline legend right below the eyebrow — explains the four visual elements
+   on the chart so users don't have to guess at the bar / line semantics. */
+.gd-trend-legend {
+  display: flex; flex-wrap: wrap; gap: 10px 18px;
+  font-family: var(--font-mono); font-size: 0.55rem;
+  color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.gd-trend-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.gd-trend-legend .sw { width: 12px; height: 8px; border-radius: 1px; display: inline-block; }
+.gd-trend-legend .sw-landing { background: var(--landing-blue); }
+.gd-trend-legend .sw-partner { background: var(--blue-tint); border: 1px dashed var(--landing-blue); }
+.gd-trend-legend .sw-occ     { width: 14px; height: 0; border-top: 1.5px solid var(--success); }
+.gd-trend-legend .sw-ghost   { background: rgba(26,97,217,0.04); border: 1px dashed var(--line-2); }
+.gd-trend-wrap.str .gd-trend-legend .sw-landing { background: var(--str); }
+.gd-trend-wrap.str .gd-trend-legend .sw-partner { background: var(--str-tint); border-color: var(--str); }
+.gd-trend-title {
+  font-family: var(--font-mono); font-size: 0.66rem;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-1); font-weight: 600;
+}
+.gd-trend-subtitle {
+  font-family: var(--font-body); font-size: 0.7rem;
+  color: var(--ink-3); font-style: italic;
+}
+/* Cap chart width so bars don't stretch into slivers on ultra-wide screens.
+   preserveAspectRatio="none" on the SVG element stretches the 660×200 viewBox
+   to fill its container — capping the container preserves a chart-like aspect.
+   Height bumped to 240px to give bars more room (the Y axis includes 20%
+   headroom for the occupancy line). */
+.gd-chart-canvas { width: 100%; max-width: 880px; height: 240px; display: block; overflow: visible; margin: 0 auto; }
+
+.gd-chart-canvas .bar-landing { fill: var(--landing-blue); transition: fill 160ms ease; }
+/* Solid partner bar (lighter blue) — no dashed outline. The previous
+   stroke-dasharray rendered every partner segment as a dashed ghost-looking
+   rectangle which was hard to read as a real bar. */
+.gd-chart-canvas .bar-partner {
+  fill: rgba(26, 97, 217, 0.38);
+  transition: fill 160ms ease;
+}
+.gd-chart-canvas .bar-ghost {
+  fill: rgba(26,97,217,0.04);
+  stroke: var(--line-2); stroke-width: 0.6;
+  stroke-dasharray: 1.4 1.4;
+}
+.gd-chart-canvas .bar-zero    { fill: var(--landing-blue); opacity: 0.5; }
+.gd-chart-canvas .occ-line    { fill: none; stroke: var(--success); stroke-width: 1.6; stroke-linejoin: round; }
+/* Projection portion of the occupancy line — dashed pattern to signal modeled. */
+.gd-chart-canvas .occ-line-proj {
+  fill: none; stroke: var(--success); stroke-width: 1.4; stroke-linejoin: round;
+  stroke-dasharray: 4 3; opacity: 0.72;
+}
+.gd-chart-canvas .occ-dot-proj {
+  fill: var(--surface-1); stroke: var(--success); stroke-width: 1.2; opacity: 0.72;
+  stroke-dasharray: 2 1.5;
+}
+.gd-chart-canvas .occ-dot     { fill: var(--surface-1); stroke: var(--success); stroke-width: 1.4; }
+.gd-chart-canvas .occ-dot-active { fill: var(--success); }
+.gd-chart-canvas .grid-line   { stroke: var(--line-0); stroke-width: 0.6; stroke-dasharray: 1.5 2; }
+.gd-chart-canvas .axis-label  { font-family: var(--font-mono); font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; fill: var(--ink-3); }
+.gd-chart-canvas .axis-label-strong { fill: var(--ink-1); font-weight: 600; }
+.gd-chart-canvas .zero-label  { font-family: var(--font-mono); font-size: 7.5px; font-weight: 600; fill: var(--ink-3); }
+.gd-chart-canvas .onb-flag    { fill: var(--ink-1); }
+.gd-chart-canvas .onb-flag-label { font-family: var(--font-mono); font-size: 7.5px; font-weight: 700; fill: var(--ink-1); letter-spacing: 0.08em; text-transform: uppercase; }
+/* pointer-events: all so transparent SVG rects still catch mouse events
+   (default for SVG fill: transparent is visiblePainted which excludes
+   transparent paint regions on some browsers). */
+.gd-chart-canvas .col-hit     { fill: transparent; cursor: pointer; pointer-events: all; }
+
+/* STR-variant of the trend (when property is STR-enabled) */
+.gd-trend-wrap.str .bar-landing { fill: var(--str); }
+.gd-trend-wrap.str .bar-partner { fill: var(--str-tint); stroke: var(--str); }
+.gd-trend-wrap.str .bar-zero    { fill: var(--str); opacity: 0.6; }
+
+.gd-chart-tooltip {
+  position: absolute; pointer-events: none;
+  background: var(--ink-0); color: var(--surface-0);
+  font-family: var(--font-mono); font-size: 0.8rem;
+  padding: 10px 14px; border-radius: var(--r-sm);
+  opacity: 0; transition: opacity 120ms ease;
+  /* Anchor BELOW the cursor — .gd-trend-wrap has overflow:hidden so floating
+     above the bars clipped the tooltip at the top edge. Anchoring below
+     places it within the wrap bounds where there's room for it. */
+  transform: translate(-50%, 0);
+  white-space: nowrap; z-index: 5;
+  box-shadow: var(--elev-2);
+  min-width: 200px;
+}
+.gd-chart-tooltip.show { opacity: 1; }
+.gd-chart-tooltip .ttip-month {
+  font-size: 0.7rem; color: rgba(255,255,255,0.65);
+  text-transform: uppercase; letter-spacing: 0.12em;
+  margin-bottom: 6px; padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+}
+.gd-chart-tooltip .ttip-row {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 2px 0;
+}
+.gd-chart-tooltip .ttip-row span { color: rgba(255,255,255,0.72); }
+.gd-chart-tooltip .ttip-row b { color: var(--surface-0); font-weight: 700; font-feature-settings: 'tnum' 1; }
+.gd-chart-tooltip .ttip-mom {
+  display: inline-block;
+  padding: 2px 6px; border-radius: 3px;
+  font-size: 0.65rem; letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.gd-chart-tooltip .ttip-mom.mom-up { background: rgba(8, 120, 108, 0.35); color: #6ee7b7; }
+.gd-chart-tooltip .ttip-mom.mom-down { background: rgba(238, 83, 61, 0.35); color: #fca5a5; }
+
+/* Right-side summary card with Landing | Partner split */
+.gd-trend-side {
+  border-left: 1px solid var(--line-1);
+  padding: 14px 16px;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.gd-split-card {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.gd-split-col {
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 0;
+}
+.gd-split-col + .gd-split-col {
+  border-left: 1px dashed var(--line-1);
+  background: var(--surface-2);
+}
+.gd-split-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--line-1);
+}
+.gd-split-head .who { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; }
+.gd-split-head .who.landing { color: var(--landing-blue); }
+.gd-split-head .who.partner { color: var(--ink-1); }
+.gd-trend-wrap.str .gd-split-head .who.landing { color: var(--str); }
+.gd-split-head .take { font-family: var(--font-mono); font-size: 0.55rem; color: var(--ink-3); letter-spacing: 0.08em; font-weight: 600; }
+.gd-split-total { font-family: var(--font-mono); font-size: 1.05rem; font-weight: 700; color: var(--ink-0); letter-spacing: -0.01em; line-height: 1; }
+.gd-split-row   { display: flex; align-items: baseline; justify-content: space-between; font-family: var(--font-mono); font-size: 0.62rem; }
+.gd-split-row .l{ color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.55rem; }
+.gd-split-row .v{ color: var(--ink-0); font-weight: 600; font-size: 0.68rem; }
+.gd-sr-delta-up   { background: var(--success-tint); color: var(--success); font-family: var(--font-mono); font-size: 0.56rem; padding: 1px 4px; border-radius: 2px; font-weight: 600; letter-spacing: 0.02em; margin-left: 4px; }
+.gd-sr-delta-down { background: var(--error-tint);   color: var(--error);   font-family: var(--font-mono); font-size: 0.56rem; padding: 1px 4px; border-radius: 2px; font-weight: 600; letter-spacing: 0.02em; margin-left: 4px; }
+
+/* Gross strip — promoted to a peer total (not a footer). Slightly larger
+   value + clearer label so the relationship "Landing + Partner = Gross"
+   reads at a glance without hunting. */
+.gd-gross-strip {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 8px 10px;
+  margin-top: 2px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  cursor: help;
+}
+.gd-gross-strip .l {
+  font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-2); font-weight: 600;
+}
+.gd-gross-strip .v {
+  font-size: 0.9rem; font-weight: 700; color: var(--ink-0);
+  letter-spacing: -0.01em;
+}
+.gd-sr-note { font-family: var(--font-body); font-size: 0.66rem; color: var(--ink-3); font-style: italic; line-height: 1.45; }
+
+/* Detail-panel header strip — sits between the parent row and the trend module */
+.gd-detail-header {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 4px;
 }
 
 /* ─── Datalist inputs (Rep/Owner filters) ─── */
@@ -1177,6 +2174,29 @@ input:focus-visible, button:focus-visible, a:focus-visible {
 
 <!-- ─── GRID VIEW ─── -->
 <div id="grid-view" class="grid-view" style="display:none">
+
+  <!-- Portfolio KPI strip — cross-property aggregates computed from gridData.
+       8 tiles wired to drill into corresponding cohorts when clicked. -->
+  <section class="gv-kpi-strip" id="gv-kpi-strip" aria-label="Portfolio snapshot"></section>
+
+  <!-- Smart segments — quick filter chips. Click to drill into a cohort.
+       Counts update from gridData via gvRenderKpisAndSegments(). -->
+  <section class="gv-segments-wrap" aria-label="Filters and segments">
+    <div class="gv-segments" id="gv-segments" role="tablist">
+      <button class="gv-seg-chip active" data-seg="all"><span class="dot"></span>All<span class="count" data-seg-count="all">—</span></button>
+      <button class="gv-seg-chip" data-seg="str" data-tone="str"><span class="dot"></span>STR-enabled<span class="count" data-seg-count="str">—</span></button>
+      <button class="gv-seg-chip" data-seg="mixed"><span class="dot"></span>Mixed<span class="count" data-seg-count="mixed">—</span></button>
+      <button class="gv-seg-chip" data-seg="lt" data-tone="lt"><span class="dot"></span>LT-only<span class="count" data-seg-count="lt">—</span></button>
+      <button class="gv-seg-chip" data-seg="risk" data-tone="risk"><span class="dot"></span>At-risk<span class="count" data-seg-count="risk">—</span></button>
+      <button class="gv-seg-chip" data-seg="ramp" data-tone="ramp"><span class="dot"></span>Ramping<span class="count" data-seg-count="ramp">—</span></button>
+      <button class="gv-seg-chip" data-seg="top" data-tone="top"><span class="dot"></span>Top performers<span class="count" data-seg-count="top">—</span></button>
+    </div>
+  </section>
+
+  <!-- Smart leaderboards — auto-computed top-N lists across all properties.
+       Click a row to pin the grid to that property and auto-expand. -->
+  <section class="gv-boards-row" id="gv-boards-row" aria-label="Leaderboards"></section>
+
   <div class="grid-toolbar">
     <div class="grid-search-wrap">
       <svg class="grid-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -3006,6 +4026,10 @@ const _isLocalDev = location.hostname === 'localhost' || location.hostname === '
 const GRID_API = _isLocalDev ? 'http://localhost:5001/api' : '/api';
 let gridData = [], gridFiltered = [], gridSortCol = 'property_name', gridSortDir = 'asc';
 let gridExpandedProp = null, gridSearchTerm = '', gridActiveOnly = true;
+// Segment filter: 'all' | 'str' | 'mixed' | 'lt' | 'risk' | 'ramp' | 'top'
+let gridSegment = 'all';
+// Pinned subset (leaderboard click → array of property names; null = no pin)
+let gridPinnedNames = null;
 const _detailCache = {};  // property_name -> { units, reservations }
 
 // ─── Period state (3/6/8/12-month rollups) ───
@@ -3072,6 +4096,9 @@ async function loadGrid(attempt = 1) {
     gridData = await resp.json();
     if (!Array.isArray(gridData)) throw new Error('Invalid response shape');
     if (gridDataReady) { gridDataReady(); gridDataReady = null; }
+    // Wire segment chips + paint KPI strip / leaderboards now that data is in.
+    gvWireSegmentChips();
+    gvRenderKpisAndSegments();
     const now = new Date();
     document.getElementById('grid-date-ref').textContent = 'Data as of ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     // Reflect persisted period choice in the segmented control
@@ -3116,9 +4143,40 @@ function gridToggleActive() {
   gridApplyFilters();
 }
 
+// Classify a property row into a segment cohort (used by chips + KPI tile drill-ins).
+//   str   : str_property_eligible flag set OR str_unit_count > 0 (any STR units)
+//   mixed : has BOTH STR units AND non-STR units installed
+//   lt    : LT-only — no STR units at all
+//   risk  : recovery_pct < 60 (under-performing vs contract base)
+//   ramp  : trending up — last_landing > avg of prior 3 months × 1.2
+//   top   : recovery_pct >= 95 (or no recovery data but strong status)
+function gvInSegment(r, seg) {
+  const strUnits = r.str_unit_count || 0;
+  const ltUnits  = (r.home_count || 0) - strUnits;
+  if (seg === 'all')   return true;
+  if (seg === 'str')   return r.str_property_eligible || strUnits > 0;
+  if (seg === 'mixed') return strUnits > 0 && ltUnits > 0;
+  if (seg === 'lt')    return strUnits === 0;
+  if (seg === 'risk')  return r.recovery_pct != null && r.recovery_pct < 60;
+  if (seg === 'ramp') {
+    const t = r.trend_l || [];
+    if (t.length < 4 || r.last_landing == null) return false;
+    const prior = t.slice(-4, -1).filter(v => v != null);
+    if (!prior.length) return false;
+    const avg = prior.reduce((s, v) => s + v, 0) / prior.length;
+    return avg > 0 && r.last_landing > avg * 1.2;
+  }
+  if (seg === 'top')   return r.recovery_pct != null && r.recovery_pct >= 95;
+  return true;
+}
+
 function gridApplyFilters() {
   gridFiltered = gridData.filter(r => {
     if (gridActiveOnly && (!r.active_property_count || r.active_property_count < 1)) return false;
+    // Segment filter (chips + KPI tile drill-ins)
+    if (!gvInSegment(r, gridSegment)) return false;
+    // Pinned subset (leaderboard click pins grid to specific names)
+    if (gridPinnedNames && !gridPinnedNames.includes(r.property_name)) return false;
     // Include partner_canonical AND every known variant spelling so a search for
     // any flavor ("Stoltz", "Stolz", "Stolz Properties", etc.) finds every
     // property under that partner — even when one record's DP is a person's
@@ -3129,6 +4187,7 @@ function gridApplyFilters() {
   });
   gridRender();
   gridUpdateStats();
+  gvRenderKpisAndSegments();   // refresh aggregate counts whenever filters change
 }
 
 function gridSort(col) {
@@ -3184,8 +4243,11 @@ function statusHtml(r) {
 function gridCommonHeadCols() {
   return [
     { id: null, label: '', cls: 'col-expand', sortable: false, cell: () => '<span class="expand-chevron">&#9654;</span>' },
-    { id: 'property_name', label: 'Property', sortable: true, cell: r =>
-        `<td class="grid-prop">${gEsc(r.property_name)}${r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : ''}</td>` },
+    { id: 'property_name', label: 'Property', sortable: true, cell: r => {
+        const strPill = r.str_property_eligible ? '<span class="grid-str-pill" title="STR-enabled property (at least one unit accepts nightly stays)">STR</span>' : '';
+        const diBadge = r.deinstall_count ? '<span class="deinstall-flag" title="' + r.deinstall_count + ' unit' + (r.deinstall_count > 1 ? 's' : '') + ' deinstalling">' + r.deinstall_count + ' DI</span>' : '';
+        return `<td class="grid-prop">${gEsc(r.property_name)}${strPill}${diBadge}</td>`;
+      } },
     { id: 'partner_name',  label: 'Partner',  sortable: true, cell: r =>
         `<td class="grid-partner">${gEsc(r.pmc_name || r.partner_name || '')}${r.dp_name && r.dp_name !== r.pmc_name ? '<div class="grid-partner-sub">' + gEsc(r.dp_name) + '</div>' : ''}</td>` },
     { id: 'market_name',   label: 'Market',   sortable: true, cell: r => `<td class="grid-loc">${gEsc(r.market_name)}</td>` },
@@ -3202,30 +4264,328 @@ function gridCommonTailCols() {
   ];
 }
 
-// Now-mode middle columns (today's snapshot — same as original layout)
+// Now-mode middle columns (today's snapshot — redesigned per grid-v2).
+// Dropped from default view: Daily Rev, Daily AP Cost, RevPAH, Avg Base Rent,
+// Occ/Vacant breakdown — less actionable than trend + recovery + projection.
+// Reservations + Occupancy retained as primary operational signals.
 function gridNowMiddleCols() {
   return [
     { id: 'occupancy', label: 'Occupancy', cls: 'num', sortable: true, cell: r => {
         const occ = r.occupancy, occW = occ != null ? Math.round(occ * 100) : 0;
         return `<td class="num"><div class="occ-wrap"><span class="occ-bar"><span class="occ-fill" style="width:${occW}%;background:${gOccColor(occ)}"></span></span><span class="occ-val" style="color:${gOccColor(occ)}">${gPct(occ)}</span></div></td>`;
       } },
-    { id: 'home_occupied_count', label: 'Occ / Vacant', cls: 'num', sortable: true, cell: r => {
-        const units = r.home_count || 0, occupied = r.home_occupied_count || 0, vacant = units - occupied;
-        return `<td class="num"><span style="color:var(--green);font-weight:700">${occupied}</span><span style="color:var(--muted);margin:0 3px">/</span><span style="color:${vacant > 0 ? '#EE533D' : 'var(--muted)'};font-weight:${vacant > 0 ? '700' : '400'}">${vacant}</span></td>`;
-      } },
     { id: 'current_reservation_count', label: 'Reservations', cls: 'num', sortable: true, cell: r => {
         const currRes = r.current_reservation_count || 0, futRes = r.future_reservation_count || 0;
         return `<td class="num"><span class="res-chip res-curr">${currRes} <span class="res-label">now</span></span><span class="res-chip res-fut">${futRes} <span class="res-label">upcoming</span></span></td>`;
       } },
-    { id: 'home_average_rent_cost', label: 'Avg Base Rent', cls: 'num', sortable: true, cell: r =>
-        `<td class="num">${r.home_average_rent_cost != null ? '$' + Math.round(r.home_average_rent_cost).toLocaleString() : '--'}</td>` },
-    { id: 'home_daily_rent_revenue', label: 'Daily Rev', cls: 'num', sortable: true, cell: r =>
-        `<td class="num" style="color:var(--green);font-weight:700">${r.home_daily_rent_revenue != null ? '$' + Math.round(r.home_daily_rent_revenue).toLocaleString() : '--'}</td>` },
-    { id: 'home_daily_rent_cost_autopilot', label: 'Daily AP Cost', cls: 'num', sortable: true, cell: r =>
-        `<td class="num">${r.home_daily_rent_cost_autopilot != null ? '$' + Math.round(r.home_daily_rent_cost_autopilot).toLocaleString() : '--'}</td>` },
-    { id: 'all_in_revpah_net', label: 'RevPAH', cls: 'num', sortable: true, cell: r =>
-        `<td class="num" style="font-weight:700">${r.all_in_revpah_net != null ? '$' + r.all_in_revpah_net.toFixed(2) : '--'}</td>` },
+    // This-month split bar: Landing | Partner | shortfall vs contract base.
+    // Reads last_landing/last_partner from revshare bundle (most recent month).
+    { id: 'last_landing', label: 'This month · split', sortable: true, cell: r => {
+        return `<td>${gvSplitBarHtml(r)}</td>`;
+      } },
+    // % of base rent captured in the MOST RECENT reported month.
+    // Renamed from "Recovery" (which most people assumed meant cumulative).
+    // Single-month metric — different from the POV pane's cumulative figure.
+    { id: 'recovery_pct', label: 'Last mo · % of base', cls: 'num', sortable: true,
+      title: 'Most-recent month: (Landing net + Partner net) ÷ monthly contract base.\n100% = the property earned exactly its full contract base rent in the most recent month.\nThis is a SINGLE-MONTH snapshot — the POV pane below uses a cumulative figure (sum over the reporting window) which can look very different on ramping or seasonal properties.',
+      cell: r => {
+        if (r.recovery_pct == null) return `<td class="num"><span style="color:var(--muted)">—</span></td>`;
+        const cls = r.recovery_pct >= 95 ? 'good' : r.recovery_pct >= 60 ? 'warn' : 'bad';
+        return `<td class="num" title="${gEsc('Most recent reported month earned ' + r.recovery_pct + '% of contract base.')}"><span class="gv-rec ${cls}">${r.recovery_pct}%<span class="sub">last mo</span></span></td>`;
+      } },
+    // Trend sparkline — last 11mo Landing net from revshare bundle.
+    { id: null, label: 'Trend · 12mo', sortable: false,
+      title: 'Monthly Landing net from revshare bundle (oldest → newest)',
+      cell: r => `<td style="min-width:90px">${gvSparklineHtml(r.trend_l)}</td>` },
+    // Projected next 3mo Landing net (with confidence dots) — refuses for < 6mo history.
+    { id: 'projection_next3', label: 'Proj next 3mo', cls: 'num', sortable: true,
+      title: 'Next 3-month run-rate projection (avg of last 3 monthly Landing nets × 3)',
+      cell: r => `<td class="num">${gvProjHtml(r)}</td>` },
   ];
+}
+
+// ─── Helpers for the new columns ──────────────────────────────────────
+function gvFmtK(v) {
+  if (v == null) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return '$' + (v / 1_000_000).toFixed(1) + 'M';
+  if (abs >= 1000) return '$' + (v / 1000).toFixed(1) + 'K';
+  return '$' + Math.round(v);
+}
+function gvFmtKShort(v) {
+  if (v == null) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return '$' + (v / 1_000_000).toFixed(1) + 'M';
+  if (abs >= 1000) return '$' + Math.round(v / 1000) + 'K';
+  return '$' + Math.round(v);
+}
+function gvSplitBarHtml(r) {
+  let l = r.last_landing, p = r.last_partner;
+  let synthetic = false;
+  // No bundle data? Fall back to daily run-rate × 30 so the column still has
+  // signal for the ~100 properties not yet in the revshare bundle.
+  //   monthly_landing_est = daily_rent_cost_autopilot × 30
+  //   monthly_partner_est = (daily_rev × 30) − monthly_landing_est
+  if ((l == null && p == null) || ((l || 0) === 0 && (p || 0) === 0)) {
+    const dailyRev  = r.home_daily_rent_revenue;
+    const dailyCost = r.home_daily_rent_cost_autopilot;
+    if (dailyRev) {
+      const monthlyRunRate = dailyRev * 30;
+      const monthlyLanding = dailyCost > 0 ? dailyCost * 30 : monthlyRunRate * 0.31;
+      l = Math.round(monthlyLanding);
+      p = Math.round(Math.max(0, monthlyRunRate - monthlyLanding));
+      synthetic = true;
+    } else {
+      return '<span style="color:var(--muted);font-size:11px">—</span>';
+    }
+  }
+  // Contract base = units × avg_rent (monthly). Same heuristic used for recovery.
+  const base = (r.home_count || 0) * (r.home_average_rent_cost || 0);
+  const total = (l || 0) + (p || 0);
+  const denom = Math.max(base, total, 1);
+  const lPct = Math.min(100, ((l || 0) / denom) * 100);
+  const pPct = Math.min(100 - lPct, ((p || 0) / denom) * 100);
+  const gap  = Math.max(0, 100 - lPct - pPct);
+  const shortfall = Math.max(0, base - total);
+  const sourceLabel = synthetic
+    ? 'Synthetic · today\'s daily_rent_revenue × 30 (no revshare bundle data yet)'
+    : 'Actual · most recent month from revshare bundle';
+  const titleParts = [
+    sourceLabel,
+    'Landing: ' + gvFmtKShort(l || 0),
+    'Partner: ' + gvFmtKShort(p || 0),
+    base ? 'Contract base: ' + gvFmtKShort(base) : '',
+    shortfall > 0 ? 'Shortfall: ' + gvFmtKShort(shortfall) : '',
+  ].filter(Boolean).join('\n');
+  return `<div style="min-width:160px" title="${gEsc(titleParts)}">
+    <div class="gv-split-bar${synthetic ? ' synthetic' : ''}">
+      <div class="lt" style="width:${lPct}%"></div>
+      <div class="pt" style="width:${pPct}%"></div>
+      <div class="gap" style="width:${gap}%"></div>
+    </div>
+    <div class="gv-split-nums">
+      <span class="l">${gvFmtKShort(l || 0)}</span>
+      <span class="sep">·</span>
+      <span class="p">${gvFmtKShort(p || 0)}</span>
+      ${base ? `<span class="of">of ${gvFmtKShort(base)}</span>` : ''}
+      ${synthetic ? '<span class="syn" title="Synthetic — from daily run-rate, not revshare bundle">~</span>' : ''}
+    </div>
+  </div>`;
+}
+function gvSparklineHtml(trend) {
+  if (!trend || !trend.length) return '<span style="color:var(--muted);font-size:11px">—</span>';
+  const N = trend.length;
+  const width = 100, height = 28;
+  const colW = width / N;
+  const barW = colW * 0.62;
+  const valid = trend.filter(v => v != null && v >= 0);
+  const max = Math.max(...valid, 1);
+  let svg = `<svg class="gv-spark-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">`;
+  for (let i = 0; i < N; i++) {
+    const v = trend[i];
+    const cx = i * colW + colW / 2;
+    const x = cx - barW / 2;
+    if (v == null) {
+      svg += `<rect class="gv-spark-bar ghost" x="${x}" y="${height - 4}" width="${barW}" height="3" rx="0.5"/>`;
+    } else if (v === 0) {
+      svg += `<rect class="gv-spark-bar zero" x="${x}" y="${height - 2}" width="${barW}" height="2" rx="0.5"/>`;
+    } else {
+      const h = Math.max(2, (v / max) * (height - 4));
+      svg += `<rect class="gv-spark-bar real" x="${x}" y="${height - h - 1}" width="${barW}" height="${h}" rx="0.5"/>`;
+    }
+  }
+  svg += '</svg>';
+  return svg;
+}
+// Build a detailed tooltip explaining the projection's confidence + method.
+// Reps shouldn't have to guess what the dots mean or where the number came from.
+function gvProjTooltip(r) {
+  const trend = r.trend_l || [];
+  const validCount = trend.filter(v => v != null).length;
+  const conf = r.projection_conf;
+  const method = r.projection_method;
+  const dots = conf === 'high' ? '●●●' : conf === 'med' ? '●●○' : conf === 'low' ? '●○○' : '—';
+  const confLabel = conf === 'high' ? 'High' : conf === 'med' ? 'Medium' : conf === 'low' ? 'Low' : 'Refused';
+  const dotKey = [
+    '●●● High  (≥ 9 months of trend)',
+    '●●○ Med   (6–8 months of trend)',
+    '●○○ Low   (1–5 months OR run-rate fallback)',
+    '—   Refused (no trend, no daily revenue signal)',
+  ].join('\n');
+  const methodLine = {
+    'trend':            `Method · trend: avg of last 3 monthly Landing nets × 3`,
+    'short-trend':      `Method · short-trend: avg of available months × 3 (only ${validCount} mo)`,
+    'runrate-bookings': `Method · run-rate: daily_rent_revenue × 90 × 31% take, adj. by future/current bookings`,
+  }[method] || 'Method · n/a — insufficient signal';
+  return `${dots}  ${confLabel} confidence\n${methodLine}\nHistory: ${validCount} of 11 months available\n\nLegend:\n${dotKey}`;
+}
+
+function gvProjHtml(r) {
+  if (r.projection_next3 == null) {
+    return `<span class="gv-proj"><span class="refused" title="${gEsc(gvProjTooltip(r))}">—</span></span>`;
+  }
+  const conf = r.projection_conf || 'med';
+  const dots = conf === 'high' ? '●●●' : conf === 'med' ? '●●○' : '●○○';
+  return `<span class="gv-proj" title="${gEsc(gvProjTooltip(r))}">
+    <span class="v">${gvFmtK(r.projection_next3)}</span>
+    <span class="dots ${conf}">${dots}</span>
+  </span>`;
+}
+
+// ─── KPI strip + leaderboard render + segment / KPI wiring ────────────
+function gvComputeAggregates() {
+  const list = gridData;
+  const active = list.filter(r => r.active_property_count >= 1);
+  const totalProps = active.length;
+  const partners = new Set(active.map(r => r.partner_canonical || r.partner_name).filter(Boolean));
+  const totalUnits = active.reduce((s, r) => s + (r.home_count || 0), 0);
+  const strUnits = active.reduce((s, r) => s + (r.str_unit_count || 0), 0);
+  const strProps = active.filter(r => r.str_property_eligible || (r.str_unit_count || 0) > 0).length;
+  const atRisk = active.filter(r => r.recovery_pct != null && r.recovery_pct < 60).length;
+  // 12mo gross + Landing net from trend totals
+  let gross12 = 0, landing12 = 0;
+  active.forEach(r => {
+    (r.trend_l || []).forEach(v => { if (v != null) landing12 += v; });
+    // No gross in current bundle — approximate as landing / 0.31 (Landing's avg take)
+    // until DB adds the actual gross series. Flagged in delta text as "est."
+  });
+  gross12 = landing12 / 0.31;
+  const take = landing12 > 0 && gross12 > 0 ? (landing12 / gross12) * 100 : null;
+  // Next-month projection sum
+  const projectedNext = active.reduce((s, r) => {
+    if (!r.projection_next3) return s;
+    return s + (r.projection_next3 / 3);   // monthly equivalent
+  }, 0);
+  return { totalProps, partners: partners.size, totalUnits, strUnits, strProps, atRisk, gross12, landing12, take, projectedNext };
+}
+
+function gvRenderKpisAndSegments() {
+  const strip = document.getElementById('gv-kpi-strip');
+  if (!strip) return;
+  const a = gvComputeAggregates();
+  const strPct = a.totalUnits > 0 ? Math.round((a.strUnits / a.totalUnits) * 100) : 0;
+  strip.innerHTML = `
+    <div class="gv-kpi-grid">
+      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Properties</span><span class="val">${a.totalProps.toLocaleString()}</span><span class="delta">active</span></div>
+      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Partners</span><span class="val">${a.partners}</span><span class="delta">distinct</span></div>
+      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Units</span><span class="val">${a.totalUnits.toLocaleString()}</span><span class="delta">installed</span></div>
+      <div class="gv-kpi-tile" data-kpi-seg="str"><span class="lbl">STR units</span><span class="val">${a.strUnits.toLocaleString()} <span class="frac">/ ${a.totalUnits.toLocaleString()}</span></span><span class="delta"><b class="up">${strPct}%</b> of total</span></div>
+      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Gross 12mo · est.</span><span class="val">${gvFmtKShort(a.gross12)}</span><span class="delta">Landing÷31%</span></div>
+      <div class="gv-kpi-tile blue" data-kpi-seg="all"><span class="lbl">Landing net 11mo</span><span class="val">${gvFmtKShort(a.landing12)}</span><span class="delta"><b class="up">${a.take ? a.take.toFixed(0) + '% take' : '—'}</b></span></div>
+      <div class="gv-kpi-tile warn" data-kpi-seg="risk"><span class="lbl">At-risk</span><span class="val">${a.atRisk}</span><span class="delta"><b class="warn">rec &lt; 60%</b></span></div>
+      <div class="gv-kpi-tile blue" data-kpi-seg="all"><span class="lbl">Proj next mo</span><span class="val">${gvFmtKShort(a.projectedNext)}</span><span class="delta">sum of props</span></div>
+    </div>`;
+  // Re-wire tile clicks
+  strip.querySelectorAll('.gv-kpi-tile').forEach(tile => {
+    tile.addEventListener('click', () => {
+      const seg = tile.dataset.kpiSeg || 'all';
+      gvSetSegment(seg);
+    });
+  });
+  // Update segment chip counts
+  document.querySelectorAll('.gv-seg-chip').forEach(chip => {
+    const seg = chip.dataset.seg;
+    const count = gridData.filter(r => (gridActiveOnly ? (r.active_property_count >= 1) : true) && gvInSegment(r, seg)).length;
+    const span = chip.querySelector('.count');
+    if (span) span.textContent = count.toLocaleString();
+  });
+  // Render leaderboards
+  gvRenderLeaderboards();
+}
+
+function gvRenderLeaderboards() {
+  const row = document.getElementById('gv-boards-row');
+  if (!row) return;
+  const active = gridData.filter(r => r.active_property_count >= 1);
+  // Top 3 by last_landing
+  const top = active.filter(r => r.last_landing != null).sort((a,b) => b.last_landing - a.last_landing).slice(0, 3);
+  // Ramping: biggest MoM gain by Landing net, but only count properties with
+  // meaningful baselines. A property going from $10 → $350 shows +3400% which
+  // is statistical noise — almost always means the property just started
+  // reporting. Require:
+  //   - Prior month ≥ $2K (real baseline, not onboarding noise)
+  //   - Current month ≥ $2K (still earning)
+  //   - At least 3 months of valid history (rules out brand-new properties)
+  // Then sort by absolute $ gain, not percentage — a $5K → $15K jump is more
+  // meaningful than a $2K → $6K jump even though the percentages are equal.
+  const ramp = active.map(r => {
+    const t = r.trend_l || []; if (t.length < 4) return null;
+    const validCount = t.filter(v => v != null).length;
+    if (validCount < 3) return null;
+    const a = t[t.length - 2], b = t[t.length - 1];
+    if (a == null || b == null || a < 2000 || b < 2000) return null;
+    const pct = ((b - a) / a) * 100;
+    const absGain = b - a;
+    return { r, gain: pct, absGain };
+  }).filter(Boolean).sort((x, y) => y.absGain - x.absGain).slice(0, 3);
+  // At-risk by recovery
+  const atRisk = active.filter(r => r.recovery_pct != null).sort((a,b) => a.recovery_pct - b.recovery_pct).slice(0, 3);
+
+  const card = (title, items, action) => `
+    <div class="gv-board" data-tone="${action}">
+      <div class="gv-board-head">
+        <span class="gv-board-title">${title}</span>
+        <span class="gv-board-action" data-board-action="${action}">View →</span>
+      </div>
+      <div class="gv-board-list">${items}</div>
+    </div>`;
+
+  const topItems = top.map((r, i) =>
+    `<div class="gv-board-item" data-prop="${gEsc(r.property_name)}"><span class="rank">${i+1}</span><span class="name">${gEsc(r.property_name)}</span><span class="metric good">${gvFmtKShort(r.last_landing)}</span></div>`
+  ).join('');
+  const rampItems = ramp.map((x, i) =>
+    `<div class="gv-board-item" data-prop="${gEsc(x.r.property_name)}" title="Landing net jumped from ${gvFmtKShort(x.r.trend_l[x.r.trend_l.length-2])} to ${gvFmtKShort(x.r.trend_l[x.r.trend_l.length-1])} last month (+${Math.round(x.gain)}% MoM)"><span class="rank">${i+1}</span><span class="name">${gEsc(x.r.property_name)}</span><span class="metric str">+${gvFmtKShort(x.absGain)}</span></div>`
+  ).join('');
+  const riskItems = atRisk.map((r, i) =>
+    `<div class="gv-board-item" data-prop="${gEsc(r.property_name)}"><span class="rank">${i+1}</span><span class="name">${gEsc(r.property_name)}</span><span class="metric bad">${r.recovery_pct}% rec</span></div>`
+  ).join('');
+
+  row.innerHTML = card('Top 5 · Landing (last mo)', topItems, 'top')
+                + card('Top 5 · ramping (MoM)', rampItems, 'ramp')
+                + card('At-risk 5 · review queue', riskItems, 'risk');
+
+  // Wire item clicks
+  row.querySelectorAll('.gv-board-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const name = item.dataset.prop;
+      if (!name) return;
+      gridPinnedNames = [name];
+      gridSegment = 'all';
+      document.querySelectorAll('.gv-seg-chip').forEach(c => c.classList.toggle('active', c.dataset.seg === 'all'));
+      gridApplyFilters();
+      // Auto-expand the pinned row
+      gridExpandedProp = name;
+      gridRender();
+      // Scroll grid into view
+      const table = document.getElementById('grid-table');
+      if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  // Wire "View →" actions → drill to corresponding segment
+  row.querySelectorAll('[data-board-action]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.stopPropagation();
+      gvSetSegment(a.dataset.boardAction);
+    });
+  });
+}
+
+function gvSetSegment(seg) {
+  gridSegment = seg;
+  gridPinnedNames = null;
+  document.querySelectorAll('.gv-seg-chip').forEach(c => c.classList.toggle('active', c.dataset.seg === seg));
+  gridApplyFilters();
+  const table = document.getElementById('grid-table');
+  if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Wire segment chips once (idempotent)
+function gvWireSegmentChips() {
+  document.querySelectorAll('.gv-seg-chip').forEach(chip => {
+    if (chip._gvWired) return;
+    chip._gvWired = true;
+    chip.addEventListener('click', () => gvSetSegment(chip.dataset.seg));
+  });
 }
 
 // Period-mode middle columns (lookback rollups for an owner-operator)
@@ -3423,6 +4783,8 @@ function gridToggleExpand(name) {
         const detailTr = document.createElement('tr');
         detailTr.id = 'grid-detail-row';
         detailTr.innerHTML = `<td colspan="14" class="grid-detail-cell"><div class="grid-detail">
+          <div id="grid-detail-header" class="gd-detail-header"></div>
+          <div id="grid-detail-trend"></div>
           <div class="grid-detail-tabs">
             <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','units',this)">Units &amp; Status</button>
             <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','reservations',this)">Reservations</button>
@@ -3471,7 +4833,7 @@ async function gridDetailTab(name, tab, btn) {
   // If cached and fresh, render instantly
   const cached = _detailCache[name];
   if (cached && (Date.now() - cached._ts) < DETAIL_TTL) {
-    if (tab === 'units') renderUnitTable(el, cached.units);
+    if (tab === 'units') renderUnitTable(el, cached.units, cached.meta);
     else renderResTable(el, cached.reservations, cached.units);
     return;
   }
@@ -3480,8 +4842,10 @@ async function gridDetailTab(name, tab, btn) {
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>';
   try {
     const data = await fetchPropertyDetail(name);
-    if (tab === 'units') renderUnitTable(el, data.units);
+    if (tab === 'units') renderUnitTable(el, data.units, data.meta);
     else renderResTable(el, data.reservations, data.units);
+    renderDetailHeader(name, data);
+    renderTrendModule(name, data);
   } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
@@ -3490,20 +4854,31 @@ async function gridLoadUnits(name) {
   if (!el) return;
 
   const c = _detailCache[name];
-  if (c && (Date.now() - c._ts) < DETAIL_TTL) { renderUnitTable(el, c.units); return; }
+  if (c && (Date.now() - c._ts) < DETAIL_TTL) {
+    renderUnitTable(el, c.units, c.meta);
+    renderDetailHeader(name, c);
+    renderTrendModule(name, c);
+    return;
+  }
 
   el.innerHTML = '<div class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>';
   try {
     const data = await fetchPropertyDetail(name);
-    renderUnitTable(el, data.units);
+    renderUnitTable(el, data.units, data.meta);
+    renderDetailHeader(name, data);
+    renderTrendModule(name, data);
   } catch (e) { el.innerHTML = `<div class="gd-empty">Error: ${e.message}</div>`; }
 }
 
-function renderUnitTable(el, units) {
+function renderUnitTable(el, units, meta) {
+    // Clear the loading class so the 32px padding from .gd-loading doesn't
+    // push the table inward and force horizontal overflow of the detail panel.
+    el.classList.remove('gd-loading');
     if (!units.length) { el.innerHTML = '<div class="gd-empty">No unit data</div>'; return; }
 
     // Quick counts for summary bar
     let cntOccupied = 0, cntAvailable = 0, cntDeinstalled = 0, cntNotInstalled = 0;
+    let cntStrEligible = 0;
     for (const u of units) {
       const inst = u.home_is_installed === 'Yes';
       const rs = (u.home_reservation_status || '').toLowerCase();
@@ -3512,6 +4887,7 @@ function renderUnitTable(el, units) {
       else if (inst && !hasRes) cntAvailable++;
       else if (u.deinstall_date) cntDeinstalled++;
       else cntNotInstalled++;
+      if (u.str_eligible) cntStrEligible++;
     }
     const activeUnits = cntOccupied + cntAvailable;
 
@@ -3534,15 +4910,30 @@ function renderUnitTable(el, units) {
       return String(a.unit_number || '').localeCompare(String(b.unit_number || ''), undefined, { numeric: true });
     });
 
-    let h = `<div style="display:flex;gap:14px;margin-bottom:10px;font-family:Outfit,sans-serif;font-size:0.7rem;color:var(--silver)">
+    // Stat strip — extended w/ Today's Occ + (when STR-active) property ADR
+    const occToday = activeUnits > 0 ? (cntOccupied / activeUnits) : null;
+    const adrSlot = (meta && meta.property_adr != null)
+      ? `<span><b style="color:var(--str-2);font-weight:800">$${meta.property_adr}</b> ADR today</span>`
+      : '';
+    const strSlot = cntStrEligible > 0
+      ? `<span><b style="color:var(--str-2);font-weight:800">${cntStrEligible}</b> STR-eligible</span>`
+      : '';
+
+    let h = `<div style="display:flex;gap:14px;margin-bottom:10px;font-family:Outfit,sans-serif;font-size:0.7rem;color:var(--silver);flex-wrap:wrap">
       <span><b style="color:var(--white);font-weight:800">${activeUnits}</b> active</span>
       <span><span class="unit-dot unit-dot-green"></span><b style="color:var(--green)">${cntOccupied}</b> occupied</span>
       <span><span class="unit-dot unit-dot-amber"></span><b style="color:#B95B00">${cntAvailable}</b> available</span>
       ${cntDeinstalled ? '<span><span class="unit-dot unit-dot-red"></span><b style="color:#EE533D">' + cntDeinstalled + '</b> deinstalled</span>' : ''}
       ${cntNotInstalled ? '<span><span class="unit-dot unit-dot-blue"></span><b style="color:var(--blue)">' + cntNotInstalled + '</b> unactivated</span>' : ''}
+      ${occToday != null ? `<span><b style="color:var(--white);font-weight:800">${Math.round(occToday * 100)}%</b> occ today</span>` : ''}
+      ${strSlot}
+      ${adrSlot}
     </div>
     <table class="gd-subtable"><thead><tr>
-      <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th><th>Days Vacant</th><th class="num">Base Rent</th><th class="num">Landing Rent</th><th class="num">Markup</th><th class="num">Daily Rev</th><th>Deinstall</th>
+      <th>Unit</th><th>Status</th><th>Res. Status</th><th>Current Reservation</th><th>Days Vacant</th>
+      <th class="num">Base Rent</th><th class="num">Landing Rent</th>
+      <th class="num" title="Month-to-date revenue collected on this unit. For LT/mid-term: accumulated daily slice. For STR: sum of all stay revenues so far this month.">MTD $</th>
+      <th class="num">Markup</th><th>Deinstall</th>
     </tr></thead><tbody>`;
     sorted.forEach(u => {
       // Status indicator — use installed + reservation status as the real signals
@@ -3556,27 +4947,145 @@ function renderUnitTable(el, units) {
       else if (!installed) { statusIcon = '<span class="unit-dot unit-dot-blue" title="Never activated with Landing"></span>'; statusTip = 'Unactivated'; }
       else { statusIcon = '<span class="unit-dot unit-dot-red"></span>'; statusTip = 'Inactive'; }
 
-      // Reservation status badge
+      // Reservation status badge — Looker's home_reservation_status field is
+      // unreliable for short-vs-long distinction (it labels 2-night and
+      // 7-night stays as "Extended Stay" at One Club Gulf Shores). We compute
+      // the ACTUAL reservation length from start/end dates and use that as
+      // the source of truth:
+      //   - < 30 actual nights AND str_eligible AND nightly → "Short-term"
+      //   - 30+ actual nights → trust home_reservation_status (Extended Stay)
+      //   - No active reservation → trust home_reservation_status (Not Reserved)
+      // This catches 8 Metro 4608 (49-night = Extended Stay) and One Club's
+      // genuine short stays (2-7 nights = Short-term).
       const resStatusRaw = u.home_reservation_status;
+      const isNightly = u.rent_kind === 'nightly';
+      const minStayU = u.minimum_nightly_stay || 0;
+      // Compute actual current reservation length from raw dates
+      const resStart = u.current_reservation_start_date_raw_date;
+      const resEnd   = u.current_reservation_end_raw_date;
+      let actualNights = null;
+      if (resStart && resEnd) {
+        const s = new Date(resStart), e = new Date(resEnd);
+        if (!isNaN(s) && !isNaN(e)) actualNights = Math.round((e - s) / 86400000);
+      }
+      // True short-term: actual nights < 30, str_eligible, and nightly-billed.
+      // We require an active reservation (actualNights != null) so vacant
+      // units don't get labeled Short-term based on potential.
+      const isTrueStr = u.str_eligible && isNightly && actualNights != null && actualNights > 0 && actualNights < 30;
       let resBadge = '<span style="color:var(--muted)">--</span>';
-      if (resStatusRaw) {
+      if (isTrueStr) {
+        resBadge = `<span class="gd-badge-str" title="STR-eligible · billed nightly · ${actualNights}-night actual stay (${minStayU}-night minimum on file)">Short-term</span>`;
+      } else if (resStatusRaw) {
         const rsLower = resStatusRaw.toLowerCase();
-        if (rsLower.includes('extended') || rsLower.includes('occupied')) resBadge = `<span class="gd-badge-curr">${gEsc(resStatusRaw)}</span>`;
-        else if (rsLower.includes('vacant')) resBadge = `<span class="gd-badge-vacant">${gEsc(resStatusRaw)}</span>`;
-        else if (rsLower.includes('standby')) resBadge = `<span class="gd-badge-standby">${gEsc(resStatusRaw)}</span>`;
-        else resBadge = `<span class="gd-badge-other">${gEsc(resStatusRaw)}</span>`;
+        if (rsLower.includes('short'))                                   resBadge = `<span class="gd-badge-str">${gEsc(resStatusRaw)}</span>`;
+        else if (rsLower.includes('extended') || rsLower.includes('long')
+              || rsLower.includes('occupied') || rsLower.includes('indefinite'))
+                                                                          resBadge = `<span class="gd-badge-curr">${gEsc(resStatusRaw)}</span>`;
+        else if (rsLower.includes('vacant') || rsLower.includes('not reserved'))
+                                                                          resBadge = `<span class="gd-badge-vacant">${gEsc(resStatusRaw)}</span>`;
+        else if (rsLower.includes('standby'))                             resBadge = `<span class="gd-badge-standby">${gEsc(resStatusRaw)}</span>`;
+        else                                                              resBadge = `<span class="gd-badge-other">${gEsc(resStatusRaw)}</span>`;
+      }
+      // Auxiliary tags that explain mismatches an operator might wonder about.
+      // (1) Truly-short nightly stay on a non-STR property: actual reservation
+      //     is < 30 nights but property doesn't allow STR. Unusual; flag for
+      //     review. Uses actualNights (not min_stay) because min_stay alone
+      //     isn't reliable — Looker often has 30-night min on units that are
+      //     hosting 2-7 night stays in practice.
+      // (2) STR-eligible-but-on-monthly: "STR paused" — Landing has nightly
+      //     rights but the unit is currently on a long-term lease.
+      // (3) Extended nightly: str_eligible + nightly + 30+ night actual stay.
+      //     Labeled as Extended Stay (above) but a small chip clarifies it's
+      //     nightly-billed (not a monthly lease).
+      if (isNightly && !u.str_eligible && actualNights != null && actualNights > 0 && actualNights < 30) {
+        resBadge += `<div style="margin-top:3px"><span class="gd-opportunity-tag" title="Priced nightly with a ${actualNights}-night actual stay on a property that doesn't allow STR — unusual configuration worth investigating.">short nightly · ${actualNights}nt actual</span></div>`;
+      }
+      const isDormant = u.str_eligible && !isNightly && installed && hasRes;
+      if (isDormant) {
+        resBadge += `<div style="margin-top:4px"><span class="gd-opportunity-tag" title="STR-eligible but currently on a monthly contract — could earn nightly">STR paused</span></div>`;
+      }
+      if (u.str_eligible && isNightly && actualNights != null && actualNights >= 30) {
+        resBadge += `<div style="margin-top:3px"><span class="gd-opportunity-tag" title="STR-eligible and billed nightly, but the current reservation is ${actualNights} nights — long enough that it's classified as an extended stay, not true STR.">nightly · ${actualNights}nt stay</span></div>`;
       }
 
-      // Rent
+      // Rent — branch on nightly vs monthly
       const baseRent = u.rent_cost != null ? '$' + Number(u.rent_cost).toLocaleString() : '--';
-      const hasLandingRent = u.landing_rent != null;
-      // Tag source: reservation (actual), admin (monthly_rent from Admin), or none
-      const estTag = '';
-      const landingRent = hasLandingRent ? '$' + Number(u.landing_rent).toLocaleString() + estTag : '<span style="color:var(--muted);font-size:0.62rem">--</span>';
-      const markupVal = u.computed_markup != null ? u.computed_markup : u.markup;
-      const markupStr = markupVal != null ? (markupVal * 100).toFixed(1) + '%' + estTag : '--';
-      const markupColor = markupVal != null ? (markupVal > 0 ? 'var(--green)' : markupVal < 0 ? '#EE533D' : 'var(--muted)') : 'var(--muted)';
-      const rev = u.home_daily_rent_revenue != null ? '$' + Number(u.home_daily_rent_revenue).toFixed(0) : '--';
+      let landingCell = '<span style="color:var(--muted);font-size:0.62rem">--</span>';
+      if (isNightly && u.nightly_rate != null) {
+        const ntFmt = Number(u.nightly_rate).toFixed(2);
+        const stayFmt = u.nightly_stay_total != null ? '$' + Math.round(u.nightly_stay_total).toLocaleString() : null;
+        const nts = u.nightly_nights || 0;
+        const moEq = u.landing_rent_mo_eq != null ? '≈$' + Math.round(u.landing_rent_mo_eq).toLocaleString() + '/mo eq.' : '';
+        landingCell = `<div class="rent-stack">
+          <span class="rent-primary nt">$${ntFmt}<span style="font-size:0.55rem;color:var(--ink-3);font-weight:400">/nt</span></span>
+          ${stayFmt ? `<span class="rent-secondary">${stayFmt} stay total <span style="color:var(--ink-3);font-size:0.55rem">(${nts}nt)</span></span>` : ''}
+          ${moEq ? `<span class="rent-secondary struck">${moEq}</span>` : ''}
+        </div>`;
+      } else if (u.landing_rent != null) {
+        const baseHtml = `<span class="rent-primary">$${Number(u.landing_rent).toLocaleString()}</span>`;
+        const oppHint = isDormant && meta && meta.property_adr != null
+          ? `<span class="rent-tag-potential">~$${meta.property_adr}/nt avail at ADR</span>`
+          : '';
+        landingCell = `<div class="rent-stack">${baseHtml}<span class="rent-secondary">monthly</span>${oppHint}</div>`;
+      }
+
+      // MTD revenue cell — color-coded vs base rent
+      let mtdCell = '<span style="color:var(--muted)">--</span>';
+      if (u.mtd_revenue != null) {
+        const mtd = u.mtd_revenue;
+        let color = 'var(--ink-3)';
+        if (mtd === 0) color = installed ? 'var(--error)' : 'var(--muted)';
+        else if (u.rent_cost && mtd >= u.rent_cost) color = 'var(--success)';
+        else color = 'var(--warning)';
+        mtdCell = `<span style="color:${color};font-weight:600">$${Math.round(mtd).toLocaleString()}</span>`;
+      }
+
+      // Markup cell — branches:
+      //   STR-active (nightly): MTD margin headline + nights/BE + per-stay
+      //   Dormant STR (eligible, on monthly): realized monthly + STR potential
+      //   LT: single realized markup %
+      const baseN = Number(u.rent_cost);
+      let markupCell = '<span style="color:var(--muted)">--</span>';
+      if (isNightly && baseN > 0 && u.nightly_rate > 0) {
+        const mtd = u.mtd_revenue || 0;
+        const mtdMarginPct = ((mtd / baseN) - 1) * 100;
+        const beN = u.str_break_even_nights || (baseN / u.nightly_rate);
+        const beOccPct = Math.round((beN / 30.42) * 100);
+        const mtdNts = u.mtd_nights || 0;
+        const perStayPct = (((u.nightly_rate * 30.42) / baseN) - 1) * 100;
+        const cls = mtdMarginPct >= 0 ? 'var(--success)' : 'var(--error)';
+        // Two BE display modes:
+        //   - Below break-even (negative margin): show the threshold + occ % needed
+        //   - At/above break-even: replace with "BE met" — the threshold misleads
+        //     once you've passed it, because actual break-even depends on the
+        //     BLENDED rate across all stays this month, not just the current rate
+        const beLine = mtdMarginPct >= 0
+          ? `<b>${mtdNts}nt</b> MTD · <span class="markup-be-met">BE met ✓</span>`
+          : `<b>${mtdNts}nt</b> MTD · BE <b>${beN.toFixed(1)}nt</b> <span class="markup-be-warn">(${beOccPct}% occ)</span>`;
+        const ttip = mtdMarginPct >= 0
+          ? `MTD margin = stay revenues ÷ base rent − 1. Already over break-even ($${Math.round(baseN)} base). Per-stay = current nightly rate vs daily base.`
+          : `MTD margin = stay revenues ÷ base rent − 1. Break-even nights = base ÷ current nightly rate; blended rates across stays can change actual BE. Per-stay = nightly rate vs daily base.`;
+        markupCell = `<span title="${ttip}">
+          <span style="color:${cls};font-weight:700">${mtdMarginPct >= 0 ? '+' : ''}${mtdMarginPct.toFixed(0)}%</span>
+          <span class="markup-mtd-info">${beLine}</span>
+          <span class="markup-per-stay"><b>${perStayPct >= 0 ? '+' : ''}${perStayPct.toFixed(0)}%</b> per stay</span>
+        </span>`;
+      } else if (isDormant && u.computed_markup != null && meta && meta.property_adr != null && baseN > 0) {
+        const realizedPct = u.computed_markup * 100;
+        const propOcc = (occToday != null ? occToday : 0.75); // fall back if today's occ unknown
+        const strPotPct = (((meta.property_adr * propOcc * 30.42) / baseN) - 1) * 100;
+        markupCell = `<span title="Realized monthly markup. STR potential assumes property ADR × current property occupancy.">
+          <span style="color:var(--success);font-weight:700">+${realizedPct.toFixed(1)}%</span>
+          <span class="markup-mtd-info">monthly · realized</span>
+          <span class="markup-per-stay">STR pot @ ${Math.round(propOcc * 100)}%: <b>${strPotPct >= 0 ? '+' : ''}${strPotPct.toFixed(0)}%</b></span>
+        </span>`;
+      } else {
+        const markupVal = u.computed_markup != null ? u.computed_markup : u.markup;
+        if (markupVal != null) {
+          const color = markupVal > 0 ? 'var(--green)' : markupVal < 0 ? '#EE533D' : 'var(--muted)';
+          markupCell = `<span style="color:${color};font-weight:700">${(markupVal * 100).toFixed(1)}%</span>`;
+        }
+      }
 
       // Vacancy
       const daysVacant = u.days_vacant_standard;
@@ -3587,10 +5096,48 @@ function renderUnitTable(el, units) {
         if (u.vacant_since_date) vacantHtml += ` <span style="color:var(--muted);font-size:0.62rem">since ${gEsc(u.vacant_since_date)}</span>`;
       }
 
-      // Current reservation dates
+      // Current reservation — date pill + nights badge. Year is hidden when
+      // the reservation is fully within the current year (compact, scannable);
+      // appended on either end when it crosses years or sits outside (e.g.
+      // "Dec 15 '25 → Feb 28 '26" so the timeline isn't ambiguous).
       let currRes = '<span style="color:var(--muted)">--</span>';
       if (u.current_reservation_start_date_raw_date) {
-        currRes = `${gEsc(u.current_reservation_start_date_raw_date)} &rarr; ${gEsc(u.current_reservation_end_raw_date || '?')}`;
+        const startIso = u.current_reservation_start_date_raw_date;
+        const endIso   = u.current_reservation_end_raw_date;
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const parse = iso => {
+          const m = iso && String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+        };
+        const sP = parse(startIso), eP = parse(endIso);
+        const currentYear = new Date().getFullYear();
+        // Show year on either end if not the current year, OR if start year ≠ end year
+        const showStartYr = sP && (sP.y !== currentYear || (eP && sP.y !== eP.y));
+        const showEndYr   = eP && (eP.y !== currentYear || (sP && sP.y !== eP.y));
+        const fmt = (p, showYr) => {
+          if (!p) return '?';
+          return `${months[p.mo-1]} ${p.d}${showYr ? ` &rsquo;${String(p.y).slice(2)}` : ''}`;
+        };
+        const startStr = fmt(sP, showStartYr);
+        const endStr   = eP ? fmt(eP, showEndYr) : '?';
+        const nts = u.nightly_nights || (() => {
+          if (!startIso || !endIso) return null;
+          const s = new Date(startIso), e = new Date(endIso);
+          if (isNaN(s) || isNaN(e)) return null;
+          return Math.round((e - s) / 86400000);
+        })();
+        let badgeCls = '';
+        if (nts != null) {
+          if (nts < 14) badgeCls = isNightly ? 'str' : '';
+          else if (nts >= 30) badgeCls = 'long';
+        }
+        const nightsBadge = nts != null
+          ? `<span class="res-nights-badge ${badgeCls}">${nts} nt</span>`
+          : '';
+        currRes = `<div class="res-cell">
+          <span class="res-dates-pill">${startStr}<span class="arrow">→</span>${endStr}</span>
+          ${nightsBadge}
+        </div>`;
       }
 
       // Deinstall — only show expected dates on non-installed units (stale expected dates on active units are noise)
@@ -3602,16 +5149,22 @@ function renderUnitTable(el, units) {
         deinstallHtml = `<span style="color:#B95B00">${gEsc(u.expected_deinstall_date)}</span> <span style="color:var(--muted);font-size:0.6rem">(expected)</span>`;
       }
 
+      // Unit cell — number + STR mark (active or dormant variant) when eligible
+      const strMark = u.str_eligible
+        ? `<span class="str-mark${isNightly ? '' : ' dormant'}" title="${isNightly ? 'STR active · current res is nightly' : 'STR-eligible · currently on monthly contract'}">S</span>`
+        : '';
+      const unitCell = `<span class="gd-unit">${gEsc(u.unit_number)}${strMark}</span>`;
+
       h += `<tr>
-        <td class="gd-unit">${gEsc(u.unit_number)}</td>
+        <td>${unitCell}</td>
         <td>${statusIcon} <span style="font-size:0.68rem">${statusTip}</span></td>
         <td>${resBadge}</td>
         <td style="font-size:0.7rem">${currRes}</td>
         <td>${vacantHtml}</td>
         <td class="num" style="text-align:right">${baseRent}</td>
-        <td class="num" style="text-align:right;font-weight:700">${landingRent}</td>
-        <td class="num" style="text-align:right;color:${markupColor};font-weight:700">${markupStr}</td>
-        <td class="num" style="text-align:right;color:var(--green)">${rev}</td>
+        <td class="num" style="text-align:right">${landingCell}</td>
+        <td class="num" style="text-align:right">${mtdCell}</td>
+        <td class="num" style="text-align:right">${markupCell}</td>
         <td style="max-width:160px;white-space:normal;line-height:1.3">${deinstallHtml}</td>
       </tr>`;
     });
@@ -3619,7 +5172,768 @@ function renderUnitTable(el, units) {
     el.innerHTML = h;
 }
 
+// Detail-panel header — STR chip + first-stable-month "Onboarded" chip
+function renderDetailHeader(name, data) {
+  const el = document.getElementById('grid-detail-header');
+  if (!el) return;
+  const meta = data.meta || {};
+  const trend = data.trend || [];
+  const chips = [];
+  // STR chip — driven solely by dimhome.str_status='enabled' per unit,
+  // rolled up to the property. Single source of truth, matches the grid pill.
+  // Nightly billing alone does NOT mean STR (2001 East has long nightly stays
+  // but its str_status is "not wanted by property" — that's LT, not STR).
+  const strUnits = meta.str_unit_count || 0;
+  if (meta.property_str_eligible) {
+    chips.push(`<span class="gd-chip-str">STR enabled${strUnits ? ' · ' + strUnits + ' units' : ''}</span>`);
+  } else {
+    chips.push(`<span class="gd-chip-aux">Long-term only</span>`);
+  }
+  // Onboarded date = first month with any reporting in the trend
+  const onb = trend.find(m => m.l != null || m.p != null || m.g != null);
+  if (onb) {
+    const monthsActive = trend.filter(m => m.l != null || m.p != null || m.g != null).length;
+    chips.push(`<span class="gd-chip-aux">Onboarded · ${onb.period} · ${monthsActive}mo</span>`);
+  }
+  el.innerHTML = chips.join('');
+}
+
+// Build the per-unit base-rent table used inside the methodology disclosure.
+// Reps open this when a partner asks "where did the contract base come from?"
+// Each row is a real unit + its contracted rent + STR / LT class.
+function renderUnitRentTable(units) {
+  if (!units || !units.length) return '';
+  let ltSubtotal = 0, strSubtotal = 0;
+  const rows = units.slice(0, 30).map(u => {
+    const rent = u.rent_cost || 0;
+    const isStr = !!u.str_eligible;
+    if (isStr) strSubtotal += rent; else ltSubtotal += rent;
+    return `<tr class="${isStr ? 'str' : 'lt'}">
+      <td>Unit ${gEsc(u.unit_number || '—')}</td>
+      <td>${isStr ? 'STR' : 'LT'}</td>
+      <td class="num">$${rent.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  const total = ltSubtotal + strSubtotal;
+  const moreNote = units.length > 30 ? `<tr><td colspan="3" style="text-align:center;font-style:italic;color:var(--ink-3);font-size:10px">+ ${units.length - 30} more units · only first 30 shown</td></tr>` : '';
+  return `<table class="gd-meth-table">
+    <thead><tr><th>Unit</th><th>Type</th><th class="num">Base rent</th></tr></thead>
+    <tbody>${rows}${moreNote}</tbody>
+    <tfoot>
+      ${ltSubtotal > 0 ? `<tr><td colspan="2"><b>LT subtotal</b></td><td class="num"><b>$${ltSubtotal.toLocaleString()}</b></td></tr>` : ''}
+      ${strSubtotal > 0 ? `<tr><td colspan="2"><b>STR subtotal</b></td><td class="num"><b>$${strSubtotal.toLocaleString()}</b></td></tr>` : ''}
+      <tr><td colspan="2"><b>Contract base / month</b></td><td class="num"><b>$${total.toLocaleString()}</b></td></tr>
+    </tfoot>
+  </table>`;
+}
+
+// ─── Trend module · v4 mock parity ────────────────────────────────────
+// Layout: chart on top + per-month rollup grid + aside with two POV panes
+//   + collapsible methodology disclosure (the audit trail).
+//   Partner POV : Cumulative recovery vs contract base, with breakdown
+//                  (Actual to partner / Contract base / LT alt) + trajectory.
+//   Landing POV : Net vs LT-only alt @ X% with breakdown + talking points.
+// Properties without bundle data get an honest refusal block, not fake data.
+function renderTrendModule(name, data) {
+  const wrap = document.getElementById('grid-detail-trend');
+  if (!wrap) return;
+  const trend = data.trend || [];
+  const meta  = data.meta || {};
+  const gridRow = (typeof gridData !== 'undefined' ? gridData : []).find(g => g.property_name === name) || {};
+  const units = gridRow.home_count || 0;
+  const strUnits = gridRow.str_unit_count || meta.str_unit_count || 0;
+  const ltUnits = Math.max(0, units - strUnits);
+  const isStr = !!meta.property_str_eligible || strUnits > 0;
+  const monthlyBase = (gridRow.home_average_rent_cost || 0) * units;
+  const fmtK = v => v == null ? '—' : (Math.abs(v) >= 1000 ? '$' + (v / 1000).toFixed(1) + 'K' : '$' + Math.round(v));
+  const fmtKShort = v => v == null ? '—' : (Math.abs(v) >= 1000 ? '$' + Math.round(v / 1000) + 'K' : '$' + Math.round(v));
+
+  // No bundle data → honest refusal state. We don't fabricate POV numbers
+  // because the LT counterfactual math depends on a real cumulative comparison.
+  if (!trend.length || !trend.some(m => m.l != null || m.p != null)) {
+    wrap.innerHTML = `<div class="gd-trend-wrap"><div class="gd-trend-chart-wrap">
+      <div class="gd-trend-eyebrow">
+        <span class="gd-trend-title">Revenue trajectory</span>
+      </div>
+      <div class="gd-proj-refuse">
+        <b>P&amp;L unavailable.</b> This property hasn't reported into the revshare bundle yet
+        (bundle covers Jun 2025 → Apr 2026). Once a month of revshare data exists,
+        Partner POV recovery, Landing POV vs-LT comparison, and the per-month rollup
+        will populate automatically.
+        ${units > 0 ? `<div style="margin-top:8px;font-size:11px;color:var(--ink-3)">Snapshot: ${units} installed units${strUnits ? ' (' + strUnits + ' STR-eligible)' : ''}${monthlyBase > 0 ? ' · contract base $' + Math.round(monthlyBase).toLocaleString() + '/mo' : ''}</div>` : ''}
+      </div>
+    </div></div>`;
+    return;
+  }
+
+  // Aggregates
+  let totalL = 0, totalP = 0, monthsWithData = 0;
+  let latestL = null, latestP = null, latestMonth = null;
+  let prevL = null, prevP = null;
+  for (const m of trend) {
+    if (m.l == null && m.p == null) continue;
+    monthsWithData++;
+    totalL += m.l || 0;
+    totalP += m.p || 0;
+    prevL = latestL; prevP = latestP;
+    latestL = m.l; latestP = m.p; latestMonth = m.period;
+  }
+  const totalToParties = totalL + totalP;
+  // Contract base — use ACTUAL sum of per-unit contracted rents when units
+  // data is available (more honest than count × average since each unit has
+  // its own rent_cost). Fall back to count × avg only if units array missing.
+  const unitsArr = data.units || [];
+  const monthlyBaseActual = unitsArr.reduce((s, u) => s + (u.rent_cost || 0), 0);
+  const useActualBase = unitsArr.length > 0 && monthlyBaseActual > 0;
+  const effectiveMonthlyBase = useActualBase ? monthlyBaseActual : monthlyBase;
+  const contractBase = effectiveMonthlyBase * monthsWithData;
+  // Contracted rev share — derived from signoff rent-roll mgmt_fee per month
+  // (|mgmt_fee| ÷ gross). This IS the partnership's contracted Landing take
+  // rate. Other fees (FFE / install / wifi) are setup-cost reimbursements
+  // and aren't part of the rev share.
+  const contractedMgmtPct = gridRow.contracted_mgmt_pct;
+  const contractedMgmtMonths = gridRow.contracted_mgmt_months;
+  const contractedMgmtMin = gridRow.contracted_mgmt_min;
+  const contractedMgmtMax = gridRow.contracted_mgmt_max;
+  const hasContractedRs = contractedMgmtPct != null;
+  const contractedMgmtStable = hasContractedRs && (contractedMgmtMax - contractedMgmtMin) < 0.5;
+  // Partner's contracted share is the complement of Landing's mgmt fee — if
+  // Landing's contract takes 25% of gross via mgmt fee, the partner's
+  // contract entitles them to the remaining 75%.
+  const contractedPartnerPct = hasContractedRs ? Math.round((100 - contractedMgmtPct) * 10) / 10 : null;
+  const partnerRecoveryPct = contractBase > 0 ? Math.round((totalP / contractBase) * 100) : null;
+  const allInRecoveryPct = contractBase > 0 ? Math.round((totalToParties / contractBase) * 100) : null;
+  const partnerShortfall = contractBase > 0 ? contractBase - totalP : null;
+  const partnerVerdictCls = partnerShortfall == null ? '' : (partnerShortfall > contractBase * 0.05 ? 'shortfall' : partnerShortfall < -contractBase * 0.05 ? 'surplus' : 'even');
+  const partnerVerdictSign = partnerShortfall == null ? '' : (partnerShortfall >= 0 ? '−' : '+');
+  // Take rates — Landing's share of total cash that flowed to either party.
+  // For LT-only properties Landing typically takes 20-35% (markup on contract
+  // base). For STR-dominant properties Landing operates bookings and keeps a
+  // bigger share (often 50%+), while partner receives an effective base-rent
+  // equivalent. Surfacing both numbers prevents the "wait, why is Landing
+  // more than Partner?" confusion when the property is STR-heavy.
+  const landingTakePct = totalToParties > 0 ? Math.round((totalL / totalToParties) * 100) : null;
+  const partnerTakePct = landingTakePct != null ? 100 - landingTakePct : null;
+  const takeInverted = landingTakePct != null && landingTakePct > 50;   // Landing keeps more (STR-typical)
+
+  // Vacant-fallback counterfactual: these units are hard-to-lease — without
+  // Landing they'd typically sit vacant most of the time. 15% occupancy is
+  // a realistic baseline for that "would otherwise be empty" scenario, much
+  // more honest than comparing to a stabilized-LT 85%. Toggle 10/15/25 in
+  // the eyebrow for more or less generous assumptions.
+  const ltAlt85 = contractBase * 0.15;   // var name kept for selector compat
+  const landingNetVsLt85 = totalToParties - ltAlt85;
+  const netSign = landingNetVsLt85 >= 0 ? '+' : '−';
+  const netCls = landingNetVsLt85 >= 0 ? 'surplus' : 'shortfall';
+
+  // Trajectory (last vs prior month)
+  const lDelta = (latestL != null && prevL != null && prevL > 0) ? ((latestL / prevL) - 1) * 100 : null;
+  let trajCls = 'flat', trajGlyph = '→', trajText = 'Steady · MoM';
+  if (lDelta != null) {
+    if (lDelta > 5)        { trajCls = 'surplus';     trajGlyph = '↗'; trajText = 'Growing · ' + lDelta.toFixed(1) + '% MoM'; }
+    else if (lDelta < -5)  { trajCls = 'widening';    trajGlyph = '▾'; trajText = 'Softening · ' + lDelta.toFixed(1) + '% MoM'; }
+  }
+
+  // Source-mix from unit ratio (we don't have per-month $ split, only units).
+  const ltPct  = units > 0 ? Math.round((ltUnits  / units) * 100) : 0;
+  const strPct = units > 0 ? 100 - ltPct : 0;
+
+  // Narrative — generated from the actual numbers
+  const dirWord = lDelta == null ? 'flat MoM' : (lDelta > 0 ? 'up ' + lDelta.toFixed(1) + '%' : 'down ' + Math.abs(lDelta).toFixed(1) + '%');
+  const partnerStanding = partnerRecoveryPct == null ? 'unknown' : (partnerRecoveryPct >= 95 ? 'on plan' : partnerRecoveryPct >= 60 ? 'below plan' : 'well below plan');
+  const narrative = `Over ${monthsWithData} months, partner received <b>${fmtK(totalP)}</b> of <b>${fmtK(contractBase)}</b> contract base (${partnerRecoveryPct}% — ${partnerStanding}). Last reported month is ${dirWord} vs prior. Landing kept <b>${fmtK(totalL)}</b> over the same window.`;
+
+  const accentLabel = isStr ? 'STR — variable revenue add' : 'LT — standard split';
+
+  // Helper: synthesize N future months from avg-of-last-3 actual values.
+  // Months are marked .isProjection so chart + rollup can style them lighter
+  // and so they're excluded from the cumulative POV math (we don't want
+  // hypothetical Aug 2026 numbers inflating "actual" Partner net).
+  function buildProjectionMonths(trend, horizon) {
+    if (!horizon) return [];
+    const lastL = trend.slice().reverse().filter(t => t.l != null).slice(0, 3);
+    const lastP = trend.slice().reverse().filter(t => t.p != null).slice(0, 3);
+    const lastO = trend.slice().reverse().filter(t => t.o != null).slice(0, 3);
+    if (!lastL.length) return [];
+    const avgL = lastL.reduce((s, t) => s + t.l, 0) / lastL.length;
+    const avgP = lastP.length ? lastP.reduce((s, t) => s + t.p, 0) / lastP.length : 0;
+    const avgO = lastO.length ? lastO.reduce((s, t) => s + t.o, 0) / lastO.length : null;
+    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const lastPeriod = trend[trend.length - 1].period;   // e.g. "Apr 2026"
+    const pm = lastPeriod.match(/^(\w{3}) (\d{4})$/);
+    if (!pm) return [];
+    let mIdx = monthLabels.indexOf(pm[1]);
+    let year = parseInt(pm[2], 10);
+    const out = [];
+    for (let i = 0; i < horizon; i++) {
+      mIdx++;
+      if (mIdx >= 12) { mIdx = 0; year++; }
+      out.push({
+        period: monthLabels[mIdx] + ' ' + year,
+        l: Math.round(avgL),
+        p: Math.round(avgP),
+        g: Math.round(avgL + avgP),
+        o: avgO,                  // projected occupancy = avg of last 3 actual months
+        isProjection: true,
+      });
+    }
+    return out;
+  }
+
+  // Build the per-month rollup grid: label col + monthHeader cols, then rows:
+  //   Landing $ / Partner $ / Total $ / Recovery % / Landing take %
+  // Projection months get a ".proj" class so they fade visually.
+  function buildRollupHTML(months) {
+    const cells = [];
+    cells.push('<div class="gd-rollup-cell label">&nbsp;</div>');
+    for (const m of months) cells.push(`<div class="gd-rollup-cell month-header${m.isProjection ? ' proj' : ''}">${gEsc(m.period)}${m.isProjection ? ' <span class="proj-tag">proj</span>' : ''}</div>`);
+    // Landing row
+    cells.push('<div class="gd-rollup-cell label"><span class="swatch lt"></span>Landing</div>');
+    for (const m of months) {
+      if (m.l == null) cells.push('<div class="gd-rollup-cell ghost">—</div>');
+      else cells.push(`<div class="gd-rollup-cell lt${m.isProjection ? ' proj' : ''}">${fmtKShort(m.l)}</div>`);
+    }
+    // Partner row
+    cells.push('<div class="gd-rollup-cell label"><span class="swatch partner"></span>Partner</div>');
+    for (const m of months) {
+      if (m.p == null) cells.push('<div class="gd-rollup-cell ghost">—</div>');
+      else cells.push(`<div class="gd-rollup-cell partner${m.isProjection ? ' proj' : ''}">${fmtKShort(m.p)}</div>`);
+    }
+    // Total row
+    cells.push('<div class="gd-rollup-cell label">Total</div>');
+    for (const m of months) {
+      if (m.l == null && m.p == null) { cells.push('<div class="gd-rollup-cell ghost">—</div>'); continue; }
+      const tot = (m.l || 0) + (m.p || 0);
+      cells.push(`<div class="gd-rollup-cell total${m.isProjection ? ' proj' : ''}">${fmtKShort(tot)}</div>`);
+    }
+    // Per-month "% of base" row (color-coded). Renamed from "Recovery" for clarity.
+    cells.push('<div class="gd-rollup-cell label" title="Each month\'s total (Landing + Partner) ÷ that month\'s contract base. 100% = full base earned.">% of base</div>');
+    for (const m of months) {
+      if ((m.l == null && m.p == null) || !monthlyBase) { cells.push('<div class="gd-rollup-cell ghost">—</div>'); continue; }
+      const tot = (m.l || 0) + (m.p || 0);
+      const pct = Math.round((tot / monthlyBase) * 100);
+      const cc = pct >= 95 ? 'good' : pct >= 60 ? 'warn' : 'bad';
+      cells.push(`<div class="gd-rollup-cell actual ${cc}${m.isProjection ? ' proj' : ''}">${pct}%</div>`);
+    }
+    // Landing take row
+    cells.push('<div class="gd-rollup-cell label" title="Landing\'s share of monthly net (Landing ÷ Total).">L take</div>');
+    for (const m of months) {
+      const tot = (m.l || 0) + (m.p || 0);
+      if ((m.l == null && m.p == null) || tot === 0) { cells.push('<div class="gd-rollup-cell ghost">—</div>'); continue; }
+      const pct = Math.round(((m.l || 0) / tot) * 100);
+      cells.push(`<div class="gd-rollup-cell lt${m.isProjection ? ' proj' : ''}">${pct}%</div>`);
+    }
+    return cells.join('');
+  }
+  // Initial rollup (no projection)
+  const rollupInitial = buildRollupHTML(trend);
+
+  wrap.innerHTML = `<div class="gd-trend-wrap ${isStr ? 'str' : ''}">
+    <div class="gd-trend-chart-wrap">
+      <div class="gd-trend-eyebrow">
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+          <span class="gd-trend-title">Revenue trajectory</span>
+          <span class="gd-trend-subtitle">Landing vs partner · monthly net · ${monthsWithData} of ${trend.length} mo reporting</span>
+        </div>
+        <div class="gd-pov-row">
+          <div class="gd-pov-toggle" role="tablist" aria-label="Point of view">
+            <button type="button" data-pov="partner" class="active">Partner POV</button>
+            <button type="button" data-pov="landing">Landing POV</button>
+          </div>
+          <div class="gd-lt-wrap" title="What these units would have earned WITHOUT Landing. Higher % = more generous assumption about how well these units would have leased on their own = SMALLER Landing delta. Lower % = pessimistic (almost entirely empty) = BIGGER Landing delta.">
+            <span class="gd-lt-label">If self-leased @</span>
+            <div class="gd-lt-toggle" role="tablist">
+              <button type="button" data-lt="0.10" title="Pessimistic: these units would have sat almost entirely empty without Landing (10% occ). Yields the LARGEST Landing delta.">10%</button>
+              <button type="button" data-lt="0.15" class="active" title="Realistic: hard-to-lease units typically run ~15% occ without active management.">15%</button>
+              <button type="button" data-lt="0.25" title="Generous: assumes the units could have leased themselves to 25% occ on their own. Yields the SMALLEST Landing delta (toughest test).">25%</button>
+            </div>
+          </div>
+          <div class="gd-lt-wrap" title="Extend chart + rollup with projected months. Each = avg of last 3 actual Landing/Partner nets. Refused when fewer than 3 actual months exist.">
+            <span class="gd-lt-label">Project forward</span>
+            <div class="gd-lt-toggle" role="tablist">
+              <button type="button" data-proj="0" class="active">Off</button>
+              <button type="button" data-proj="3">+3mo</button>
+              <button type="button" data-proj="6">+6mo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gd-trend-legend">
+        <span><span class="sw sw-landing"></span>Landing net $</span>
+        <span><span class="sw sw-partner"></span>Partner net $</span>
+        <span><span class="sw-occ"></span>Occupancy %</span>
+        <span><span class="sw sw-ghost"></span>Pre-onboarding</span>
+      </div>
+      <svg class="gd-chart-canvas" viewBox="0 0 660 200" preserveAspectRatio="none" aria-label="Revenue trajectory">
+        <g class="grid"></g>
+        <g class="bars"></g>
+        <polyline class="occ-line" points=""></polyline>
+        <polyline class="occ-line-proj" points=""></polyline>
+        <g class="occ-dots"></g>
+        <g class="xlabels"></g>
+      </svg>
+      <div class="gd-chart-tooltip"></div>
+
+      <!-- Per-month rollup grid · v4 mock parity. Re-rendered on Project Forward toggle. -->
+      <div class="gd-rollup-wrap">
+        <div class="gd-rollup-grid" id="gd-rollup-grid" style="grid-template-columns: 90px repeat(${trend.length}, minmax(0, 1fr))">
+          ${rollupInitial}
+        </div>
+      </div>
+    </div>
+
+    <aside class="gd-trend-side">
+      <!-- PARTNER POV — answers "Did the partner get paid what they were owed?" -->
+      <div class="gd-pov-pane active" data-pov="partner">
+        <div class="gd-verdict">
+          <span class="gd-verdict-label">Partner shortfall · ${monthsWithData}mo</span>
+          <span class="gd-verdict-number ${partnerVerdictCls}">${partnerVerdictSign}${fmtK(Math.abs(partnerShortfall || 0))}</span>
+          <span class="gd-verdict-pct">Partner received <b class="${partnerRecoveryPct >= 95 ? 'good' : partnerRecoveryPct >= 60 ? '' : 'bad'}">${partnerRecoveryPct}%</b> of the base rent these units would generate at full occupancy — the default benchmark a partner uses to grade the partnership.</span>
+        </div>
+        ${strUnits > 0 && ltUnits > 0 ? `
+        <div class="gd-source-mix" title="Unit ratio split — ${ltUnits} LT + ${strUnits} STR. We currently show unit ratio (not per-month $) because the revshare bundle doesn't break revenue by reservation type. The DB migration will unlock per-month LT-vs-STR $ attribution.">
+          <span class="lbl">Unit mix</span>
+          <span class="lbl-detail">${ltPct}% LT · ${strPct}% STR</span>
+          <div class="bar">
+            <div class="seg lt"  style="flex-basis: ${ltPct}%" title="${ltUnits} LT unit${ltUnits === 1 ? '' : 's'} (${ltPct}%)">${ltPct >= 18 ? ltPct + '% LT' : ''}</div>
+            <div class="seg str" style="flex-basis: ${strPct}%" title="${strUnits} STR-eligible unit${strUnits === 1 ? '' : 's'} (${strPct}%)">${strPct >= 18 ? strPct + '% STR' : ''}</div>
+          </div>
+        </div>` : ''}
+        <div class="gd-bk">
+          <div class="gd-bk-row" title="Partner's actual cash this period (net_allocation from the rent roll).">
+            <span class="l">Partner kept
+              <span class="gd-take" title="${partnerTakePct}% of total cash went to the partner — realized this period">${partnerTakePct != null ? partnerTakePct + '%' : ''}</span>${hasContractedRs ? `<span class="gd-take-contracted" title="Per the partnership agreement, the partner is contractually entitled to ${contractedPartnerPct}% of gross (= 100% − Landing's ${contractedMgmtPct}% mgmt fee). Other fees (FFE/install/wifi) are reimbursements that come out of Landing's side, not the partner's share.">contract ${contractedPartnerPct}%</span>` : ''}
+            </span>
+            <span class="v">${fmtK(totalP)}</span>
+          </div>
+          <div class="gd-bk-row" title="Landing's actual cash this period (mgmt fee + FFE/install/wifi reimbursements).">
+            <span class="l">Landing kept
+              <span class="gd-take" title="${landingTakePct}% of total cash went to Landing — realized this period (includes mgmt fee + reimbursements)">${landingTakePct != null ? landingTakePct + '%' : ''}</span>${hasContractedRs ? `<span class="gd-take-contracted" title="Contracted mgmt fee rate: ${contractedMgmtPct}% of gross${contractedMgmtStable ? '' : ' (range ' + contractedMgmtMin + '%–' + contractedMgmtMax + '%)'}. Realized chip is higher because Landing also collects FFE/install/wifi reimbursements on top.">contract ${contractedMgmtPct}%</span>` : ''}
+            </span>
+            <span class="v blue">${fmtK(totalL)}</span>
+          </div>
+          <div class="gd-bk-row" title="Gross revenue at the property over ${monthsWithData} reporting months = Landing kept + Partner kept.">
+            <span class="l">Total earned</span>
+            <span class="v">${fmtK(totalToParties)}</span>
+          </div>
+          <div class="gd-bk-row sub"
+               title="${useActualBase ? 'Sum of each unit\'s contracted rent_cost × ' + monthsWithData + ' months. Each unit has its own contracted base — this uses the actual per-unit values, not an average.' : 'Average rent × unit count × ' + monthsWithData + ' months. Per-unit detail unavailable; methodology section has the breakdown if/when units load.'}"
+               style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px">
+            <span class="l">Contracted base for partner
+              <span class="gd-bk-note">${units}u${useActualBase ? ' · sum of actual rents' : ' × ' + (units > 0 ? fmtK(monthlyBase / units) : '—') + '/mo avg'}</span>
+            </span>
+            <span class="v muted">${fmtK(contractBase)}</span>
+          </div>
+          <div class="gd-bk-row sub"><span class="l">Shortfall vs contract</span><span class="v ${(partnerShortfall || 0) > 0 ? 'bad' : 'good'}">${partnerShortfall == null ? '—' : (partnerShortfall > 0 ? '−' : '+') + fmtK(Math.abs(partnerShortfall))}</span></div>
+        </div>
+        <div class="gd-trajectory ${trajCls}">
+          <span class="glyph">${trajGlyph}</span><span>${gEsc(trajText)}</span>
+        </div>
+        <div class="gd-narrative">${narrative}</div>
+      </div>
+
+      <!-- LANDING POV — answers "How much did Landing earn vs these units sitting vacant?" -->
+      <div class="gd-pov-pane" data-pov="landing">
+        <div class="gd-verdict">
+          <span class="gd-verdict-label">Vs sitting vacant · ${monthsWithData}mo</span>
+          <span class="gd-verdict-number ${netCls}" data-net-vs-lt>${netSign}${fmtK(Math.abs(landingNetVsLt85))}</span>
+          <span class="gd-verdict-pct">${fmtK(totalToParties)} total earned − <span data-lt-alt>${fmtK(ltAlt85)}</span> vacant fallback @ <span data-lt-pct>15</span>% =
+            <b class="${landingNetVsLt85 >= 0 ? 'good' : 'bad'}" data-net-vs-lt-bold>${netSign}${fmtK(Math.abs(landingNetVsLt85))}</b>
+            <span data-net-vs-lt-caption>${landingNetVsLt85 >= 0 ? 'of net new revenue Landing created' : '— STR/mixed underperformed the vacant fallback (rare; investigate occupancy, pricing, or mix)'}</span>.</span>
+        </div>
+        ${strUnits > 0 && ltUnits > 0 ? `
+        <div class="gd-source-mix" title="Unit ratio split — ${ltUnits} LT + ${strUnits} STR.">
+          <span class="lbl">Unit mix</span>
+          <span class="lbl-detail">${ltPct}% LT · ${strPct}% STR</span>
+          <div class="bar">
+            <div class="seg lt"  style="flex-basis: ${ltPct}%" title="${ltUnits} LT unit${ltUnits === 1 ? '' : 's'} (${ltPct}%)">${ltPct >= 18 ? ltPct + '% LT' : ''}</div>
+            <div class="seg str" style="flex-basis: ${strPct}%" title="${strUnits} STR-eligible unit${strUnits === 1 ? '' : 's'} (${strPct}%)">${strPct >= 18 ? strPct + '% STR' : ''}</div>
+          </div>
+        </div>` : ''}
+        <div class="gd-bk">
+          <div class="gd-bk-row" title="Landing's actual cash from this property over the period — collected revenue minus what was paid to the partner. NOT a fixed contractual rev share rate; it's realized cash, driven by markup on contracted base rent + STR upside.">
+            <span class="l">Landing kept
+              <span class="gd-take" title="${landingTakePct}% of total cash went to Landing — realized this period (includes mgmt fee + FFE/install/wifi reimbursements)">${landingTakePct != null ? landingTakePct + '%' : ''}</span>${hasContractedRs ? `<span class="gd-take-contracted" title="Contracted mgmt fee: ${contractedMgmtPct}% of gross${contractedMgmtStable ? '' : ' (range ' + contractedMgmtMin + '%–' + contractedMgmtMax + '%)'} across ${contractedMgmtMonths} reporting months. Realized chip is higher because Landing also collects FFE/install/wifi reimbursements on top.">contract ${contractedMgmtPct}%</span>` : ''}
+            </span>
+            <span class="v blue">${fmtK(totalL)}</span>
+          </div>
+          <div class="gd-bk-row" title="Partner's actual cash — net_allocation from the rent roll. For LT this is base rent paid; for STR this is the partner's share of nightly revenue per their rev-share agreement.">
+            <span class="l">Partner kept
+              <span class="gd-take" title="${partnerTakePct}% of total cash went to the partner — realized this period">${partnerTakePct != null ? partnerTakePct + '%' : ''}</span>${hasContractedRs ? `<span class="gd-take-contracted" title="Per the partnership agreement, the partner is contractually entitled to ${contractedPartnerPct}% of gross (= 100% − Landing's ${contractedMgmtPct}% mgmt fee).">contract ${contractedPartnerPct}%</span>` : ''}
+            </span>
+            <span class="v">${fmtK(totalP)}</span>
+          </div>
+          <div class="gd-bk-row"><span class="l">Total earned</span><span class="v">${fmtK(totalToParties)}</span></div>
+          <div class="gd-bk-row sub" title="${useActualBase ? 'Sum of each unit\'s contracted rent × ' + monthsWithData + ' months' : 'Avg rent × unit count × ' + monthsWithData + ' months'}">
+            <span class="l">Contract base
+              <span class="gd-bk-note">${units}u${useActualBase ? ' · actual rents' : ' avg'} × ${monthsWithData}mo</span>
+            </span>
+            <span class="v muted">${fmtK(contractBase)}</span>
+          </div>
+          <div class="gd-bk-row sub" title="What these units would have earned without Landing's program — at typical hard-to-lease vacancy levels">
+            <span class="l">If units sat vacant @ <span data-lt-pct>15</span>% occ</span>
+            <span class="v" data-lt-alt-row>${fmtK(ltAlt85)}</span>
+          </div>
+          <div class="gd-bk-row" style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px"
+               title="Cumulative ${monthsWithData}mo: Total earned ÷ (Contract base × ${monthsWithData}). The row in the grid above shows the SINGLE most-recent month — can be very different on ramping properties.">
+            <span class="l">${monthsWithData}mo avg · % of base</span>
+            <span class="v ${allInRecoveryPct >= 95 ? 'good' : allInRecoveryPct >= 60 ? 'warn' : 'bad'}">${allInRecoveryPct}%</span>
+          </div>
+          ${gridRow && gridRow.recovery_pct != null && allInRecoveryPct != null && Math.abs(gridRow.recovery_pct - allInRecoveryPct) >= 25 ? `
+          <div class="gd-recovery-note">
+            <b>${gridRow.recovery_pct}%</b> last month vs <b>${allInRecoveryPct}%</b> across ${monthsWithData} months — ${gridRow.recovery_pct > allInRecoveryPct
+              ? 'the property ramped up recently, so the latest month looks much stronger than the earlier window where revenue was still building.'
+              : 'the property has softened, so the latest month is now weaker than the earlier window that had been propping the average up.'}
+          </div>` : ''}
+        </div>
+        ${takeInverted ? `
+        <div class="gd-take-note" title="On STR-dominant properties Landing operates nightly bookings (pricing, listings, ops) and keeps the larger share; partner receives a base-rent equivalent. On LT-only properties the split flips — partner keeps base rent and Landing takes a markup.">
+          <b>Why Landing &gt; Partner?</b> ${strUnits > 0 ? 'This property has ' + strUnits + ' STR-eligible unit' + (strUnits === 1 ? '' : 's') + '. For STR-heavy properties, Landing operates the bookings and keeps a larger share; partner receives a base-rent equivalent.' : 'Landing took a larger share this period — typically driven by short-term or nightly billing where Landing operates revenue directly.'}
+        </div>` : ''}
+        <div class="gd-trajectory ${trajCls}">
+          <span class="glyph">${trajGlyph}</span><span>${gEsc(accentLabel)}</span>
+        </div>
+        <div class="gd-narrative">
+          ${landingNetVsLt85 >= 0
+            ? `Current model delivered <b>${fmtK(landingNetVsLt85)}</b> more than pure LT @ 85% over ${monthsWithData}mo. STR/Mixed program is paying off vs the LT baseline.`
+            : `LT-only @ 85% would have delivered <b>${fmtK(Math.abs(landingNetVsLt85))}</b> more than the current model over ${monthsWithData}mo. Worth investigating: occupancy gap, STR pricing, or mix.`}
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── Methodology disclosure · v4 mock parity ────────────────────
+         Audit trail every number traces to. Collapsed by default so the
+         panel stays clean; reps click to expand when a partner asks where
+         a figure came from. -->
+    <details class="gd-methodology">
+      <summary>How these numbers are computed · click to expand</summary>
+      <div class="gd-meth-body">
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">1. Contract base · ${fmtK(monthlyBase)}/mo</div>
+          <div class="gd-meth-p">Sum of <code>dimhome.rent_cost</code> across all installed units this month — the total rent Landing owes the partner at full 100% occupancy. <b>Not</b> a flat per-unit assumption; each unit has its own contracted base rent. Sources: <code>grid-data</code>'s <code>home_count</code> × <code>home_average_rent_cost</code> (current average).</div>
+          ${renderUnitRentTable(data.units || [])}
+        </div>
+
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">2. Actual partner net · ${fmtK(totalP)}</div>
+          <div class="gd-meth-p">From the revshare bundle's monthly <code>net_allocation</code> (partner's cash after Landing's fee deductions). Summed across ${monthsWithData} reporting months. Source: <code>data/revshare.json</code>, built from <code>signoff_pulls.json</code> + <code>revshare_FULL_pull.json</code>.</div>
+        </div>
+
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">3. Landing kept · ${fmtK(totalL)} (${landingTakePct}% realized)${hasContractedRs ? ` · contracted ${contractedMgmtPct}% mgmt` : ''}</div>
+          <div class="gd-meth-p">From the bundle's <code>landing_margin</code> per month, summed across ${monthsWithData} months. Combined with #2, total to parties = ${fmtK(totalToParties)}.</div>
+          <div class="gd-meth-p" style="margin-top:8px">
+            <b>Contracted rev share — from the signoff rent rolls:</b>
+            ${hasContractedRs
+              ? `Management fee is <b>${contractedMgmtPct}%</b> of gross revenue per the partnership agreement (derived from <code>|mgmt_fee| ÷ total_revenue</code> in the monthly signoff sheets — median across ${contractedMgmtMonths} reporting months${contractedMgmtStable ? '' : `; range ${contractedMgmtMin}%–${contractedMgmtMax}%`}). This IS the contractual Landing take rate. Realized share is <b>higher</b> (<code>${landingTakePct}%</code>) because Landing also collects FFE / install / wifi fees on top — those are setup-cost reimbursements, not rev share. Math per month: <code>landing_margin = |mgmt_fee| + |ffe_fee| + |install_fee| + |wifi_fee| ± partner_adjustment</code>.`
+              : `<i>Signoff rent rolls don't have mgmt fee data for this property yet (no months with both <code>mgmt_fee</code> and <code>total_revenue</code> populated).</i> Once the property reports in, the contracted rate will appear here.`}
+          </div>
+        </div>
+
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">4. Vacant fallback @ 15% · ${fmtK(ltAlt85)}</div>
+          <div class="gd-meth-p"><b>Contract base × vacant-fallback occupancy</b> = ${fmtK(contractBase)} × 15% = <b>${fmtK(ltAlt85)}</b>. The 15% factor reflects what hard-to-lease units typically generate without active management — Landing's value proposition is taking inventory that would otherwise sit vacant. Toggle 10% / 25% in the eyebrow for stricter or looser assumptions. This is the more honest comparison than "what if these units were leased at typical multi-family 85% occ" because the units Landing operates are not typical inventory.</div>
+        </div>
+
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">5. Vs sitting vacant · ${netSign}${fmtK(Math.abs(landingNetVsLt85))} @ 15%</div>
+          <div class="gd-meth-p">Total earned (${fmtK(totalToParties)}) − Vacant fallback @ 15% (${fmtK(ltAlt85)}) = <b>${netSign}${fmtK(Math.abs(landingNetVsLt85))}</b>. ${landingNetVsLt85 >= 0 ? 'Positive — Landing turned hard-to-lease inventory into revenue that would not have otherwise existed.' : 'Negative — these units would have earned more even sitting mostly vacant. Rare; investigate occupancy gap, pricing, or mix.'}</div>
+        </div>
+
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">6. Partner recovery · ${partnerRecoveryPct}%</div>
+          <div class="gd-meth-p">Actual to partner (${fmtK(totalP)}) ÷ Contract base (${fmtK(contractBase)}) = <b>${partnerRecoveryPct}%</b>. The share of FULL 100%-occupied base rent the partner actually received — the number they compute on their own, which is why it anchors the Partner POV headline.</div>
+        </div>
+
+        ${strUnits > 0 && ltUnits > 0 ? `
+        <div class="gd-meth-section">
+          <div class="gd-meth-h">7. Unit mix · ${ltPct}% LT / ${strPct}% STR</div>
+          <div class="gd-meth-p">LT units (${ltUnits}) and STR-eligible units (${strUnits}) drawn from <code>dimhome.str_status='enabled'</code> rolled up to property. We currently show the <b>unit ratio</b>, not the per-month $ split, because revshare bundle doesn't break revenue by reservation type yet. DB migration will unlock per-month LT-vs-STR revenue attribution.</div>
+        </div>` : ''}
+      </div>
+    </details>
+  </div>`;
+
+  // Paint chart
+  const svg = wrap.querySelector('svg.gd-chart-canvas');
+  const ttip = wrap.querySelector('.gd-chart-tooltip');
+  paintTrendChart(svg, ttip, trend);
+
+  // Wire POV toggle
+  wrap.querySelectorAll('.gd-pov-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pov = btn.dataset.pov;
+      wrap.querySelectorAll('.gd-pov-toggle button').forEach(b => b.classList.toggle('active', b === btn));
+      wrap.querySelectorAll('.gd-pov-pane').forEach(p => p.classList.toggle('active', p.dataset.pov === pov));
+    });
+  });
+
+  // Wire LT counterfactual toggle (scoped to [data-lt] buttons only — the
+  // Project Forward toggle shares the .gd-lt-toggle class but uses [data-proj])
+  wrap.querySelectorAll('button[data-lt]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ltOcc = parseFloat(btn.dataset.lt);
+      wrap.querySelectorAll('button[data-lt]').forEach(b => b.classList.toggle('active', b === btn));
+      if (!contractBase) return;
+      const ltAlt = contractBase * ltOcc;
+      const netVsLt = totalToParties - ltAlt;
+      const sign = netVsLt >= 0 ? '+' : '−';
+      const cls = netVsLt >= 0 ? 'surplus' : 'shortfall';
+      const pctText = Math.round(ltOcc * 100);
+      wrap.querySelectorAll('[data-lt-pct]').forEach(el => el.textContent = pctText);
+      const num = wrap.querySelector('[data-net-vs-lt]');
+      if (num) { num.textContent = sign + fmtK(Math.abs(netVsLt)); num.classList.remove('surplus','shortfall'); num.classList.add(cls); }
+      wrap.querySelectorAll('[data-lt-alt], [data-lt-alt-row]').forEach(el => el.textContent = fmtK(ltAlt));
+      // Verdict subtitle — the inline "= +$X" bold delta + the trailing
+      // caption ("of net new revenue..." vs "STR/mixed underperformed...")
+      // both flip with the toggle. Without these updates the subtitle stayed
+      // stuck on the initial-render value while the headline number changed.
+      const bold = wrap.querySelector('[data-net-vs-lt-bold]');
+      if (bold) {
+        bold.textContent = sign + fmtK(Math.abs(netVsLt));
+        bold.classList.remove('good','bad');
+        bold.classList.add(netVsLt >= 0 ? 'good' : 'bad');
+      }
+      const cap = wrap.querySelector('[data-net-vs-lt-caption]');
+      if (cap) cap.textContent = netVsLt >= 0 ? 'of net new revenue Landing created' : '— STR/mixed underperformed the vacant fallback (rare; investigate occupancy, pricing, or mix)';
+      // Partner POV — recompute partner vs LT
+      const partnerVsLt = totalP - ltAlt;
+      const pSign = partnerVsLt >= 0 ? '+' : '−';
+      const pvl = wrap.querySelector('[data-partner-vs-lt]');
+      if (pvl) pvl.textContent = pSign + fmtK(Math.abs(partnerVsLt));
+    });
+  });
+
+  // Wire Project Forward toggle — extends rollup + chart with projection months.
+  // Cumulative POV math stays based on actual data only (we don't want
+  // hypothetical months inflating "actual to partner").
+  wrap.querySelectorAll('button[data-proj]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const horizon = parseInt(btn.dataset.proj, 10);
+      wrap.querySelectorAll('button[data-proj]').forEach(b => b.classList.toggle('active', b === btn));
+      const projectionMonths = buildProjectionMonths(trend, horizon);
+      const combined = [...trend, ...projectionMonths];
+      // Re-render rollup
+      const rg = wrap.querySelector('#gd-rollup-grid');
+      if (rg) {
+        rg.innerHTML = buildRollupHTML(combined);
+        rg.style.gridTemplateColumns = `90px repeat(${combined.length}, minmax(0, 1fr))`;
+      }
+      // Re-render chart (paint with combined array; bars marked isProjection
+      // get a lighter / hatched fill via the .actual-proj class)
+      const svg = wrap.querySelector('svg.gd-chart-canvas');
+      const ttip = wrap.querySelector('.gd-chart-tooltip');
+      if (svg) paintTrendChart(svg, ttip, combined);
+    });
+  });
+}
+
+// Pure SVG painter — takes the prepared <g class="bars">/etc. and fills them.
+// Coordinate system: viewBox 0 0 660 200, plot area y = 30..170.
+function paintTrendChart(svg, ttip, trend) {
+  const N = trend.length;
+  if (!N) return;
+  const left = 30, right = 660, top = 30, bottom = 170;
+  const colW = (right - left) / N;
+  const barW = colW * 0.58;
+
+  // Y axis max = max gross (landing + partner), rounded up to nice number
+  let maxStack = 0;
+  for (const m of trend) {
+    const s = (m.l || 0) + (m.p || 0);
+    if (s > maxStack) maxStack = s;
+  }
+  // Round to nearest sensible $$ ceiling
+  const niceMax = (() => {
+    if (maxStack === 0) return 1000;
+    const mag = Math.pow(10, Math.floor(Math.log10(maxStack)));
+    const ratio = maxStack / mag;
+    let nice = 10;
+    if (ratio <= 1) nice = 1; else if (ratio <= 2) nice = 2; else if (ratio <= 5) nice = 5;
+    return nice * mag * 1.2; // 20% headroom — enough for occ line at top without making bars look short
+  })();
+
+  // Grid lines + axis labels
+  const ticks = [niceMax * 0.25, niceMax * 0.5, niceMax * 0.75];
+  let gridHtml = '';
+  ticks.forEach(t => {
+    const y = bottom - (t / niceMax) * (bottom - top);
+    gridHtml += `<line class="grid-line" x1="0" y1="${y}" x2="660" y2="${y}"/>`;
+    const tLabel = t >= 1000 ? '$' + Math.round(t / 1000) + 'K' : '$' + Math.round(t);
+    gridHtml += `<text class="axis-label" x="2" y="${y + 3}">${tLabel}</text>`;
+  });
+  svg.querySelector('.grid').innerHTML = gridHtml;
+
+  // Find onboarding index (first month with any data)
+  const onboardingIdx = trend.findIndex(m => m.l != null || m.p != null || m.g != null);
+
+  // Render bars + occ line + hit targets
+  let barsHtml = '';
+  let xLabelsHtml = '';
+  let occDotsHtml = '';
+  const occPtsActual = [];
+  const occPtsProj   = [];
+  let lastActualOccPt = null;   // for stitching the projection line back to actual
+  const occVals = trend.filter(m => m.o != null).map(m => m.o);
+  const maxOcc = occVals.length ? Math.max(...occVals) : 0;
+
+  // Y position for x-axis labels — bumped down to match the new 240px chart height
+  const labelY = bottom + 18;
+
+  for (let i = 0; i < N; i++) {
+    const cx = left + i * colW + colW / 2;
+    const x  = cx - barW / 2;
+    const m  = trend[i];
+
+    // Deduplicate year suffix on x-axis labels. Show "Mon YYYY" only on the
+    // first month and any month that's a different year than the previous one
+    // (typically Jan boundaries). Other months show just "Mon". Prevents
+    // collision when projection adds extra columns and labels run together.
+    const prevPeriod = i > 0 ? trend[i - 1].period : null;
+    const prevYear = prevPeriod ? prevPeriod.split(' ')[1] : null;
+    const [monStr, yearStr] = (m.period || '').split(' ');
+    const showYear = (i === 0) || (yearStr !== prevYear);
+    const periodLabel = showYear ? `${monStr} ${yearStr}` : monStr;
+    const labelClass = (i === 0 || i === N - 1 || showYear) ? 'axis-label axis-label-strong' : 'axis-label';
+    xLabelsHtml += `<text class="${labelClass}" x="${cx}" y="${labelY}" text-anchor="middle">${gEsc(periodLabel)}</text>`;
+
+    const hasData = (m.l != null || m.p != null || m.g != null);
+    if (!hasData) {
+      // Ghost / pre-onboarding
+      barsHtml += `<rect class="bar-ghost" x="${x}" y="${bottom - 28}" width="${barW}" height="28" rx="1"/>`;
+      continue;
+    }
+
+    // Onboarding flag — first month with data
+    if (i === onboardingIdx && i > 0) {
+      barsHtml += `<polygon class="onb-flag" points="${cx - 4},${top + 2} ${cx + 4},${top + 2} ${cx},${top + 8}"/>`;
+      barsHtml += `<text class="onb-flag-label" x="${cx}" y="${top}" text-anchor="middle">onb</text>`;
+    }
+
+    const l = m.l || 0, p = m.p || 0;
+    const total = l + p;
+    if (total === 0) {
+      // Onboarded but earned $0 — small pip + label
+      const pipH = 3;
+      barsHtml += `<rect class="bar-zero" x="${x}" y="${bottom - pipH}" width="${barW}" height="${pipH}" rx="1"/>`;
+      barsHtml += `<text class="zero-label" x="${cx}" y="${bottom - 5}" text-anchor="middle">$0</text>`;
+    } else {
+      const totalH = (total / niceMax) * (bottom - top);
+      const landingH = (l / niceMax) * (bottom - top);
+      const partnerH = (p / niceMax) * (bottom - top);
+      const projCls = m.isProjection ? ' proj' : '';
+      if (landingH > 0) barsHtml += `<rect class="bar-landing${projCls}" x="${x}" y="${bottom - landingH}" width="${barW}" height="${landingH}" rx="1"/>`;
+      if (partnerH > 0) barsHtml += `<rect class="bar-partner${projCls}" x="${x}" y="${bottom - totalH}" width="${barW}" height="${partnerH}" rx="1"/>`;
+      // Light "proj" label above the projected bar so reps know it's not actual
+      if (m.isProjection) {
+        barsHtml += `<text class="proj-bar-label" x="${cx}" y="${bottom - totalH - 4}" text-anchor="middle">proj</text>`;
+      }
+    }
+
+    if (m.o != null) {
+      const oy = bottom - (m.o * (bottom - top));
+      const pt = `${cx},${oy}`;
+      if (m.isProjection) {
+        // First projection point — stitch to the last actual occ point so the
+        // dashed line connects to where the solid line left off (no gap).
+        if (occPtsProj.length === 0 && lastActualOccPt) occPtsProj.push(lastActualOccPt);
+        occPtsProj.push(pt);
+        occDotsHtml += `<circle class="occ-dot occ-dot-proj" cx="${cx}" cy="${oy}" r="2.2"/>`;
+      } else {
+        occPtsActual.push(pt);
+        lastActualOccPt = pt;
+        const isApex = (m.o === maxOcc && m.o > 0);
+        occDotsHtml += `<circle class="occ-dot${isApex ? ' occ-dot-active' : ''}" cx="${cx}" cy="${oy}" r="${isApex ? 3.2 : 2.4}"/>`;
+      }
+    }
+  }
+
+  // Hit targets (separate so they don't overlap visible bars).
+  // Stash tooltip payloads on the SVG element itself instead of as JSON in
+  // an HTML attribute — JSON quotes get truncated by attribute parsing
+  // (data-info="{"month":...}" terminates at the first inner ").
+  const hitInfo = [];
+  let hitsHtml = '';
+  let prevTotal = null;   // for MoM delta (skips ghost / null months)
+  for (let i = 0; i < N; i++) {
+    const m = trend[i];
+    if (m.l == null && m.p == null && m.g == null) continue;
+    const l = m.l || 0, p = m.p || 0;
+    const total = l + p;
+    const take = total > 0 ? Math.round(l / total * 100) : null;
+    let momText = '';
+    let momCls = '';
+    if (prevTotal != null && prevTotal > 0 && total > 0) {
+      const momPct = ((total - prevTotal) / prevTotal) * 100;
+      const sign = momPct >= 0 ? '+' : '−';
+      momText = `${sign}${Math.abs(momPct).toFixed(1)}% MoM`;
+      momCls = momPct >= 0 ? 'mom-up' : 'mom-down';
+    } else if (prevTotal == null) {
+      momText = 'first month';
+    }
+    prevTotal = total;
+    hitInfo.push({
+      month: m.period,
+      l: '$' + Math.round(l).toLocaleString(),
+      p: '$' + Math.round(p).toLocaleString(),
+      tot: '$' + Math.round(total).toLocaleString(),
+      take: take != null ? take + '%' : '—',
+      o: m.o != null ? (m.o * 100).toFixed(1) + '% occ' : '',
+      u: m.u != null ? m.u + ' stays' : '',
+      mom: momText,
+      momCls,
+    });
+    const idx = hitInfo.length - 1;
+    hitsHtml += `<rect class="col-hit" data-idx="${idx}" x="${left + i * colW}" y="${top}" width="${colW}" height="${bottom - top}"/>`;
+  }
+  svg._hitInfo = hitInfo;
+
+  svg.querySelector('.bars').innerHTML = barsHtml + hitsHtml;
+  svg.querySelector('.occ-line').setAttribute('points', occPtsActual.join(' '));
+  const projLine = svg.querySelector('.occ-line-proj');
+  if (projLine) projLine.setAttribute('points', occPtsProj.join(' '));
+  svg.querySelector('.occ-dots').innerHTML = occDotsHtml;
+  svg.querySelector('.xlabels').innerHTML = xLabelsHtml;
+
+  // Tooltip — look up payload from the in-memory array by data-idx.
+  // Clamps horizontal position so the tooltip can't extend past the chart
+  // wrap bounds (otherwise it gets clipped on bars near the right edge).
+  svg.addEventListener('mousemove', e => {
+    const target = e.target.closest('.col-hit');
+    if (!target) { ttip.classList.remove('show'); return; }
+    const idx = +target.getAttribute('data-idx');
+    const info = svg._hitInfo && svg._hitInfo[idx];
+    if (!info) { ttip.classList.remove('show'); return; }
+    const rect = svg.getBoundingClientRect();
+    const wrap = ttip.parentElement.getBoundingClientRect();
+    const cx = +target.getAttribute('x') + +target.getAttribute('width') / 2;
+    const screenX = rect.left + (cx / 660) * rect.width;
+    ttip.innerHTML = `
+      <div class="ttip-month">${gEsc(info.month)} · L take ${gEsc(info.take)}${info.mom ? ` <span class="ttip-mom ${info.momCls}">${gEsc(info.mom)}</span>` : ''}</div>
+      <div class="ttip-row"><span>Landing net</span><b>${gEsc(info.l)}</b></div>
+      <div class="ttip-row"><span>Partner net</span><b>${gEsc(info.p)}</b></div>
+      <div class="ttip-row"><span>Total net</span><b>${gEsc(info.tot)}</b></div>
+      ${info.o ? `<div class="ttip-row"><span>Occ</span><b>${gEsc(info.o)}</b></div>` : ''}
+      ${info.u ? `<div class="ttip-row"><span>Stays</span><b>${gEsc(info.u.replace(' stays',''))}</b></div>` : ''}
+    `;
+    // Position BELOW the cursor (.gd-trend-wrap has overflow:hidden, so above
+    // gets clipped). translate(-50%, 0) places top-center at (left, top).
+    // Clamp horizontally so the tooltip never extends past the wrap bounds.
+    ttip.style.top = `${rect.bottom - wrap.top + 6}px`;
+    ttip.style.left = '0px';   // measure with default position first
+    ttip.classList.add('show');
+    const tipW = ttip.getBoundingClientRect().width;
+    const halfTip = tipW / 2;
+    const wrapW = wrap.width;
+    const rawLeft = screenX - wrap.left;
+    const clampedLeft = Math.max(halfTip + 4, Math.min(wrapW - halfTip - 4, rawLeft));
+    ttip.style.left = `${clampedLeft}px`;
+  });
+  svg.addEventListener('mouseleave', () => ttip.classList.remove('show'));
+}
+
 function renderResTable(el, res, units) {
+    el.classList.remove('gd-loading');
     if (!res.length) { el.innerHTML = '<div class="gd-empty">No reservations</div>'; return; }
 
     // Build deinstall lookup from units data

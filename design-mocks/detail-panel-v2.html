@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Panel v2 — Design Mock</title>
+
+  <!--
+    DESIGN MOCK · property detail panel (map.html Grid view, expanded row)
+
+    Goals encoded in this layout:
+      1. 11-month revshare trend is the FIRST module after the header.
+         It is ground-truth: did Landing actually make money on this property?
+         It sits ABOVE the Units/Reservations tabs because it is property-level
+         context, not per-unit drill-down.
+      2. STR status must be unmissable. Property-level chip lives top-right of
+         the header in warm coral so it reads as a different *category* of asset
+         from the cool-blue LT business.
+      3. Per-unit STR marker is a tiny "S" glyph in the Unit cell, not a new
+         column. We already have 10 columns and need to stay readable at 880px.
+      4. The Landing Rent column survives. For LT units it shows the monthly
+         number unchanged. For STR units it stacks the actual nightly rate
+         (primary, mono) over the normalized monthly equivalent (secondary,
+         de-emphasized) so operators can compare apples-to-apples.
+      5. The stat band gets one extra slot ("OCC TODAY") so the trend chart
+         has a present-day anchor to land against.
+  -->
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Editorial palette — matches map.html vocabulary */
+      --bg:           #FAF6EE;
+      --paper:        #FFFFFF;
+      --paper-warm:   #FBF7EF;
+      --ink:          #1A1814;
+      --ink-2:        #3D3934;
+      --muted:        #8B8378;
+      --hair:         #F0EAD9;
+      --border:       #E5DDCB;
+      --border-strong:#C9BFA9;
+
+      /* Brand */
+      --blue:         #2563EB;
+      --blue-2:       #1D4ED8;
+      --blue-soft:    rgba(37,99,235,0.10);
+      --blue-ghost:   rgba(37,99,235,0.04);
+      --green:        #059669;
+      --green-soft:   rgba(5,150,105,0.10);
+
+      /* Pin/status palette */
+      --emerald:      #047857;
+      --amber:        #B95B00;
+      --amber-soft:   rgba(185,91,0,0.12);
+      --red:          #DC4126;
+      --silver:       #6B7280;
+
+      /* STR accent — warm coral, intentionally distinct from cool LT business */
+      --str:          #D2552E;
+      --str-2:        #B33F1A;
+      --str-soft:     rgba(210,85,46,0.12);
+      --str-ghost:    rgba(210,85,46,0.05);
+
+      /* Typography */
+      --display: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+      --body:    'DM Sans', system-ui, sans-serif;
+      --mono:    'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 14px;
+      line-height: 1.5;
+      font-feature-settings: 'tnum' 1, 'ss01' 1, 'cv11' 1;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Subtle paper grain */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(circle at 18% 22%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+        radial-gradient(circle at 76% 58%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+        radial-gradient(circle at 42% 83%, rgba(0,0,0,0.012) 0 1px, transparent 1px);
+      background-size: 7px 7px, 11px 11px, 13px 13px;
+      pointer-events: none; z-index: 0;
+    }
+
+    .page-header {
+      position: relative; z-index: 1;
+      padding: 28px 48px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: baseline;
+      background: var(--bg);
+    }
+    .page-title {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+    .page-title em {
+      font-style: italic; font-weight: 500; color: var(--muted);
+    }
+    .page-meta {
+      font-family: var(--mono);
+      font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    main {
+      position: relative; z-index: 1;
+      padding: 28px 48px 80px;
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex; flex-direction: column;
+      gap: 36px;
+    }
+
+    .legend-strip {
+      display: flex; gap: 28px; align-items: center;
+      font-family: var(--mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted);
+      padding-bottom: 6px;
+    }
+    .legend-swatch {
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .legend-swatch span:first-child {
+      width: 14px; height: 10px; border-radius: 1px; display: inline-block;
+    }
+    .legend-swatch .sw-bar { background: var(--blue); }
+    .legend-swatch .sw-bar-partner {
+      background: var(--blue-soft);
+      border: 1px solid var(--blue);
+      border-top-style: dashed;
+    }
+    .legend-swatch .sw-line {
+      width: 14px; height: 0; border-top: 1.5px solid var(--green); margin-top: 4px;
+    }
+    .legend-swatch .sw-ghost {
+      background: var(--blue-ghost); border: 1px dashed var(--border-strong);
+    }
+    .legend-swatch .sw-str { background: var(--str); }
+
+    /* ----- PANEL ----- */
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(63,55,42,0.04), 0 24px 48px -36px rgba(63,55,42,0.18);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    /* ----- HEADER ----- */
+    .panel-header {
+      padding: 26px 30px 22px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px; align-items: start;
+      border-bottom: 1px solid var(--hair);
+      position: relative;
+    }
+    .panel-header::after {
+      /* Hairline accent for STR variant */
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: transparent;
+    }
+    .panel[data-variant="str"] .panel-header::after { background: var(--str); }
+
+    .name-block { min-width: 0; }
+    .panel-name {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 30px;
+      letter-spacing: -0.022em;
+      line-height: 1.04;
+      margin: 0 0 8px;
+      color: var(--ink);
+    }
+    .panel-meta {
+      font-family: var(--body);
+      font-size: 13.5px;
+      color: var(--ink-2);
+      display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline;
+    }
+    .panel-meta .dot {
+      width: 3px; height: 3px; background: var(--border-strong);
+      border-radius: 50%; display: inline-block; vertical-align: middle;
+    }
+    .panel-meta .pid {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .header-chips { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+
+    .chip {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: 2px;
+      display: inline-flex; align-items: center; gap: 8px;
+      white-space: nowrap;
+    }
+    .chip-str {
+      background: var(--str); color: white;
+      box-shadow: 0 1px 0 var(--str-2);
+    }
+    .chip-str::before {
+      content: ''; width: 6px; height: 6px; background: white; border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.28);
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.28); }
+      50%      { box-shadow: 0 0 0 5px rgba(255,255,255,0.08); }
+    }
+    .chip-lt {
+      background: transparent; color: var(--silver);
+      border: 1px solid var(--border-strong);
+    }
+    .chip-aux {
+      background: transparent; color: var(--ink-2);
+      border: 1px solid var(--border);
+      font-weight: 500;
+    }
+
+    /* ----- STAT BAND ----- */
+    .stat-band {
+      padding: 14px 30px;
+      display: flex; flex-wrap: wrap; gap: 28px 36px;
+      background: var(--paper-warm);
+      border-bottom: 1px solid var(--hair);
+    }
+    .stat { display: flex; align-items: baseline; gap: 9px; }
+    .stat-val {
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 17px;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .stat-val .accent-green { color: var(--green); }
+    .stat-val .accent-amber { color: var(--amber); }
+    .stat-val .accent-red   { color: var(--red); }
+    .stat-val .accent-blue  { color: var(--blue); }
+    .stat-val .accent-str   { color: var(--str); }
+    .stat-label {
+      font-family: var(--mono); font-size: 9.5px;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    .unit-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      margin-right: 6px; vertical-align: middle;
+    }
+    .unit-dot-green { background: var(--green); }
+    .unit-dot-amber { background: var(--amber); }
+    .unit-dot-red   { background: var(--red); }
+    .unit-dot-blue  { background: var(--blue); }
+
+    /* ----- TREND MODULE — the centerpiece ----- */
+    .trend-module {
+      display: grid;
+      grid-template-columns: 1fr minmax(300px, 340px);
+      gap: 0;
+      border-bottom: 1px solid var(--hair);
+    }
+    @media (max-width: 1080px) {
+      .trend-module { grid-template-columns: 1fr; }
+      .trend-side { border-left: 0; border-top: 1px solid var(--hair); }
+    }
+
+    .trend-chart-wrap {
+      padding: 22px 26px 18px 30px;
+    }
+    .trend-eyebrow {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .trend-eyebrow .left {
+      display: flex; align-items: baseline; gap: 14px;
+    }
+    .trend-title {
+      font-family: var(--mono);
+      font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.18em;
+      color: var(--ink-2); font-weight: 600;
+    }
+    .trend-subtitle {
+      font-family: var(--body); font-size: 12px;
+      color: var(--muted); font-style: italic;
+    }
+    .trend-toggle {
+      display: flex; gap: 0; border: 1px solid var(--border); border-radius: 2px;
+      overflow: hidden;
+    }
+    .trend-toggle button {
+      background: transparent; border: 0; padding: 4px 9px;
+      font-family: var(--mono); font-size: 9.5px;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); cursor: pointer;
+    }
+    .trend-toggle button.active {
+      background: var(--ink); color: var(--paper-warm);
+    }
+
+    .chart-canvas {
+      width: 100%; height: auto; display: block;
+      overflow: visible;
+    }
+
+    .chart-canvas .col-hit { fill: transparent; cursor: pointer; }
+    .chart-canvas .col-hit:hover ~ .col-bar { filter: brightness(1.05); }
+
+    /* SVG element styling — stacked bars: Landing (solid, bottom) + Partner (soft, top) */
+    .bar-landing   { fill: var(--blue); transition: fill 160ms ease; }
+    .bar-partner   {
+      fill: var(--blue-soft);
+      stroke: var(--blue); stroke-width: 0.6;
+      stroke-dasharray: 1.2 1.2;
+    }
+    .bar-ghost     {
+      fill: var(--blue-ghost);
+      stroke: var(--border-strong); stroke-width: 0.6;
+      stroke-dasharray: 1.4 1.4;
+    }
+    /* Onboarded-but-$0: small filled pip at baseline + tiny "$0" label.
+       Distinct from .bar-ghost (pre-onboarding) so the start of activity reads. */
+    .bar-zero      {
+      fill: var(--blue); opacity: 0.55;
+    }
+    .panel[data-variant="str"] .bar-zero { fill: var(--str); }
+    .zero-label    {
+      font-family: var(--mono); font-size: 7.5px; font-weight: 600;
+      fill: var(--muted); letter-spacing: 0;
+    }
+    /* Onboarding flag — small wedge above the first month with activity */
+    .onb-flag {
+      fill: var(--ink-2);
+    }
+    .onb-flag-label {
+      font-family: var(--mono); font-size: 7.5px; font-weight: 700;
+      fill: var(--ink-2); letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .occ-line      { fill: none; stroke: var(--green); stroke-width: 1.6; stroke-linejoin: round; }
+    .occ-dot       { fill: var(--paper); stroke: var(--green); stroke-width: 1.4; }
+    .occ-dot-active { fill: var(--green); }
+    .grid-line     { stroke: var(--hair); stroke-width: 0.6; stroke-dasharray: 1.5 2; }
+    .axis-label    {
+      font-family: var(--mono); font-size: 8.5px;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      fill: var(--muted);
+    }
+    .axis-label-strong { fill: var(--ink-2); font-weight: 600; }
+    .units-mini    {
+      font-family: var(--mono); font-size: 7.5px;
+      fill: var(--silver); letter-spacing: 0.02em;
+    }
+
+    .panel[data-variant="str"] .bar-landing { fill: var(--str); }
+    .panel[data-variant="str"] .bar-partner {
+      fill: var(--str-soft); stroke: var(--str);
+    }
+    .panel[data-variant="str"] .occ-dot { stroke: var(--green); }
+    .panel[data-variant="str"] .legend-swatch .sw-bar { background: var(--str); }
+    .panel[data-variant="str"] .legend-swatch .sw-bar-partner {
+      background: var(--str-soft); border-color: var(--str);
+    }
+
+    /* Right-side summary card */
+    .trend-side {
+      border-left: 1px solid var(--hair);
+      padding: 22px 26px 22px 24px;
+      background: linear-gradient(180deg, var(--paper-warm) 0%, var(--paper) 100%);
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .summary-row {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed var(--hair);
+    }
+    .summary-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .sr-label {
+      font-family: var(--mono); font-size: 9.5px;
+      text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted);
+    }
+    .sr-val {
+      font-family: var(--mono); font-size: 15px; font-weight: 600;
+      color: var(--ink); letter-spacing: -0.01em;
+    }
+    .sr-val.big { font-size: 22px; font-weight: 700; }
+    .sr-delta {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+      padding: 2px 6px; border-radius: 2px; font-weight: 600;
+    }
+    .sr-delta.up    { background: var(--green-soft); color: var(--green); }
+    .sr-delta.down  { background: rgba(220,65,38,0.10); color: var(--red); }
+    .sr-delta.flat  { background: var(--hair); color: var(--muted); }
+    .sr-note {
+      font-family: var(--body); font-size: 11.5px; color: var(--muted);
+      font-style: italic; line-height: 1.4;
+    }
+
+    /* Side-by-side Landing / Partner split inside the summary card */
+    .split-card {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--hair);
+      border-radius: 2px;
+      overflow: hidden;
+      background: var(--paper);
+    }
+    .split-col {
+      padding: 11px 13px;
+      display: flex; flex-direction: column; gap: 7px;
+      min-width: 0;
+    }
+    .split-col + .split-col {
+      border-left: 1px dashed var(--hair);
+      background: var(--paper-warm);
+    }
+    .split-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--hair);
+    }
+    .split-head .who {
+      font-family: var(--mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.16em;
+      font-weight: 700;
+    }
+    .split-head .who.landing { color: var(--blue); }
+    .split-head .who.partner { color: var(--ink-2); }
+    .panel[data-variant="str"] .split-head .who.landing { color: var(--str); }
+    .split-head .take {
+      font-family: var(--mono); font-size: 9.5px;
+      color: var(--muted); letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+    .split-total {
+      font-family: var(--mono); font-size: 19px; font-weight: 700;
+      color: var(--ink); letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .split-row {
+      display: flex; align-items: baseline; justify-content: space-between;
+      font-family: var(--mono); font-size: 11px;
+    }
+    .split-row .l { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 9.5px; }
+    .split-row .v { color: var(--ink); font-weight: 600; font-size: 12px; }
+    .gross-strip {
+      display: flex; align-items: baseline; justify-content: space-between;
+      padding: 6px 0;
+      border-top: 1px solid var(--hair);
+      font-family: var(--mono);
+    }
+    .gross-strip .l {
+      font-size: 9.5px; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--muted);
+    }
+    .gross-strip .v {
+      font-size: 13px; font-weight: 600; color: var(--ink-2);
+    }
+
+    .trajectory {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .trajectory .glyph { font-size: 18px; line-height: 1; }
+    .trajectory.up   { color: var(--green); }
+    .trajectory.down { color: var(--red); }
+    .trajectory.flat { color: var(--silver); }
+    .trajectory.ramping { color: var(--str); }
+
+    /* ----- TABS ----- */
+    .tabs {
+      display: flex; padding: 0 30px;
+      border-bottom: 1px solid var(--hair);
+      gap: 24px;
+      background: var(--paper-warm);
+    }
+    .tab {
+      padding: 14px 0 12px;
+      font-family: var(--mono); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-weight: 600;
+      margin-bottom: -1px;
+    }
+    .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+    .tab .count {
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+      margin-left: 6px; font-weight: 400;
+    }
+
+    /* ----- UNITS TABLE ----- */
+    .units-wrap { padding: 8px 0 6px; overflow-x: auto; }
+    table.units {
+      width: 100%; border-collapse: collapse;
+      font-family: var(--body); font-size: 12.5px;
+    }
+    table.units thead th {
+      font-family: var(--mono); font-size: 9.5px;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted); font-weight: 600;
+      text-align: left; padding: 10px 14px 10px;
+      border-bottom: 1px solid var(--hair);
+      white-space: nowrap;
+    }
+    table.units thead th.num { text-align: right; }
+    table.units tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--hair);
+      vertical-align: middle;
+    }
+    table.units tbody tr:last-child td { border-bottom: 0; }
+    table.units tbody tr:hover { background: var(--paper-warm); }
+    table.units td.num {
+      text-align: right;
+      font-family: var(--mono); font-feature-settings: 'tnum' 1;
+    }
+    .unit-num {
+      font-family: var(--mono); font-weight: 600; font-size: 13px;
+      color: var(--ink);
+      display: inline-flex; align-items: center; gap: 7px;
+    }
+    .str-mark {
+      width: 16px; height: 16px;
+      background: var(--str-soft); color: var(--str);
+      border: 1px solid var(--str);
+      border-radius: 2px;
+      font-family: var(--mono); font-size: 9px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+      line-height: 1;
+      letter-spacing: 0;
+      cursor: help;
+    }
+    /* Dormant: STR-eligible unit currently on a monthly/mid-term contract.
+       Visual: hollow outline only — signals "capable, not active". */
+    .str-mark.dormant {
+      background: transparent;
+      color: var(--str-2);
+      border: 1px dashed var(--str);
+    }
+
+    /* Markup column for STR units — primary MTD margin + supporting lines.
+       MTD = (sum of stay revenues this month) / monthly base rent − 1.
+       Often negative for sparse STR bookings, which is the truth operators need. */
+    .markup-mtd-info {
+      display: block;
+      font-family: var(--mono); font-size: 9.5px;
+      color: var(--muted); margin-top: 4px;
+      letter-spacing: 0; font-weight: 400;
+    }
+    .markup-mtd-info b { color: var(--ink-2); font-weight: 600; }
+    .markup-per-stay {
+      display: block;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--str-2); margin-top: 3px;
+      font-weight: 500; letter-spacing: 0;
+    }
+    .markup-per-stay b { font-weight: 700; }
+    .markup-be-warn { color: var(--amber); font-weight: 600; }
+    .markup-be-ok   { color: var(--green); font-weight: 600; }
+
+    /* Legacy potential class — retained for backward-compat if needed elsewhere */
+    .markup-potential {
+      display: block;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--muted); margin-top: 3px;
+      letter-spacing: 0;
+    }
+    .markup-potential b {
+      color: var(--str-2); font-weight: 600;
+    }
+    .opportunity-tag {
+      display: inline-block;
+      font-family: var(--mono); font-size: 8.5px;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--str-2); font-weight: 600;
+      padding: 1px 5px;
+      background: var(--str-soft); border: 1px solid var(--str);
+      border-radius: 2px;
+      margin-top: 3px;
+    }
+
+    .gd-badge-curr, .gd-badge-vacant, .gd-badge-future,
+    .gd-badge-other, .gd-badge-standby {
+      display: inline-block; padding: 3px 7px; border-radius: 2px;
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.04em; text-transform: capitalize;
+    }
+    .gd-badge-curr   { background: var(--green-soft); color: var(--green); }
+    .gd-badge-vacant { background: var(--amber-soft); color: var(--amber); }
+    .gd-badge-future { background: var(--blue-soft);  color: var(--blue);  }
+    .gd-badge-other  { background: rgba(0,0,0,0.05);  color: var(--ink-2); }
+    .gd-badge-str    { background: var(--str-soft);   color: var(--str-2); border: 1px solid var(--str); }
+
+    .res-dates {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--ink-2);
+    }
+    .res-dates .nights {
+      color: var(--muted); font-size: 10.5px; margin-left: 6px;
+    }
+
+    .rent-stack { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+    .rent-primary {
+      font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--ink);
+    }
+    .rent-nightly { color: var(--str-2); }
+    .rent-secondary {
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+      letter-spacing: 0;
+    }
+    .rent-secondary.struck { text-decoration: line-through; opacity: 0.55; }
+    .rent-tag {
+      font-family: var(--mono); font-size: 8.5px;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--str); margin-left: 4px; font-weight: 600;
+    }
+    .markup-pos { color: var(--green); font-weight: 700; }
+    .markup-neg { color: var(--red);   font-weight: 700; }
+    .markup-flat{ color: var(--muted); font-weight: 600; }
+    .markup-est {
+      font-family: var(--mono); font-size: 8.5px;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); display: block; margin-top: 2px;
+    }
+
+    .muted-cell { color: var(--muted); }
+
+    /* Tooltip block on chart hover (simple) */
+    .chart-tooltip {
+      position: absolute; pointer-events: none;
+      background: var(--ink); color: var(--paper-warm);
+      font-family: var(--mono); font-size: 11px;
+      padding: 8px 11px; border-radius: 2px;
+      opacity: 0; transition: opacity 120ms ease;
+      transform: translate(-50%, -100%);
+      white-space: nowrap;
+      z-index: 5;
+      box-shadow: 0 6px 18px -8px rgba(0,0,0,0.35);
+    }
+    .chart-tooltip.show { opacity: 1; }
+    .chart-tooltip .ttip-month {
+      font-size: 9.5px; color: var(--silver);
+      text-transform: uppercase; letter-spacing: 0.14em;
+      margin-bottom: 4px;
+    }
+    .chart-tooltip .ttip-row { display: flex; gap: 12px; }
+    .chart-tooltip .ttip-row b { color: var(--paper-warm); font-weight: 600; }
+
+    .chart-relative { position: relative; }
+
+    /* Page-load animation */
+    @keyframes barRise {
+      from { transform: scaleY(0); }
+      to   { transform: scaleY(1); }
+    }
+    .bar-landing, .bar-partner, .bar-ghost, .bar-zero {
+      transform-origin: bottom;
+      animation: barRise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .occ-line { stroke-dasharray: 600; stroke-dashoffset: 600; animation: lineDraw 900ms 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .occ-dot  { opacity: 0; animation: dotFade 300ms 800ms forwards; }
+    @keyframes lineDraw { to { stroke-dashoffset: 0; } }
+    @keyframes dotFade  { to { opacity: 1; } }
+
+    /* Print-quality footer note in mock */
+    .design-notes {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      padding: 20px 26px;
+      border-radius: 3px;
+      font-family: var(--body); font-size: 12.5px;
+      color: var(--ink-2); line-height: 1.6;
+    }
+    .design-notes h3 {
+      font-family: var(--mono); font-size: 10.5px;
+      text-transform: uppercase; letter-spacing: 0.16em;
+      color: var(--ink); margin: 0 0 10px;
+      font-weight: 600;
+    }
+    .design-notes ul { margin: 0; padding-left: 18px; }
+    .design-notes li { margin-bottom: 6px; }
+    .design-notes code {
+      font-family: var(--mono); font-size: 11px;
+      background: var(--hair); padding: 1px 5px; border-radius: 2px;
+    }
+
+    /* Narrow breakpoint cleanup */
+    @media (max-width: 880px) {
+      .page-header, main { padding-left: 22px; padding-right: 22px; }
+      .panel-name { font-size: 24px; }
+      .stat-band { gap: 18px 24px; padding: 14px 22px; }
+      .trend-chart-wrap { padding: 18px 22px; }
+      .tabs { padding: 0 22px; gap: 18px; }
+      table.units thead th, table.units tbody td { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <h1 class="page-title">Detail Panel <em>v2</em> — design mockup</h1>
+    <div class="page-meta">Autopilot Dashboard · grid view · row expanded</div>
+  </header>
+
+  <main>
+
+    <!-- Shared legend for the trend module so it doesn't have to repeat per-panel -->
+    <div class="legend-strip">
+      <span>Revenue trajectory:</span>
+      <span class="legend-swatch"><span class="sw-bar"></span>Landing net $</span>
+      <span class="legend-swatch"><span class="sw-bar-partner"></span>Partner net $</span>
+      <span class="legend-swatch"><span class="sw-line"></span>Occupancy %</span>
+      <span class="legend-swatch"><span class="sw-ghost"></span>Pre-onboarding</span>
+      <span class="legend-swatch"><span class="sw-str"></span>STR-enabled</span>
+    </div>
+
+    <!--
+      ═══════════════════════════════════════════════════════════════
+      PANEL A · LT-only property (default case, 95% of portfolio)
+      "The Brookwood" — fictional Atlanta property w/ full 11mo series
+      Demonstrates the *minimal* delta from current UI: trend module added,
+      everything else unchanged. STR chip absent (it's LT-only).
+      ═══════════════════════════════════════════════════════════════
+    -->
+    <section class="panel" data-variant="lt">
+
+      <div class="panel-header">
+        <div class="name-block">
+          <h2 class="panel-name">The Brookwood</h2>
+          <div class="panel-meta">
+            <span>Atlanta, GA</span><span class="dot"></span>
+            <span>Cortland <em style="color:var(--muted)">(operated by Greystar)</em></span>
+            <span class="dot"></span>
+            <span class="pid">PID · 39114</span>
+          </div>
+        </div>
+        <div class="header-chips">
+          <!-- LT properties get a neutral chip; it sits in the same slot to keep
+               the eye trained for STR's coral when present. Optional — could
+               also omit and reveal the STR chip purely by presence. -->
+          <span class="chip chip-lt">Long-term only</span>
+          <span class="chip chip-aux">Onboarded · Jun 2025</span>
+        </div>
+      </div>
+
+      <div class="stat-band">
+        <div class="stat"><span class="stat-val accent-green">18</span><span class="stat-label">Occupied</span></div>
+        <div class="stat"><span class="stat-val accent-amber">2</span><span class="stat-label">Available</span></div>
+        <div class="stat"><span class="stat-val">0</span><span class="stat-label">Deinstall</span></div>
+        <div class="stat"><span class="stat-val">20</span><span class="stat-label">Units on AP</span></div>
+        <div class="stat"><span class="stat-val accent-green">90%</span><span class="stat-label">Occ today</span></div>
+      </div>
+
+      <!-- TREND MODULE -->
+      <div class="trend-module">
+        <div class="trend-chart-wrap chart-relative">
+          <div class="trend-eyebrow">
+            <div class="left">
+              <span class="trend-title">Revenue trajectory</span>
+              <span class="trend-subtitle">Landing vs partner · monthly net · 11 mo</span>
+            </div>
+            <div class="trend-toggle">
+              <button class="active">Stacked</button>
+              <button>Landing only</button>
+              <button>Per unit</button>
+            </div>
+          </div>
+          <svg class="chart-canvas" viewBox="0 0 660 200" preserveAspectRatio="none" aria-label="11-month revenue trajectory">
+            <!-- Grid lines: 25k, 50k, 75k -->
+            <line class="grid-line" x1="0" y1="155" x2="660" y2="155"/>
+            <line class="grid-line" x1="0" y1="115" x2="660" y2="115"/>
+            <line class="grid-line" x1="0" y1="75"  x2="660" y2="75"/>
+            <line class="grid-line" x1="0" y1="35"  x2="660" y2="35"/>
+            <text class="axis-label" x="2" y="38">$75K</text>
+            <text class="axis-label" x="2" y="78">$50K</text>
+            <text class="axis-label" x="2" y="118">$25K</text>
+            <g id="brookwood-bars"></g>
+            <g id="brookwood-units"></g>
+            <polyline id="brookwood-occ" class="occ-line"></polyline>
+            <g id="brookwood-occ-dots"></g>
+            <g id="brookwood-xlabels"></g>
+          </svg>
+          <div class="chart-tooltip" id="brookwood-ttip"></div>
+        </div>
+
+        <aside class="trend-side">
+          <!-- Split card — headline is the take-rate split. Landing column is
+               the focal point (operators want to know what *we* kept) but the
+               partner side is shown explicitly so the relationship reads. -->
+          <div class="split-card">
+            <div class="split-col">
+              <div class="split-head">
+                <span class="who landing">Landing</span>
+                <span class="take">30% take</span>
+              </div>
+              <div class="split-total">$141.3K</div>
+              <div class="split-row"><span class="l">Avg/mo</span><span class="v">$12.8K</span></div>
+              <div class="split-row"><span class="l">Apr</span><span class="v">$14.5K <span class="sr-delta up">+2.4%</span></span></div>
+            </div>
+            <div class="split-col">
+              <div class="split-head">
+                <span class="who partner">Partner</span>
+                <span class="take">70%</span>
+              </div>
+              <div class="split-total">$329.7K</div>
+              <div class="split-row"><span class="l">Avg/mo</span><span class="v">$30.0K</span></div>
+              <div class="split-row"><span class="l">Apr</span><span class="v">$33.8K <span class="sr-delta up">+2.3%</span></span></div>
+            </div>
+          </div>
+          <div class="gross-strip">
+            <span class="l">Gross 11mo</span>
+            <span class="v">$471.0K</span>
+          </div>
+          <div class="trajectory up">
+            <span class="glyph">↗</span><span>Steady growth</span>
+          </div>
+          <div class="sr-note">
+            11/11 mo reporting. Occupancy floor 78% (Jun). Landing take stable at 30% — standard LT deal.
+          </div>
+        </aside>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active">Units <span class="count">20</span></div>
+        <div class="tab">Reservations <span class="count">23</span></div>
+        <div class="tab">Revenue history <span class="count">11mo</span></div>
+      </div>
+
+      <div class="units-wrap">
+        <table class="units">
+          <thead>
+            <tr>
+              <th>Unit</th>
+              <th>Status</th>
+              <th>Res. Status</th>
+              <th>Current Reservation</th>
+              <th>Days Vacant</th>
+              <th class="num">Base Rent</th>
+              <th class="num">Landing Rent</th>
+              <th class="num" title="Month-to-date revenue collected on this unit. For LT/mid-term: accumulated daily slice × days elapsed. For STR: sum of all stay revenues so far this month. Pairs with Markup % to make margin felt in dollars.">MTD $</th>
+              <th class="num">Markup</th>
+              <th>Deinstall</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="unit-num">101</span></td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-curr">Extended</span></td>
+              <td class="res-dates">2026-03-15 → 2026-09-30</td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$1,950</td>
+              <td class="num"><div class="rent-stack"><span class="rent-primary">$2,440</span></div></td>
+              <td class="num"><span style="color:var(--green)">$1,220</span></td>
+              <td class="num"><span class="markup-pos">+25.1%</span></td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+            <tr>
+              <td><span class="unit-num">203</span></td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-curr">Occupied</span></td>
+              <td class="res-dates">2026-02-01 → 2026-08-01</td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$2,100</td>
+              <td class="num"><div class="rent-stack"><span class="rent-primary">$2,565</span></div></td>
+              <td class="num"><span style="color:var(--green)">$1,283</span></td>
+              <td class="num"><span class="markup-pos">+22.1%</span></td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+            <tr>
+              <td><span class="unit-num">305</span></td>
+              <td><span class="unit-dot unit-dot-amber"></span>Available</td>
+              <td><span class="gd-badge-vacant">Vacant</span></td>
+              <td class="res-dates muted-cell">—</td>
+              <td><span style="color:var(--amber);font-weight:700">8d</span></td>
+              <td class="num">$2,050</td>
+              <td class="num"><span class="muted-cell">—</span></td>
+              <td class="num"><span style="color:var(--amber)">$560</span></td>
+              <td class="num"><span class="muted-cell">—</span></td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+            <tr>
+              <td><span class="unit-num">412</span></td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-curr">Occupied</span></td>
+              <td class="res-dates">2026-04-22 → 2026-10-22</td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$2,200</td>
+              <td class="num"><div class="rent-stack"><span class="rent-primary">$2,720</span></div></td>
+              <td class="num"><span style="color:var(--green)">$1,360</span></td>
+              <td class="num"><span class="markup-pos">+23.6%</span></td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+            <tr>
+              <td><span class="unit-num">604</span></td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-curr">Extended</span></td>
+              <td class="res-dates">2026-01-10 → 2026-11-10</td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$2,250</td>
+              <td class="num"><div class="rent-stack"><span class="rent-primary">$2,850</span></div></td>
+              <td class="num"><span style="color:var(--green)">$1,425</span></td>
+              <td class="num"><span class="markup-pos">+26.7%</span></td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+            <tr>
+              <td><span class="unit-num">802</span></td>
+              <td><span class="unit-dot unit-dot-red"></span>Deinstalled</td>
+              <td><span class="gd-badge-other">Inactive</span></td>
+              <td class="res-dates muted-cell">—</td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$2,300</td>
+              <td class="num"><span class="muted-cell">—</span></td>
+              <td class="num"><span class="muted-cell">—</span></td>
+              <td class="num"><span class="muted-cell">—</span></td>
+              <td><span style="color:var(--red);font-weight:600;font-family:var(--mono);font-size:11px">2026-02-14</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+
+    <!--
+      ═══════════════════════════════════════════════════════════════
+      PANEL B · STR-enabled property (the new case)
+      "One Club Gulf Shores" — real data: onboarded Jan 2026, ramping.
+      Shows every new affordance:
+        - coral STR chip in header
+        - "S" mark on each STR-eligible unit
+        - rent stack: nightly $ over normalized monthly
+        - markup with "STR-est" tag
+        - trend bars in coral, ghost months for pre-onboarding
+      ═══════════════════════════════════════════════════════════════
+    -->
+    <section class="panel" data-variant="str">
+
+      <div class="panel-header">
+        <div class="name-block">
+          <h2 class="panel-name">One Club Gulf Shores</h2>
+          <div class="panel-meta">
+            <span>Gulf Shores, AL</span><span class="dot"></span>
+            <span>Resort Lifestyle Communities <em style="color:var(--muted)">(operator)</em></span>
+            <span class="dot"></span>
+            <span class="pid">PID · 43385</span>
+          </div>
+        </div>
+        <div class="header-chips">
+          <!-- Coral STR chip with pulsing dot — first thing the eye finds.
+               Counts the STR-eligible units so the operator immediately knows
+               the scope (full property vs partial conversion). -->
+          <span class="chip chip-str">STR enabled · 15 units</span>
+          <span class="chip chip-aux">Onboarded · Jan 2026 · 4mo</span>
+        </div>
+      </div>
+
+      <div class="stat-band">
+        <div class="stat"><span class="stat-val accent-green">11</span><span class="stat-label">Occupied</span></div>
+        <div class="stat"><span class="stat-val accent-amber">4</span><span class="stat-label">Available</span></div>
+        <div class="stat"><span class="stat-val">0</span><span class="stat-label">Deinstall</span></div>
+        <div class="stat"><span class="stat-val">15</span><span class="stat-label">Units on AP</span></div>
+        <div class="stat"><span class="stat-val accent-amber">73%</span><span class="stat-label">Occ today</span></div>
+        <!-- STR-only stat slot: nightly ADR landed last 30d, prominent in coral -->
+        <div class="stat"><span class="stat-val accent-str">$134</span><span class="stat-label">ADR · 30d</span></div>
+      </div>
+
+      <div class="trend-module">
+        <div class="trend-chart-wrap chart-relative">
+          <div class="trend-eyebrow">
+            <div class="left">
+              <span class="trend-title">Revenue trajectory</span>
+              <span class="trend-subtitle">Landing vs partner · monthly net · 4 of 11 mo reporting</span>
+            </div>
+            <div class="trend-toggle">
+              <button class="active">Stacked</button>
+              <button>Landing only</button>
+              <button>Per unit</button>
+            </div>
+          </div>
+          <svg class="chart-canvas" viewBox="0 0 660 200" preserveAspectRatio="none" aria-label="11-month revenue trajectory">
+            <line class="grid-line" x1="0" y1="155" x2="660" y2="155"/>
+            <line class="grid-line" x1="0" y1="115" x2="660" y2="115"/>
+            <line class="grid-line" x1="0" y1="75"  x2="660" y2="75"/>
+            <line class="grid-line" x1="0" y1="35"  x2="660" y2="35"/>
+            <text class="axis-label" x="2" y="38">$30K</text>
+            <text class="axis-label" x="2" y="78">$20K</text>
+            <text class="axis-label" x="2" y="118">$10K</text>
+            <g id="oneclub-bars"></g>
+            <g id="oneclub-units"></g>
+            <polyline id="oneclub-occ" class="occ-line"></polyline>
+            <g id="oneclub-occ-dots"></g>
+            <g id="oneclub-xlabels"></g>
+          </svg>
+          <div class="chart-tooltip" id="oneclub-ttip"></div>
+        </div>
+
+        <aside class="trend-side">
+          <!-- STR deals skew Landing-favorable: 61% take vs 30% on a standard LT
+               property. The contrast between Brookwood's and One Club's split
+               cards tells operators which contract types are economically
+               worth chasing in expansion. -->
+          <div class="split-card">
+            <div class="split-col">
+              <div class="split-head">
+                <span class="who landing">Landing</span>
+                <span class="take">61% take</span>
+              </div>
+              <div class="split-total">$21.3K</div>
+              <div class="split-row"><span class="l">Best</span><span class="v">$12.2K Mar</span></div>
+              <div class="split-row"><span class="l">Apr</span><span class="v">$8.0K <span class="sr-delta down">−34.4%</span></span></div>
+            </div>
+            <div class="split-col">
+              <div class="split-head">
+                <span class="who partner">Partner</span>
+                <span class="take">39%</span>
+              </div>
+              <div class="split-total">$13.8K</div>
+              <div class="split-row"><span class="l">Best</span><span class="v">$8.6K Mar</span></div>
+              <div class="split-row"><span class="l">Apr</span><span class="v">$4.8K <span class="sr-delta down">−44.2%</span></span></div>
+            </div>
+          </div>
+          <div class="gross-strip">
+            <span class="l">Gross 4mo</span>
+            <span class="v">$35.1K</span>
+          </div>
+          <div class="trajectory ramping">
+            <span class="glyph">⤴</span><span>Early ramp · post-peak dip</span>
+          </div>
+          <div class="sr-note">
+            Onboarded Jan 2026. Units 0→79 in 4mo. Mar peak rode spring-break demand;
+            Apr softened despite +6 units. STR economics favorable to Landing — watch May.
+          </div>
+        </aside>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active">Units <span class="count">15</span></div>
+        <div class="tab">Reservations <span class="count">47</span></div>
+        <div class="tab">Revenue history <span class="count">4mo</span></div>
+      </div>
+
+      <div class="units-wrap">
+        <table class="units">
+          <thead>
+            <tr>
+              <th>Unit</th>
+              <th>Status</th>
+              <th>Res. Status</th>
+              <th>Current Reservation</th>
+              <th>Days Vacant</th>
+              <th class="num">Base Rent</th>
+              <th class="num">Landing Rent</th>
+              <th class="num" title="Month-to-date revenue collected on this unit. For LT/mid-term: accumulated daily slice × days elapsed. For STR: sum of all stay revenues so far this month. Pairs with Markup % to make margin felt in dollars.">MTD $</th>
+              <th class="num">Markup</th>
+              <th>Deinstall</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!--
+              For STR units the Landing Rent cell stacks:
+                primary  →  $121.98/nt   (mono, prominent, coral text via .rent-nightly)
+                secondary → $488 for 4nt (the actual booking total)
+                tertiary  → ~$3,710/mo eq. (the normalized monthly figure that
+                            today's UI mistakes for "landing rent")
+              The third line is intentionally line-through-muted so operators
+              stop reading it as comparable to LT base rent.
+            -->
+            <tr>
+              <td>
+                <span class="unit-num">
+                  604
+                  <span class="str-mark" title="STR active · current res is nightly">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-str">Short-term</span></td>
+              <td class="res-dates">2026-05-14 → 2026-05-18 <span class="nights">· 4nt</span></td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$1,800</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-primary rent-nightly">$121.98<span style="font-size:10px;color:var(--muted);font-weight:400">/nt</span></span>
+                  <span class="rent-secondary">$488 stay total <span class="muted-cell" style="font-size:9.5px">(4nt)</span></span>
+                  <span class="rent-secondary struck">≈$3,710/mo eq.</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--amber)">$488</span></td>
+              <td class="num" title="MTD margin = (sum of stay revenues this month) ÷ monthly base rent − 1. Negative when occupied nights × ADR < monthly base. Break-even nights = base ÷ ADR. Per-stay = rate quality (does each nightly rate beat the daily base?).">
+                <span class="markup-neg">−73%</span>
+                <span class="markup-mtd-info"><b>4nt</b> MTD · BE <b>14.8nt</b> <span class="markup-be-warn">(48% occ)</span></span>
+                <span class="markup-per-stay"><b>+106%</b> per stay</span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="unit-num">
+                  606
+                  <span class="str-mark" title="STR active · current res is nightly">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-str">Short-term</span></td>
+              <td class="res-dates">2026-05-13 → 2026-05-17 <span class="nights">· 4nt</span></td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$1,800</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-primary rent-nightly">$100.66<span style="font-size:10px;color:var(--muted);font-weight:400">/nt</span></span>
+                  <span class="rent-secondary">$403 stay total <span class="muted-cell" style="font-size:9.5px">(4nt)</span></span>
+                  <span class="rent-secondary struck">≈$3,062/mo eq.</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--amber)">$805</span></td>
+              <td class="num" title="MTD margin = sum of stay revenues this month ÷ monthly base rent − 1. Break-even nights = base ÷ ADR.">
+                <span class="markup-neg">−55%</span>
+                <span class="markup-mtd-info"><b>8nt</b> MTD · BE <b>17.9nt</b> <span class="markup-be-warn">(59% occ)</span></span>
+                <span class="markup-per-stay"><b>+70%</b> per stay</span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="unit-num">
+                  703
+                  <span class="str-mark" title="STR active · current res is nightly">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-str">Short-term</span></td>
+              <td class="res-dates">2026-05-14 → 2026-05-18 <span class="nights">· 4nt</span></td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$1,950</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-primary rent-nightly">$143.33<span style="font-size:10px;color:var(--muted);font-weight:400">/nt</span></span>
+                  <span class="rent-secondary">$573 stay total <span class="muted-cell" style="font-size:9.5px">(4nt)</span></span>
+                  <span class="rent-secondary struck">≈$4,360/mo eq.</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--amber)">$1,577</span></td>
+              <td class="num" title="MTD margin = sum of stay revenues this month ÷ monthly base rent − 1. Break-even nights = base ÷ ADR.">
+                <span class="markup-neg">−19%</span>
+                <span class="markup-mtd-info"><b>11nt</b> MTD · BE <b>13.6nt</b> <span class="markup-be-warn">(45% occ)</span></span>
+                <span class="markup-per-stay"><b>+124%</b> per stay</span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="unit-num">
+                  1103
+                  <span class="str-mark" title="STR active · current res is nightly">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td><span class="gd-badge-str">Short-term</span></td>
+              <td class="res-dates">2026-05-13 → 2026-05-18 <span class="nights">· 5nt</span></td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$1,950</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-primary rent-nightly">$205.60<span style="font-size:10px;color:var(--muted);font-weight:400">/nt</span></span>
+                  <span class="rent-secondary">$1,028 stay total <span class="muted-cell" style="font-size:9.5px">(5nt)</span></span>
+                  <span class="rent-secondary struck">≈$6,254/mo eq.</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--green)">$3,084</span></td>
+              <td class="num" title="MTD margin = sum of stay revenues this month ÷ monthly base rent − 1. Break-even nights = base ÷ ADR.">
+                <span class="markup-pos">+58%</span>
+                <span class="markup-mtd-info"><b>15nt</b> MTD · BE <b>9.5nt</b> <span class="markup-be-ok">(31% occ)</span></span>
+                <span class="markup-per-stay"><b>+220%</b> per stay</span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="unit-num">
+                  1101
+                  <span class="str-mark" title="STR-eligible · awaiting next nightly booking">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-amber"></span>Available</td>
+              <td><span class="gd-badge-vacant">Vacant</span></td>
+              <td class="res-dates muted-cell">—</td>
+              <td><span style="color:var(--amber);font-weight:700">14d</span></td>
+              <td class="num">$1,950</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-secondary">awaiting booking</span>
+                  <span class="rent-secondary" style="color:var(--str-2);font-style:italic">~$140/nt avail</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--red);font-weight:600">$0</span></td>
+              <td class="num" title="No stays this month — base rent still owed to partner. Break-even nights = $1,950 ÷ ~$140 ADR ≈ 13.9nt (46% occ).">
+                <span class="markup-neg">−100%</span>
+                <span class="markup-mtd-info"><b>0nt</b> MTD · BE <b>~14nt</b> <span class="markup-be-warn">(46% occ)</span></span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+
+            <!--
+              Unit 1501 — STR-ELIGIBLE BUT DORMANT (currently on a 91-night mid-term).
+              Treatment:
+                - The "S" mark uses .dormant variant (hollow + dashed border)
+                  so the eye distinguishes "STR-on" from "STR-capable-not-on"
+                - Rent stack adds an "opportunity" tag showing the unit could
+                  earn ~$140/nt at the property's ADR — surfaces the missed
+                  upside without asserting it
+                - Markup column shows the realized monthly markup AND an
+                  estimated STR markup at the property's ADR, so operators
+                  spot under-monetized STR units in seconds
+            -->
+            <tr>
+              <td>
+                <span class="unit-num">
+                  1501
+                  <span class="str-mark dormant" title="STR-eligible · currently on a monthly contract. Capable of nightly bookings.">S</span>
+                </span>
+              </td>
+              <td><span class="unit-dot unit-dot-green"></span>Occupied</td>
+              <td>
+                <span class="gd-badge-curr">Mid-term</span>
+                <div style="margin-top:4px"><span class="opportunity-tag" title="Unit is STR-eligible but not currently earning nightly revenue">STR paused</span></div>
+              </td>
+              <td class="res-dates">2026-04-01 → 2026-06-30 <span class="nights">· 91nt</span></td>
+              <td><span class="muted-cell">—</span></td>
+              <td class="num">$2,100</td>
+              <td class="num">
+                <div class="rent-stack">
+                  <span class="rent-primary">$2,720</span>
+                  <span class="rent-secondary">monthly</span>
+                  <span class="rent-secondary" style="color:var(--str-2);font-style:italic;margin-top:3px">~$140/nt avail at ADR</span>
+                </div>
+              </td>
+              <td class="num"><span style="color:var(--green)">$1,360</span></td>
+              <td class="num" title="Realized monthly markup. STR potential at the property's current 73% occupancy × $140 ADR ÷ $2,100 base = +48%. (Could be higher at peak season.)">
+                <span class="markup-pos">+29.5%</span>
+                <span class="markup-mtd-info">monthly · <b>30nt</b> booked</span>
+                <span class="markup-per-stay">STR pot @ 73% occ: <b>+48%</b></span>
+              </td>
+              <td><span class="muted-cell">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Designer's notes for the reviewer -->
+    <div class="design-notes">
+      <h3>Design rationale</h3>
+      <ul>
+        <li><b>Trend module above the tabs, not inside one.</b> Operators answer "is this property earning?" before drilling into units. Putting the trend in a tab would bury it; making it the second thing after the stat band lets it carry the panel.</li>
+        <li><b>Stacked bars: Landing (solid, bottom) + Partner (soft, top).</b> The first iteration showed only <code>monthly_net_allocation</code> — which is actually <em>partner's</em> cut, not Landing's. Splitting the bar into Landing's <code>landing_margin</code> and partner's <code>net_allocation</code> shows the real economic split. Total bar height = gross rent. The take-rate jumps out: 30% on a typical LT deal (Brookwood) vs 61% on a Landing-favorable STR deal (One Club).</li>
+        <li><b>Split summary card.</b> Two columns — Landing | Partner — with take % as the headline. Operators evaluating expansion candidates can compare contract economics at a glance.</li>
+        <li><b>Coral for STR, blue for LT.</b> The two product lines have different economics and different optimization levers. Color-coding makes mixed-mode portfolios scannable in the grid.</li>
+        <li><b>"S" mark on the Unit, not a column.</b> Adding a column at 880px breaks the table. The 16px coral square inside the unit cell is loud enough to scan while costing zero layout.</li>
+        <li><b>Three-line rent stack for STR units.</b> Nightly rate (truth), stay total (felt impact, e.g. "$488 stay total (4nt)"), normalized monthly (legacy — struck through). Operators currently read the monthly figure as if it were comparable to LT; the strike-through breaks that habit without removing the data.</li>
+        <li><b>Ghost bars for pre-onboarding months.</b> Empty slots would let the eye read a 4-month series as a complete picture. Dashed outlines say "Landing wasn't here yet" so the ramp reads correctly.</li>
+        <li><b>Markup gets a "STR-est" tag when nightly.</b> The formula is different (nightly × expected occupied nights vs base) and the result has wider variance; the tag warns the reader not to read it like a fixed monthly markup.</li>
+        <li><b>"Daily Rev" → "Today $", repositioned next to Landing Rent.</b> Operators were unsure what the column meant. New header tooltip explains it; column moved so the three rent metrics (Base / Landing / Today) sit together. Markup follows as the trailing economic indicator.</li>
+        <li><b>STR-eligible-but-dormant units (e.g. unit 1501) get a distinct visual.</b> The "S" mark goes from filled to hollow-dashed; an "STR paused" tag appears next to the Mid-Term badge; the rent stack shows the property's ADR as "~$140/nt avail" to surface missed nightly upside. Markup column splits realized (+29.5% monthly) vs STR potential (+82%) so operators spot under-monetized units.</li>
+        <li><b>STR markup column = monthly truth, not per-night flattery.</b> First version computed "+106%" by comparing the nightly rate's monthly equivalent to monthly base — mathematically correct for per-night unit economics, but <em>misleading</em> because it ignored occupancy. A unit booked 4 nights at $122/nt earns $488 against $1,800 of base rent owed for the full month — actually <em>−73%</em> margin, not +106%. The column now leads with MTD realized margin (can be negative), then shows the break-even nights/occupancy threshold so operators know the floor, then a small "per stay" rate-quality number. Unit 1103 (15nt @ $206 = +58% MTD) is the only profitable STR this month — operators see the pattern instantly.</li>
+        <li><b>Added stat: "Occ today".</b> The trend ends at month-close; operators want today's number alongside the trend.</li>
+        <li><b>Added stat (STR only): "ADR · 30d".</b> Nightly properties get a 6th stat slot that LT properties don't need. Stats are flex-wrap, so this scales.</li>
+        <li><b>"Revenue history" as a third tab</b> is wired up but inert here — a place to drop drill-down (per-unit revenue, channel mix, comparable-property benchmark) without crowding the inline trend.</li>
+        <li><b>What I did NOT change.</b> The Units table column order, the badge vocabulary (curr/vacant/future/other), the unit-dot palette, the deinstall column, and the Reservations tab structure. Existing muscle memory is preserved.</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <script>
+  // ============================================================
+  // Trend chart rendering — stacked bars (Landing bottom, Partner top)
+  // ============================================================
+  //
+  // Per-month input fields:
+  //   l = Landing's net margin ($)        — solid colored bar, bottom-anchored
+  //   p = Partner's net allocation ($)    — soft/dashed bar, stacked above
+  //   o = occupancy (0..1)                 — overlaid green line
+  //   u = unit count on AP that month
+  //   null l|p => "ghost" month (pre-onboarding) → dashed outline only.
+  //
+  //   viewBox 0 0 660 200
+  //   plot area:  x = 30..660, y = 30..170
+  //   bars:        bottom-anchored, scaled by maxDollars (which now == max
+  //                gross = max(l+p) so the stacked total fits the y-axis)
+  //   occ line:    0% at y=170, 100% at y=30
+  // ============================================================
+
+  const MONTHS = [
+    'Jun \'25','Jul \'25','Aug \'25','Sep \'25','Oct \'25',
+    'Nov \'25','Dec \'25','Jan \'26','Feb \'26','Mar \'26','Apr \'26'
+  ];
+
+  // --- Property A: The Brookwood — full 11mo, LT-only, standard 30/70 split ---
+  const brookwood = [
+    { l: 10860, p: 25340, o: 0.78, u: 20 },
+    { l: 12540, p: 29260, o: 0.84, u: 20 },
+    { l: 13230, p: 30870, o: 0.87, u: 20 },
+    { l: 13950, p: 32550, o: 0.89, u: 20 },
+    { l: 13560, p: 31640, o: 0.88, u: 20 },
+    { l: 11940, p: 27860, o: 0.82, u: 20 },
+    { l: 11220, p: 26180, o: 0.78, u: 20 },
+    { l: 12180, p: 28420, o: 0.83, u: 20 },
+    { l: 13170, p: 30730, o: 0.86, u: 20 },
+    { l: 14160, p: 33040, o: 0.90, u: 20 },
+    { l: 14490, p: 33810, o: 0.91, u: 20 },
+  ];
+
+  // --- Property B: One Club Gulf Shores — REAL signoff_pulls data ---
+  // Landing's margin and partner's net_allocation per the source rev-share sheets
+  const oneClub = [
+    { l: null, p: null, o: null, u: null },  // Jun '25 — not onboarded
+    { l: null, p: null, o: null, u: null },
+    { l: null, p: null, o: null, u: null },
+    { l: null, p: null, o: null, u: null },
+    { l: null, p: null, o: null, u: null },
+    { l: null, p: null, o: null, u: null },
+    { l: null, p: null, o: null, u: null },  // Dec '25
+    { l: 0,     p: 0,    o: 0,      u: 0  }, // Jan '26 — onboarded but $0
+    { l: 1050,  p: 446,  o: 0.0524, u: 20 }, // Feb '26
+    { l: 12215, p: 8574, o: 0.4516, u: 73 }, // Mar '26
+    { l: 8008,  p: 4806, o: 0.3511, u: 79 }, // Apr '26
+  ];
+
+  function renderTrend(opts) {
+    const { data, maxDollars, prefix, ttipId } = opts;
+    const N = data.length;
+    const left = 30, right = 660, top = 30, bottom = 170;
+    const colW = (right - left) / N;
+    const barW = colW * 0.58;
+    const ttip = document.getElementById(ttipId);
+
+    let bars = '', units = '', xLabels = '', hits = '';
+    const occPts = [];
+    let occDots = '';
+    const maxOcc = Math.max(...data.filter(x => x.o !== null).map(x => x.o));
+    // Onboarding month = first index where data turns from null to a real entry
+    const onboardingIdx = data.findIndex(d => d.l !== null);
+
+    for (let i = 0; i < N; i++) {
+      const cx = left + i * colW + colW / 2;
+      const x  = cx - barW / 2;
+      const m  = data[i];
+
+      const labelClass = (i === 0 || i === N - 1) ? 'axis-label axis-label-strong' : 'axis-label';
+      xLabels += `<text class="${labelClass}" x="${cx}" y="185" text-anchor="middle">${MONTHS[i]}</text>`;
+
+      if (m.l === null) {
+        // Ghost month
+        bars += `<rect class="bar-ghost" x="${x}" y="${bottom - 28}" width="${barW}" height="28" rx="1"/>`;
+        continue;
+      }
+
+      // Onboarding flag — only render once, on the first month with data.
+      // Renders even if that first month is $0 so the start of activity is clear.
+      if (i === onboardingIdx && onboardingIdx > 0) {
+        const flagY = top + 2;
+        bars += `<polygon class="onb-flag" points="${cx - 4},${flagY} ${cx + 4},${flagY} ${cx},${flagY + 6}"/>`;
+        bars += `<text class="onb-flag-label" x="${cx}" y="${flagY - 2}" text-anchor="middle">onb</text>`;
+      }
+
+      const total = m.l + m.p;
+      if (total === 0) {
+        // Small filled pip at the baseline — reads as "we were here, $0 earned"
+        const pipH = 3;
+        bars += `<rect class="bar-zero" x="${x}" y="${bottom - pipH}" width="${barW}" height="${pipH}" rx="1"/>`;
+        bars += `<text class="zero-label" x="${cx}" y="${bottom - 5}" text-anchor="middle">$0</text>`;
+      } else {
+        const totalH = (total / maxDollars) * (bottom - top);
+        const landingH = (m.l / maxDollars) * (bottom - top);
+        const partnerH = (m.p / maxDollars) * (bottom - top);
+        // Landing — solid, bottom
+        if (landingH > 0) {
+          bars += `<rect class="bar-landing" x="${x}" y="${bottom - landingH}" width="${barW}" height="${landingH}" rx="1" style="animation-delay:${i * 60}ms"/>`;
+        }
+        // Partner — soft/dashed, stacked above
+        if (partnerH > 0) {
+          bars += `<rect class="bar-partner" x="${x}" y="${bottom - totalH}" width="${barW}" height="${partnerH}" rx="1" style="animation-delay:${i * 60 + 40}ms"/>`;
+        }
+      }
+
+      // Occupancy line + dot
+      if (m.o !== null) {
+        const oy = bottom - (m.o * (bottom - top));
+        occPts.push(`${cx},${oy}`);
+        const isApex = m.o === maxOcc && m.o > 0;
+        occDots += `<circle class="occ-dot${isApex ? ' occ-dot-active' : ''}" cx="${cx}" cy="${oy}" r="${isApex ? 3.2 : 2.4}" style="animation-delay:${800 + i * 30}ms"/>`;
+      }
+
+      // NOTE: revshare's `unit_count` field is actually a count of reservation
+      // line items on the source sheet, NOT physical units. Physical units
+      // come from Looker (`dimhome` count, shown in the stat band). When we
+      // wire to real data, source this from `dimreservation.count` per
+      // (property, month) and label it "Stays". For now we render under the
+      // tooltip as "Stays" and skip the per-month axis subscript entirely.
+
+      // Hover hit target — separate group so it doesn't fight bar transforms
+      const occLabel = m.o !== null ? `${(m.o * 100).toFixed(1)}% occ` : '';
+      const staysLabel = m.u !== null && m.u > 0 ? `${m.u} stays` : '';
+      const lLabel = m.l > 0 ? `$${m.l.toLocaleString()}` : '$0';
+      const pLabel = m.p > 0 ? `$${m.p.toLocaleString()}` : '$0';
+      const gLabel = (m.l + m.p) > 0 ? `$${(m.l + m.p).toLocaleString()}` : '$0';
+      const takeLabel = (m.l + m.p) > 0 ? `${Math.round(m.l / (m.l + m.p) * 100)}%` : '—';
+      const hitData = JSON.stringify({
+        month: MONTHS[i], l: lLabel, p: pLabel, g: gLabel, take: takeLabel,
+        o: occLabel, u: staysLabel
+      }).replace(/"/g, '&quot;');
+      hits += `<rect class="col-hit" x="${left + i * colW}" y="${top}" width="${colW}" height="${bottom - top}" data-info="${hitData}"/>`;
+    }
+
+    document.getElementById(prefix + '-bars').innerHTML = bars + hits;
+    document.getElementById(prefix + '-units').innerHTML = units;
+    document.getElementById(prefix + '-xlabels').innerHTML = xLabels;
+    document.getElementById(prefix + '-occ').setAttribute('points', occPts.join(' '));
+    document.getElementById(prefix + '-occ-dots').innerHTML = occDots;
+
+    const svg = document.getElementById(prefix + '-bars').ownerSVGElement;
+    svg.addEventListener('mousemove', (e) => {
+      const target = e.target.closest('.col-hit');
+      if (!target) { ttip.classList.remove('show'); return; }
+      const info = JSON.parse(target.getAttribute('data-info').replace(/&quot;/g, '"'));
+      const rect = svg.getBoundingClientRect();
+      const wrap = ttip.parentElement.getBoundingClientRect();
+      const cx = +target.getAttribute('x') + +target.getAttribute('width') / 2;
+      const screenX = rect.left + (cx / 660) * rect.width;
+      ttip.style.left = `${screenX - wrap.left}px`;
+      ttip.style.top  = `${rect.top - wrap.top - 4}px`;
+      ttip.innerHTML  = `
+        <div class="ttip-month">${info.month} · take ${info.take}</div>
+        <div class="ttip-row"><span>Landing</span><b>${info.l}</b></div>
+        <div class="ttip-row"><span>Partner</span><b>${info.p}</b></div>
+        <div class="ttip-row"><span>Gross</span><b>${info.g}</b></div>
+        ${info.o ? `<div class="ttip-row"><span>Occ</span><b>${info.o}</b></div>` : ''}
+        ${info.u ? `<div class="ttip-row"><span>Stays</span><b>${info.u.replace(' stays','')}</b></div>` : ''}
+      `;
+      ttip.classList.add('show');
+    });
+    svg.addEventListener('mouseleave', () => ttip.classList.remove('show'));
+  }
+
+  // y-axis maxima sized to max(gross) per panel
+  // Brookwood: max gross = 14490 + 33810 = ~48.3K → use 50K? Actually let's
+  // round up to nearest 25K above max stack. Brookwood max stack ≈ $48.3K → 50K still tight.
+  // Use 75K to give headroom for occ line at top of chart.
+  renderTrend({ data: brookwood, maxDollars: 75000, prefix: 'brookwood', ttipId: 'brookwood-ttip' });
+
+  // One Club: max gross = 12215 + 8574 = $20.8K (Mar) → use 30K headroom
+  renderTrend({ data: oneClub, maxDollars: 30000, prefix: 'oneclub', ttipId: 'oneclub-ttip' });
+  </script>
+</body>
+</html>
