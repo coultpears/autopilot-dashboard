@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner P&L · v2 (with Landing POV)</title>
+
+<!--
+  ─────────────────────────────────────────────────────────────────────────
+  DESIGN MOCK v2 · "Partner P&L vs Market Rent" w/ perspective toggle
+
+  WHY v2 EXISTS:
+  v1 made the shortfall visceral. The partner's complaint is now legible.
+  But the operator needs BOTH framings for partner calls:
+    • Partner POV (default) — what the partner sees and brings up:
+      "STR rev is 19% of contract base. You're costing me $58K/4mo."
+    • Landing POV (opt-in for call prep) — the rebuttal:
+      "If LT alternative is realistic at 85% occ, here's the vacancy we
+       captured. Here's the incremental $ delivered. Without us this was
+       partly empty inventory."
+
+  The TOGGLE in the eyebrow swaps the summary card framing. Same chart,
+  same data — different interpretation. Operator can flip mid-call to
+  see how the same number set reads from either side.
+
+  v2 also adds:
+    • LT-occupancy benchmark toggle (75 / 85 / 95) for the counterfactual,
+      since this is judgment that varies per property type (urban vs resort).
+    • Talking-points block — pre-written sentences for the partner call.
+    • The CHART now shows BOTH baselines (implied 100% + realistic 85%)
+      so the operator can see how the same actual bars look against either.
+  ─────────────────────────────────────────────────────────────────────────
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:           #FAFAF9;
+    --paper:        #FFFFFF;
+    --paper-warm:   #FBF7EF;
+
+    --ink-0:        #15192D;
+    --ink-1:        #2D3654;
+    --ink-2:        #52566B;
+    --ink-3:        #8A8D99;
+    --ink-4:        #B5B9C3;
+
+    --line-0:       rgba(21, 25, 45, 0.06);
+    --line-1:       rgba(21, 25, 45, 0.10);
+    --line-2:       rgba(21, 25, 45, 0.16);
+
+    --landing-blue: #1A61D9;
+    --success:      #08786C;
+    --warning:      #B95B00;
+    --error:        #EE533D;
+    --str:          #D2552E;
+
+    --blue-tint:    rgba(26, 97, 217, 0.08);
+    --success-tint: rgba(8, 120, 108, 0.10);
+    --warning-tint: rgba(185, 91, 0, 0.10);
+    --error-tint:   rgba(238, 83, 61, 0.10);
+    --str-tint:     rgba(210, 85, 46, 0.12);
+
+    --implied-bg:    rgba(21, 25, 45, 0.035);
+    --implied-edge:  rgba(21, 25, 45, 0.12);
+
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+
+    --font-display: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+    --font-body:    'DM Sans', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink-0);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+      radial-gradient(circle at 76% 58%, rgba(0,0,0,0.012) 0 1px, transparent 1px);
+    background-size: 7px 7px, 11px 11px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .page-header {
+    padding: 28px 48px 18px;
+    border-bottom: 1px solid var(--line-1);
+    display: flex; justify-content: space-between; align-items: baseline;
+    background: var(--bg);
+    position: relative; z-index: 1;
+  }
+  .page-title {
+    font-family: var(--font-display);
+    font-weight: 600; font-size: 20px;
+    letter-spacing: -0.01em; margin: 0;
+  }
+  .page-title em { font-style: italic; font-weight: 500; color: var(--ink-3); }
+  .page-meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-3);
+  }
+
+  main {
+    padding: 28px 48px 80px;
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    gap: 28px;
+    position: relative; z-index: 1;
+  }
+
+  .ctx-strip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 22px;
+    background: var(--paper);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-md);
+    border-left: 3px solid var(--str);
+  }
+  .ctx-name {
+    font-family: var(--font-display);
+    font-size: 18px; font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .ctx-name em { font-style: italic; font-weight: 400; color: var(--ink-3); font-size: 13px; }
+  .ctx-meta { font-family: var(--font-body); font-size: 12px; color: var(--ink-3); }
+  .ctx-chip {
+    margin-left: auto;
+    font-family: var(--font-mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    padding: 5px 10px; border-radius: var(--r-sm);
+    font-weight: 600; background: var(--str); color: white;
+  }
+
+  /* ─── Module ─── */
+  .pnl-module {
+    background: var(--paper);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(21,25,45,0.04);
+  }
+
+  .pnl-eyebrow {
+    padding: 16px 24px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 18px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line-0);
+  }
+  .pnl-eyebrow .left {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .pnl-title {
+    font-family: var(--font-mono);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em;
+    color: var(--ink-1); font-weight: 600;
+  }
+  .pnl-subtitle {
+    font-family: var(--font-body); font-size: 13px;
+    color: var(--ink-3); font-style: italic;
+  }
+  .pnl-eyebrow .right {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  }
+
+  /* Perspective toggle — the centerpiece of v2 */
+  .pov-toggle {
+    display: flex;
+    background: var(--paper-warm);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-md);
+    padding: 3px;
+    box-shadow: inset 0 1px 1px rgba(21,25,45,0.04);
+  }
+  .pov-toggle button {
+    background: transparent; border: 0;
+    padding: 6px 14px; cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    border-radius: var(--r-sm);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+  }
+  .pov-toggle button[data-pov="partner"].active {
+    background: var(--paper);
+    color: var(--error);
+    box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--error);
+  }
+  .pov-toggle button[data-pov="landing"].active {
+    background: var(--paper);
+    color: var(--landing-blue);
+    box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--landing-blue);
+  }
+
+  .lt-toggle {
+    display: flex; border: 1px solid var(--line-1); border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+  .lt-toggle button {
+    background: transparent; border: 0; padding: 6px 10px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--ink-3);
+  }
+  .lt-toggle button.active { background: var(--ink-0); color: var(--paper-warm); }
+
+  .pnl-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 0;
+  }
+  @media (max-width: 980px) {
+    .pnl-body { grid-template-columns: 1fr; }
+    .pnl-summary { border-left: 0; border-top: 1px solid var(--line-1); }
+  }
+
+  /* ─── Chart ─── */
+  .pnl-chart-wrap {
+    padding: 22px 24px 18px;
+    position: relative;
+  }
+  .pnl-chart-canvas {
+    width: 100%; height: 240px; display: block; overflow: visible;
+  }
+  .implied-bar { fill: var(--implied-bg); stroke: var(--implied-edge); stroke-width: 0.6; }
+  .actual-bar.good      { fill: var(--success); }
+  .actual-bar.warn      { fill: var(--warning); }
+  .actual-bar.bad       { fill: var(--error); }
+  .actual-bar.neutral   { fill: var(--ink-4); }
+  .implied-line {
+    fill: none; stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 3;
+  }
+  .lt-realistic-line {
+    fill: none; stroke: var(--warning); stroke-width: 1.2; stroke-dasharray: 1.5 3;
+  }
+  .ghost-block {
+    fill: rgba(26, 97, 217, 0.025);
+    stroke: var(--line-1); stroke-width: 0.5; stroke-dasharray: 1.4 1.4;
+  }
+  .axis-label {
+    font-family: var(--font-mono); font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    fill: var(--ink-3);
+  }
+  .axis-label-strong { fill: var(--ink-1); font-weight: 600; }
+  .coverage-label {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  }
+  .coverage-label.bad  { fill: var(--error); }
+  .coverage-label.warn { fill: var(--warning); }
+  .coverage-label.good { fill: var(--success); }
+
+  .pnl-legend {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    margin-bottom: 14px;
+    font-family: var(--font-mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .pnl-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .pnl-legend .sw { width: 14px; height: 8px; display: inline-block; border-radius: 1px; }
+  .pnl-legend .sw-implied  { background: var(--implied-bg); border: 1px solid var(--implied-edge); }
+  .pnl-legend .sw-actual   { background: var(--success); }
+  .pnl-legend .sw-shortfall {
+    width: 14px; height: 8px;
+    background: repeating-linear-gradient(45deg,
+      rgba(238,83,61,0.30) 0 2px, transparent 2px 4px);
+    border: 1px solid rgba(238,83,61,0.4);
+  }
+  .pnl-legend .sw-baseline  { width: 14px; height: 0; border-top: 1.2px dashed var(--ink-2); margin-top: 4px; }
+  .pnl-legend .sw-baseline-lt { width: 14px; height: 0; border-top: 1.3px dashed var(--warning); margin-top: 4px; }
+
+  /* ─── Summary card — the part that flips on POV ─── */
+  .pnl-summary {
+    border-left: 1px solid var(--line-1);
+    padding: 20px 22px;
+    background: linear-gradient(180deg, var(--paper-warm) 0%, var(--paper) 100%);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  /* The two perspective panes — only one visible at a time */
+  .pov-pane { display: none; flex-direction: column; gap: 16px; }
+  .pov-pane.active { display: flex; }
+
+  .verdict { display: flex; flex-direction: column; gap: 4px; }
+  .verdict-label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-3);
+    font-weight: 600;
+  }
+  .verdict-number {
+    font-family: var(--font-mono);
+    font-size: 30px; font-weight: 700;
+    letter-spacing: -0.015em; line-height: 1;
+  }
+  .verdict-number.shortfall { color: var(--error); }
+  .verdict-number.surplus   { color: var(--success); }
+  .verdict-number.even      { color: var(--ink-1); }
+  .verdict-number.incremental { color: var(--landing-blue); }
+  .verdict-number .sign     { font-size: 22px; margin-right: 2px; }
+  .verdict-pct {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--ink-2);
+    margin-top: 2px; line-height: 1.5;
+  }
+  .verdict-pct b.bad  { color: var(--error);   font-weight: 700; }
+  .verdict-pct b.good { color: var(--success); font-weight: 700; }
+  .verdict-pct b.blue { color: var(--landing-blue); font-weight: 700; }
+
+  .breakdown {
+    display: flex; flex-direction: column;
+    padding: 12px 0;
+    border-top: 1px dashed var(--line-1);
+    border-bottom: 1px dashed var(--line-1);
+    gap: 7px;
+  }
+  .bk-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-mono);
+  }
+  .bk-row .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); }
+  .bk-row .v { font-size: 13px; font-weight: 600; color: var(--ink-0); }
+  .bk-row .v.muted { color: var(--ink-3); font-weight: 500; }
+  .bk-row .v.blue  { color: var(--landing-blue); }
+  .bk-row .v.green { color: var(--success); }
+  .bk-row .v.red   { color: var(--error); }
+  .bk-row.sub .l { padding-left: 10px; font-size: 9px; color: var(--ink-3); }
+  .bk-row.sub .v { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+
+  .trajectory {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  }
+  .trajectory.widening { color: var(--error); }
+  .trajectory.surplus  { color: var(--success); }
+  .trajectory.incremental { color: var(--landing-blue); }
+  .trajectory .glyph { font-size: 16px; line-height: 1; }
+
+  /* Talking points — the operator call-prep block (Landing POV only) */
+  .talking-points {
+    margin-top: 4px;
+    padding: 12px 14px;
+    background: var(--paper-warm);
+    border: 1px solid var(--line-1);
+    border-left: 3px solid var(--landing-blue);
+    border-radius: var(--r-sm);
+  }
+  .talking-points .label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-3); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .talking-points .label::before {
+    content: '“'; color: var(--landing-blue); font-size: 18px; line-height: 0.5;
+    font-family: var(--font-display); font-weight: 700;
+  }
+  .talking-points ul {
+    margin: 0; padding-left: 18px;
+    font-family: var(--font-body); font-size: 12.5px;
+    color: var(--ink-1); line-height: 1.55;
+  }
+  .talking-points li { margin-bottom: 5px; }
+  .talking-points li:last-child { margin-bottom: 0; }
+  .talking-points b { color: var(--ink-0); font-weight: 600; }
+
+  .narrative {
+    font-family: var(--font-body); font-size: 12.5px; line-height: 1.55;
+    color: var(--ink-2); font-style: italic;
+  }
+  .narrative b { color: var(--ink-0); font-style: normal; font-weight: 600; }
+
+  /* Roll-up grid (unchanged from v1) */
+  .pnl-rollup { padding: 0 24px 18px; }
+  .pnl-rollup-grid {
+    display: grid;
+    grid-template-columns: 80px repeat(11, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid var(--line-0);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .pnl-rollup-cell {
+    padding: 6px 4px;
+    font-family: var(--font-mono); font-size: 10px;
+    text-align: center;
+    border-right: 1px solid var(--line-0);
+    border-top: 1px solid var(--line-0);
+    color: var(--ink-2); line-height: 1.4;
+  }
+  .pnl-rollup-cell:last-child { border-right: 0; }
+  .pnl-rollup-cell.label {
+    text-align: left; padding-left: 10px;
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    background: var(--paper-warm);
+  }
+  .pnl-rollup-cell.month-header {
+    background: var(--paper-warm);
+    font-size: 8.5px; color: var(--ink-3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-top: 0;
+  }
+  .pnl-rollup-cell.actual.bad  { color: var(--error); font-weight: 600; background: rgba(238,83,61,0.04); }
+  .pnl-rollup-cell.actual.warn { color: var(--warning); font-weight: 600; background: rgba(185,91,0,0.04); }
+  .pnl-rollup-cell.actual.good { color: var(--success); font-weight: 600; background: rgba(8,120,108,0.04); }
+  .pnl-rollup-cell.ghost { color: var(--ink-4); font-style: italic; font-size: 9px; }
+
+  .design-notes {
+    background: var(--paper);
+    border: 1px solid var(--line-1);
+    padding: 18px 22px;
+    border-radius: var(--r-md);
+    font-family: var(--font-body); font-size: 12.5px;
+    color: var(--ink-2); line-height: 1.55;
+  }
+  .design-notes h3 {
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-0); margin: 0 0 10px;
+    font-weight: 600;
+  }
+  .design-notes ul { margin: 0; padding-left: 18px; }
+  .design-notes li { margin-bottom: 5px; }
+  .design-notes code {
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--paper-warm); padding: 1px 4px; border-radius: 2px;
+  }
+
+  .actual-bar {
+    transform-origin: bottom;
+    animation: barRise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes barRise {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
+  .verdict-number, .talking-points {
+    animation: numIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+  }
+  @keyframes numIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 880px) {
+    .page-header, main { padding-left: 22px; padding-right: 22px; }
+    .pnl-eyebrow { padding: 14px 18px 12px; }
+    .pnl-chart-wrap { padding: 18px; }
+    .pnl-summary { padding: 18px; }
+    .pnl-rollup { padding: 0 18px 16px; }
+    .pnl-rollup-grid { grid-template-columns: 70px repeat(11, minmax(0, 1fr)); }
+    .pnl-rollup-cell { font-size: 9px; padding: 5px 2px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1 class="page-title">Partner P&amp;L <em>v2 · with Landing POV</em></h1>
+  <div class="page-meta">Detail-panel module · design mock</div>
+</header>
+
+<main>
+
+  <!--
+    ════════════════════════════════════════════════════════════════════
+    EXAMPLE A · ONE CLUB GULF SHORES — resort/seasonal, weak LT alt
+    Default view: Partner POV (the alarming framing partner will bring up).
+    Toggle to Landing POV to see the call-prep rebuttal: at 85% LT alt
+    the gap is real, but Landing's argument is "this property's LT alt is
+    closer to ~30-50% off-season" — let the operator argue that on the call.
+    ════════════════════════════════════════════════════════════════════
+  -->
+  <div class="ctx-strip">
+    <div>
+      <div class="ctx-name">One Club Gulf Shores</div>
+      <div class="ctx-meta">Gulf Shores, AL · Resort Lifestyle Communities · 15 units · onboarded Jan 2026</div>
+    </div>
+    <span class="ctx-chip">STR enabled · 15 units</span>
+  </div>
+
+  <section class="pnl-module" data-key="oneclub" data-pov="partner">
+    <div class="pnl-eyebrow">
+      <div class="left">
+        <span class="pnl-title">Partner P&amp;L vs market rent</span>
+        <span class="pnl-subtitle">What the partner actually got vs base-rent expectations</span>
+      </div>
+      <div class="right">
+        <div class="pov-toggle" role="tablist" aria-label="Perspective">
+          <button data-pov="partner" class="active" aria-label="Partner perspective">Partner POV</button>
+          <button data-pov="landing" aria-label="Landing perspective">Landing POV</button>
+        </div>
+        <div class="lt-toggle" role="tablist" aria-label="LT occupancy assumption">
+          <button data-lt="0.75">75%</button>
+          <button data-lt="0.85" class="active">85%</button>
+          <button data-lt="0.95">95%</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pnl-body">
+      <div class="pnl-chart-wrap">
+        <div class="pnl-legend">
+          <span><span class="sw sw-actual"></span>Actual partner net</span>
+          <span><span class="sw sw-shortfall"></span>Shortfall (missing $)</span>
+          <span><span class="sw-baseline"></span>Implied @ base rent</span>
+          <span><span class="sw-baseline-lt"></span>Realistic LT alt</span>
+        </div>
+        <svg class="pnl-chart-canvas" viewBox="0 0 660 240" preserveAspectRatio="none"></svg>
+      </div>
+
+      <aside class="pnl-summary">
+
+        <!-- PARTNER POV (default) -->
+        <div class="pov-pane active" data-pov="partner">
+          <div class="verdict">
+            <span class="verdict-label">Cumulative shortfall · 4mo</span>
+            <span class="verdict-number shortfall"><span class="sign">−</span>$58.4K</span>
+            <span class="verdict-pct">Partner received <b class="bad">19%</b> of implied base rent ($13.8K of $72.2K)</span>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">Actual to partner</span><span class="v">$13.8K</span></div>
+            <div class="bk-row"><span class="l">Implied (15u × base)</span><span class="v muted">$72.2K</span></div>
+            <div class="bk-row sub"><span class="l">Realistic LT @ <span data-lt-pct>85%</span> occ</span><span class="v" data-lt-realistic>$61.4K</span></div>
+            <div class="bk-row"><span class="l">Best month</span><span class="v">$8.6K · Mar</span></div>
+            <div class="bk-row"><span class="l">Worst month</span><span class="v">$0.4K · Feb</span></div>
+          </div>
+          <div class="trajectory widening">
+            <span class="glyph">▾</span><span>Gap widened in April</span>
+          </div>
+          <div class="narrative">
+            What the partner sees: STR is running at <b>19% of contract base</b>.
+            Mar peak narrowed the gap; Apr softness reopened it. Average
+            <b>$19.5K/mo shortfall vs base</b>.
+          </div>
+        </div>
+
+        <!-- LANDING POV (call-prep view) -->
+        <div class="pov-pane" data-pov="landing">
+          <div class="verdict">
+            <span class="verdict-label">Incremental $ delivered · 4mo</span>
+            <span class="verdict-number incremental">+$13.8K</span>
+            <span class="verdict-pct">Revenue partner would not have had without Landing's STR program. <b class="blue">23%</b> of realistic LT alt @ <span data-lt-pct>85%</span>.</span>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">With Landing (actual)</span><span class="v blue">$13.8K</span></div>
+            <div class="bk-row"><span class="l">Without Landing · LT alt</span><span class="v muted" data-lt-realistic>$61.4K</span></div>
+            <div class="bk-row sub"><span class="l">Net delta</span><span class="v red" data-net-delta>−$47.6K</span></div>
+            <div class="bk-row"><span class="l">Vacancy captured</span><span class="v green">38%</span></div>
+            <div class="bk-row sub"><span class="l">of available unit-nights</span><span class="v muted">680 of 1,800</span></div>
+          </div>
+          <div class="trajectory incremental">
+            <span class="glyph">→</span><span>Ramp period · 4 of 11mo reporting</span>
+          </div>
+          <div class="talking-points">
+            <div class="label">Partner-call talking points</div>
+            <ul>
+              <li>We delivered <b>$13.8K</b> in revenue on units that were otherwise sitting empty during onboarding.</li>
+              <li>Realistic LT alt of <b>$61.4K</b> assumes 85% occupancy — for a Gulf Shores resort in <b>shoulder season</b>, true LT alt is closer to 30-50% (Q1-Q2 transient market). At 50% LT alt = <b>$36.1K</b>, our delivery covers <b>38%</b>.</li>
+              <li>Mar peak ($8.6K, 36% of base) shows the model works in peak demand. <b>May/Jun should ramp materially</b> as summer demand hits.</li>
+              <li>4-month track record is too early to defend or condemn. <b>Reset partner expectations to 12mo trailing</b> — we'll have full season data by Aug.</li>
+            </ul>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <div class="pnl-rollup">
+      <div class="pnl-rollup-grid" data-rollup="oneclub"></div>
+    </div>
+  </section>
+
+
+  <!--
+    ════════════════════════════════════════════════════════════════════
+    EXAMPLE B · The Compass · Atlanta — urban, strong LT alt
+    Default view: Partner POV (basically even at 99% — minor shortfall).
+    Toggle to Landing POV: STR is BEATING the realistic LT alt at 85%.
+    The "incremental" framing is strong here — operator can defend.
+    ════════════════════════════════════════════════════════════════════
+  -->
+  <div class="ctx-strip" style="margin-top:6px">
+    <div>
+      <div class="ctx-name">The Compass · Atlanta <em>(hypothetical)</em></div>
+      <div class="ctx-meta">Atlanta, GA · Cortland · 12 units · onboarded Jul 2025</div>
+    </div>
+    <span class="ctx-chip">STR enabled · 12 units</span>
+  </div>
+
+  <section class="pnl-module" data-key="compass" data-pov="partner">
+    <div class="pnl-eyebrow">
+      <div class="left">
+        <span class="pnl-title">Partner P&amp;L vs market rent</span>
+        <span class="pnl-subtitle">What the partner actually got vs base-rent expectations</span>
+      </div>
+      <div class="right">
+        <div class="pov-toggle">
+          <button data-pov="partner" class="active">Partner POV</button>
+          <button data-pov="landing">Landing POV</button>
+        </div>
+        <div class="lt-toggle">
+          <button data-lt="0.75">75%</button>
+          <button data-lt="0.85" class="active">85%</button>
+          <button data-lt="0.95">95%</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pnl-body">
+      <div class="pnl-chart-wrap">
+        <div class="pnl-legend">
+          <span><span class="sw sw-actual"></span>Actual partner net</span>
+          <span><span class="sw sw-shortfall"></span>Shortfall (missing $)</span>
+          <span><span class="sw-baseline"></span>Implied @ base rent</span>
+          <span><span class="sw-baseline-lt"></span>Realistic LT alt</span>
+        </div>
+        <svg class="pnl-chart-canvas" viewBox="0 0 660 240" preserveAspectRatio="none"></svg>
+      </div>
+
+      <aside class="pnl-summary">
+
+        <!-- PARTNER POV -->
+        <div class="pov-pane active" data-pov="partner">
+          <div class="verdict">
+            <span class="verdict-label">Cumulative · 10mo</span>
+            <span class="verdict-number even"><span class="sign">−</span>$0.9K</span>
+            <span class="verdict-pct">Partner received <b class="good">99%</b> of implied base rent ($143.1K of $144.0K)</span>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">Actual to partner</span><span class="v">$143.1K</span></div>
+            <div class="bk-row"><span class="l">Implied (12u × base)</span><span class="v muted">$144.0K</span></div>
+            <div class="bk-row sub"><span class="l">Realistic LT @ <span data-lt-pct>85%</span> occ</span><span class="v" data-lt-realistic>$122.4K</span></div>
+            <div class="bk-row"><span class="l">Best month</span><span class="v">$19.4K · Apr</span></div>
+            <div class="bk-row"><span class="l">Surplus months</span><span class="v">5 of 10</span></div>
+          </div>
+          <div class="trajectory surplus">
+            <span class="glyph">▴</span><span>Surplus trending</span>
+          </div>
+          <div class="narrative">
+            What the partner sees: STR is essentially <b>matching base rent</b>
+            (99% recovery), with <b>5 of 10 months exceeding</b> implied.
+            April hit <b>+35% above base</b>.
+          </div>
+        </div>
+
+        <!-- LANDING POV -->
+        <div class="pov-pane" data-pov="landing">
+          <div class="verdict">
+            <span class="verdict-label">Incremental $ delivered · 10mo</span>
+            <span class="verdict-number incremental">+$20.7K</span>
+            <span class="verdict-pct">Above realistic LT alt @ <span data-lt-pct>85%</span> ($143.1K vs $122.4K). <b class="good">17% over</b>.</span>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">With Landing (actual)</span><span class="v blue">$143.1K</span></div>
+            <div class="bk-row"><span class="l">Without Landing · LT alt</span><span class="v muted" data-lt-realistic>$122.4K</span></div>
+            <div class="bk-row sub"><span class="l">Net delta</span><span class="v green" data-net-delta>+$20.7K</span></div>
+            <div class="bk-row"><span class="l">Vacancy captured</span><span class="v green">94%</span></div>
+            <div class="bk-row sub"><span class="l">of available unit-nights</span><span class="v muted">3,432 of 3,650</span></div>
+          </div>
+          <div class="trajectory surplus">
+            <span class="glyph">▴</span><span>Beating LT alt every mo since Sep</span>
+          </div>
+          <div class="talking-points">
+            <div class="label">Partner-call talking points</div>
+            <ul>
+              <li>STR has <b>beaten realistic LT</b> in 8 of 10 months. Cumulative <b>$20.7K above</b> what you'd earn at 85% LT occ.</li>
+              <li>At <b>94% vacancy captured</b>, we're effectively running these units like fully-booked LT, with STR's <b>rate premium</b> on top.</li>
+              <li>April hit <b>$19.4K vs $14.4K implied</b> — STR is delivering <b>+35% over base</b> in peak demand.</li>
+              <li>Recommend <b>expanding the program</b> — this property profile is exactly where the STR model wins.</li>
+            </ul>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <div class="pnl-rollup">
+      <div class="pnl-rollup-grid" data-rollup="compass"></div>
+    </div>
+  </section>
+
+  <div class="design-notes">
+    <h3>v2 changes vs v1</h3>
+    <ul>
+      <li><b>Perspective toggle (Partner POV / Landing POV) added to the eyebrow.</b> Default is Partner POV — what the partner will see when they pull the data themselves. Operator clicks Landing POV before a partner call to load the rebuttal framing. The toggle button itself is color-coded: red border when Partner POV active (because that view will show the partner's complaint), blue border when Landing POV (the call-prep view).</li>
+      <li><b>Landing POV reframes the SAME numbers</b>: headline becomes "Incremental $ delivered" (revenue the partner has thanks to Landing); breakdown adds "Without Landing · LT alt" and "Vacancy captured" rows; trajectory glyph and narrative shift to operator-friendly language.</li>
+      <li><b>"Vacancy captured" metric</b> — % of available unit-nights with revenue. Strong call-prep number: even when $ is below LT alt, a high vacancy-capture % shows Landing is moving the building toward stabilized utilization.</li>
+      <li><b>Talking points block</b> (Landing POV only) — pre-written sentences for the partner call. Each bullet uses the actual numbers from the data. Saves the operator from doing live math in front of the partner.</li>
+      <li><b>LT-occupancy benchmark toggle (75 / 85 / 95)</b> — lets operators adjust the realistic LT assumption per property. Urban properties may justify 95%; resort/seasonal can argue 75%. The chart's realistic-LT line, the summary's "Realistic LT" row, and the Landing POV verdict all recompute live.</li>
+      <li><b>Both perspectives are in the DOM simultaneously</b> — toggle just swaps CSS visibility. Means operator can click between them instantly with no re-fetch, no animation lag. Critical for call mid-flight.</li>
+      <li><b>v1 file preserved at <code>partner-pnl-v1.html</code></b> for direct A/B comparison — open both side by side to see the framing difference.</li>
+    </ul>
+    <h3 style="margin-top:14px">What the operator does with this</h3>
+    <ul>
+      <li><b>Before a partner call</b>: switch to Landing POV, adjust LT% to the assumption you want to defend, copy the talking points.</li>
+      <li><b>During a partner call</b>: keep Partner POV visible (what they're seeing) and have Landing POV in another tab; switch when you need a counter.</li>
+      <li><b>For internal review</b>: Partner POV is the "what does this look like from the outside" gut-check; Landing POV is "what story can we tell."</li>
+    </ul>
+  </div>
+
+</main>
+
+<script>
+// ============================================================================
+// DATA
+// ============================================================================
+
+const ONECLUB_BASE_PER_UNIT = 1604;
+const ONECLUB_UNITS = 15;
+const ONECLUB = {
+  basePerUnit: ONECLUB_BASE_PER_UNIT,
+  units: ONECLUB_UNITS,
+  months: [
+    { label: "Jun '25", actual: null, implied: null, ghost: true },
+    { label: "Jul '25", actual: null, implied: null, ghost: true },
+    { label: "Aug '25", actual: null, implied: null, ghost: true },
+    { label: "Sep '25", actual: null, implied: null, ghost: true },
+    { label: "Oct '25", actual: null, implied: null, ghost: true },
+    { label: "Nov '25", actual: null, implied: null, ghost: true },
+    { label: "Dec '25", actual: null, implied: null, ghost: true },
+    { label: "Jan '26", actual: 0,     implied: 0,     onboarded: true },
+    { label: "Feb '26", actual: 446,   implied: 24060 },
+    { label: "Mar '26", actual: 8574,  implied: 24060 },
+    { label: "Apr '26", actual: 4806,  implied: 24060 },
+  ],
+};
+
+const COMPASS_BASE_PER_UNIT = 1200;
+const COMPASS_UNITS = 12;
+const COMPASS_IMPLIED = COMPASS_UNITS * COMPASS_BASE_PER_UNIT;
+const COMPASS = {
+  basePerUnit: COMPASS_BASE_PER_UNIT,
+  units: COMPASS_UNITS,
+  months: [
+    { label: "Jun '25", actual: null,  implied: null, ghost: true },
+    { label: "Jul '25", actual: 4200,  implied: COMPASS_IMPLIED, onboarded: true },
+    { label: "Aug '25", actual: 11800, implied: COMPASS_IMPLIED },
+    { label: "Sep '25", actual: 16500, implied: COMPASS_IMPLIED },
+    { label: "Oct '25", actual: 18200, implied: COMPASS_IMPLIED },
+    { label: "Nov '25", actual: 15100, implied: COMPASS_IMPLIED },
+    { label: "Dec '25", actual: 13800, implied: COMPASS_IMPLIED },
+    { label: "Jan '26", actual: 12400, implied: COMPASS_IMPLIED },
+    { label: "Feb '26", actual: 13900, implied: COMPASS_IMPLIED },
+    { label: "Mar '26", actual: 17800, implied: COMPASS_IMPLIED },
+    { label: "Apr '26", actual: 19400, implied: COMPASS_IMPLIED },
+  ],
+};
+
+// ============================================================================
+// RENDER
+// ============================================================================
+
+function coverageClass(actual, implied) {
+  if (implied == null || implied === 0) return 'neutral';
+  const ratio = actual / implied;
+  if (ratio >= 1.0)  return 'good';
+  if (ratio >= 0.60) return 'warn';
+  return 'bad';
+}
+function fmtK(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1000) return '$' + (v / 1000).toFixed(1) + 'K';
+  return '$' + Math.round(v);
+}
+
+function renderChart(svg, data, ltFactor) {
+  const N = data.months.length;
+  const left = 36, right = 660, top = 18, bottom = 200;
+  const colW = (right - left) / N;
+  const barW = colW * 0.62;
+
+  let maxY = 0;
+  for (const m of data.months) {
+    if (m.implied != null && m.implied > maxY) maxY = m.implied;
+    if (m.actual  != null && m.actual  > maxY) maxY = m.actual;
+  }
+  maxY = Math.max(maxY * 1.12, 1000);
+
+  const niceMax = (() => {
+    const mag = Math.pow(10, Math.floor(Math.log10(maxY)));
+    const ratio = maxY / mag;
+    let nice = 10;
+    if (ratio <= 1) nice = 1; else if (ratio <= 2) nice = 2; else if (ratio <= 5) nice = 5;
+    return nice * mag;
+  })();
+
+  const yToPx = v => bottom - (v / niceMax) * (bottom - top);
+  const patternId = `${svg.dataset.id}-stripe-${Math.round(ltFactor*100)}`;
+  const surplusGradId = `${svg.dataset.id}-surplus-${Math.round(ltFactor*100)}`;
+
+  const defs = `<defs>
+    <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(238, 83, 61, 0.35)" stroke-width="2"/>
+    </pattern>
+    <linearGradient id="${surplusGradId}" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="var(--success)"/>
+      <stop offset="100%" stop-color="#0AAFA0"/>
+    </linearGradient>
+  </defs>`;
+
+  const ticks = [0.25, 0.5, 0.75, 1.0].map(t => niceMax * t);
+  let gridHtml = '';
+  for (const tv of ticks) {
+    const y = yToPx(tv);
+    gridHtml += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="var(--line-0)" stroke-width="0.6"/>`;
+    const label = tv >= 1000 ? '$' + Math.round(tv / 1000) + 'K' : '$' + Math.round(tv);
+    gridHtml += `<text class="axis-label" x="${left - 6}" y="${y + 3}" text-anchor="end">${label}</text>`;
+  }
+
+  let barsHtml = '';
+  let xLabelsHtml = '';
+  let coverageHtml = '';
+  for (let i = 0; i < N; i++) {
+    const m = data.months[i];
+    const cx = left + i * colW + colW / 2;
+    const x  = cx - barW / 2;
+
+    const cls = (i === 0 || i === N - 1) ? 'axis-label axis-label-strong' : 'axis-label';
+    xLabelsHtml += `<text class="${cls}" x="${cx}" y="220" text-anchor="middle">${m.label}</text>`;
+
+    if (m.ghost) {
+      barsHtml += `<rect class="ghost-block" x="${x}" y="${bottom - 22}" width="${barW}" height="22" rx="1.5"/>`;
+      continue;
+    }
+
+    if (m.implied != null && m.implied > 0) {
+      const impliedY = yToPx(m.implied);
+      const impliedH = bottom - impliedY;
+      barsHtml += `<rect class="implied-bar" x="${x}" y="${impliedY}" width="${barW}" height="${impliedH}" rx="2"/>`;
+
+      const actualV = Math.min(m.actual || 0, m.implied);
+      const surplusV = Math.max((m.actual || 0) - m.implied, 0);
+      if (actualV > 0) {
+        const actualY = yToPx(actualV);
+        const actualH = bottom - actualY;
+        const cc = coverageClass(m.actual, m.implied);
+        barsHtml += `<rect class="actual-bar ${cc}" x="${x}" y="${actualY}" width="${barW}" height="${actualH}" rx="2" style="animation-delay:${i * 60}ms"/>`;
+      }
+      if (actualV < m.implied) {
+        const missH = (actualV > 0 ? yToPx(actualV) : bottom) - impliedY;
+        barsHtml += `<rect x="${x}" y="${impliedY}" width="${barW}" height="${missH}" fill="url(#${patternId})" rx="2"/>`;
+      }
+      if (surplusV > 0) {
+        const surplusTopY = yToPx(m.actual);
+        const surplusH = impliedY - surplusTopY;
+        barsHtml += `<rect class="actual-bar" x="${x - 1}" y="${surplusTopY}" width="${barW + 2}" height="${surplusH}" rx="2" fill="url(#${surplusGradId})" style="animation-delay:${i * 60 + 100}ms"/>`;
+      }
+
+      const pct = Math.round((m.actual / m.implied) * 100);
+      const labelY = Math.max(impliedY - 6, top + 4);
+      const lcc = pct >= 100 ? 'good' : (pct >= 60 ? 'warn' : 'bad');
+      coverageHtml += `<text class="coverage-label ${lcc}" x="${cx}" y="${labelY}" text-anchor="middle">${pct}%</text>`;
+    } else if (m.onboarded) {
+      barsHtml += `<line x1="${x}" y1="${bottom}" x2="${x + barW}" y2="${bottom}" stroke="var(--ink-3)" stroke-width="0.8"/>`;
+      coverageHtml += `<text class="axis-label" x="${cx}" y="${bottom - 6}" text-anchor="middle" style="font-size:8px">onb</text>`;
+    }
+  }
+
+  let implPts = [], ltPts = [];
+  for (let i = 0; i < N; i++) {
+    const m = data.months[i];
+    if (m.implied == null || m.implied <= 0) continue;
+    const cx = left + i * colW + colW / 2;
+    implPts.push(`${cx},${yToPx(m.implied)}`);
+    ltPts.push(`${cx},${yToPx(m.implied * ltFactor)}`);
+  }
+  const implLine = implPts.length >= 2 ? `<polyline class="implied-line" points="${implPts.join(' ')}"/>` : '';
+  const ltLine   = ltPts.length >= 2   ? `<polyline class="lt-realistic-line" points="${ltPts.join(' ')}"/>` : '';
+
+  svg.innerHTML = defs + gridHtml + barsHtml + ltLine + implLine + xLabelsHtml + coverageHtml;
+}
+
+function renderRollup(el, data) {
+  const cells = ['<div class="pnl-rollup-cell label">&nbsp;</div>'];
+  for (const m of data.months) cells.push(`<div class="pnl-rollup-cell month-header">${m.label}</div>`);
+  cells.push('<div class="pnl-rollup-cell label">Actual</div>');
+  for (const m of data.months) {
+    if (m.ghost) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const fmt = m.actual >= 1000 ? '$' + (m.actual / 1000).toFixed(1) + 'K' : '$' + (m.actual || 0);
+    const cc = coverageClass(m.actual, m.implied);
+    cells.push(`<div class="pnl-rollup-cell actual ${cc}">${fmt}</div>`);
+  }
+  cells.push('<div class="pnl-rollup-cell label">Implied</div>');
+  for (const m of data.months) {
+    if (m.ghost || m.implied == null) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const fmt = m.implied >= 1000 ? '$' + (m.implied / 1000).toFixed(1) + 'K' : '$' + m.implied;
+    cells.push(`<div class="pnl-rollup-cell" style="color:var(--ink-3)">${fmt}</div>`);
+  }
+  cells.push('<div class="pnl-rollup-cell label">Recovery</div>');
+  for (const m of data.months) {
+    if (m.ghost || m.implied == null || m.implied === 0) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const pct = Math.round((m.actual / m.implied) * 100);
+    const cc = pct >= 100 ? 'good' : (pct >= 60 ? 'warn' : 'bad');
+    cells.push(`<div class="pnl-rollup-cell actual ${cc}">${pct}%</div>`);
+  }
+  el.innerHTML = cells.join('');
+}
+
+// Update LT-derived numbers (realistic baseline) when the operator changes the %
+function updateLtFigures(moduleEl, data, ltFactor) {
+  const totalImplied = data.months.reduce((s, m) => s + (m.implied || 0), 0);
+  const totalActual  = data.months.reduce((s, m) => s + (m.actual  || 0), 0);
+  const ltRealistic  = totalImplied * ltFactor;
+  const netDelta     = totalActual - ltRealistic;
+
+  moduleEl.querySelectorAll('[data-lt-pct]').forEach(el => el.textContent = Math.round(ltFactor * 100) + '%');
+  moduleEl.querySelectorAll('[data-lt-realistic]').forEach(el => el.textContent = fmtK(ltRealistic));
+  moduleEl.querySelectorAll('[data-net-delta]').forEach(el => {
+    el.textContent = (netDelta >= 0 ? '+' : '−') + fmtK(Math.abs(netDelta)).slice(1);
+    el.classList.remove('green', 'red');
+    el.classList.add(netDelta >= 0 ? 'green' : 'red');
+  });
+}
+
+function wireModule(moduleEl, data) {
+  const svg = moduleEl.querySelector('.pnl-chart-canvas');
+  const ltBtn = moduleEl.querySelector('.lt-toggle .active');
+  const ltFactor = parseFloat(ltBtn.dataset.lt) || 0.85;
+  renderChart(svg, data, ltFactor);
+  renderRollup(moduleEl.querySelector('.pnl-rollup-grid'), data);
+  updateLtFigures(moduleEl, data, ltFactor);
+
+  // Perspective toggle
+  moduleEl.querySelectorAll('.pov-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const pov = b.dataset.pov;
+      moduleEl.dataset.pov = pov;
+      moduleEl.querySelectorAll('.pov-toggle button').forEach(x => x.classList.toggle('active', x.dataset.pov === pov));
+      moduleEl.querySelectorAll('.pov-pane').forEach(p => p.classList.toggle('active', p.dataset.pov === pov));
+    });
+  });
+
+  // LT toggle
+  moduleEl.querySelectorAll('.lt-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const f = parseFloat(b.dataset.lt);
+      moduleEl.querySelectorAll('.lt-toggle button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      svg.dataset.id = svg.dataset.id || moduleEl.dataset.key;
+      renderChart(svg, data, f);
+      updateLtFigures(moduleEl, data, f);
+    });
+  });
+}
+
+// init both modules
+const ocModule = document.querySelector('.pnl-module[data-key="oneclub"]');
+ocModule.querySelector('.pnl-chart-canvas').dataset.id = 'oc';
+wireModule(ocModule, ONECLUB);
+
+const compassModule = document.querySelector('.pnl-module[data-key="compass"]');
+compassModule.querySelector('.pnl-chart-canvas').dataset.id = 'compass';
+wireModule(compassModule, COMPASS);
+</script>
+</body>
+</html>

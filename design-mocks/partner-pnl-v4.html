@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner P&L · v4 (with forward projection)</title>
+
+<!--
+  ─────────────────────────────────────────────────────────────────────────
+  DESIGN MOCK v4 · v3 + "Project forward" run-rate projection toggle.
+
+  Each projected month = booked value (reservations already on the calendar
+  × their rates) + run-rate fill (remaining unit-nights × trailing-30d fill
+  × trailing-30d ADR). Both inputs are observable, not predicted.
+
+  Visual cues that scream "projection, not commitment":
+    • Bars at 55% opacity with dashed outline
+    • Vertical hairline separator between actuals and projections
+    • "PROJECTED →" label above the projection band
+    • Confidence dot (●●● high / ●●○ med / ●○○ low) above each month
+    • Tooltip with the methodology breakdown
+    • Disclaimer band
+
+  Insufficient-data: properties with <6mo history get the toggle in a
+  disabled state with a "needs 6+ months" explanation. One Club (4mo)
+  demonstrates this. Riverside (11mo) shows the full feature.
+
+  v3 carryover: Partner P&L w/ POV toggle + LT/STR source decomposition
+
+  WHAT'S NEW IN v3 (vs v2):
+  The actual partner-net bar each month now SPLITS into two stacked
+  segments:
+     • Bottom (Landing blue): LT-derived partner revenue — the stable floor
+       from monthly leases. Predictable, contracted.
+     • Top (coral STR): partner revenue from nightly bookings — variable
+       upside. Seasonal, growing, or drag depending on the month.
+
+  The shortfall stripes still fill the gap above the actual to the implied
+  baseline.
+
+  WHY: For mixed-mode properties (which is most of the portfolio), the
+  story is "LT carries the partnership, STR is the variable add." Without
+  the decomposition the operator can't tell whether a $25K month was
+  $11K LT + $14K STR (strong STR adding upside) or $25K all-LT with STR
+  contributing nothing (STR program failing). Same partner total, very
+  different operational signal.
+
+  Three examples shown:
+    A) One Club Gulf Shores — pure STR (split is 0% / 100%, baseline check)
+    B) The Compass · Atlanta — pure STR success case
+    C) Riverside Lofts · Nashville — MIXED mode (the v3 motivating example)
+  ─────────────────────────────────────────────────────────────────────────
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:           #FAFAF9;
+    --paper:        #FFFFFF;
+    --paper-warm:   #FBF7EF;
+
+    --ink-0:        #15192D;
+    --ink-1:        #2D3654;
+    --ink-2:        #52566B;
+    --ink-3:        #8A8D99;
+    --ink-4:        #B5B9C3;
+
+    --line-0:       rgba(21, 25, 45, 0.06);
+    --line-1:       rgba(21, 25, 45, 0.10);
+    --line-2:       rgba(21, 25, 45, 0.16);
+
+    --landing-blue: #1A61D9;
+    --success:      #08786C;
+    --warning:      #B95B00;
+    --error:        #EE533D;
+    --str:          #D2552E;
+
+    --blue-tint:    rgba(26, 97, 217, 0.08);
+    --success-tint: rgba(8, 120, 108, 0.10);
+    --warning-tint: rgba(185, 91, 0, 0.10);
+    --error-tint:   rgba(238, 83, 61, 0.10);
+    --str-tint:     rgba(210, 85, 46, 0.12);
+
+    --implied-bg:    rgba(21, 25, 45, 0.035);
+    --implied-edge:  rgba(21, 25, 45, 0.12);
+
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+
+    --font-display: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+    --font-body:    'DM Sans', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink-0);
+    font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(0,0,0,0.012) 0 1px, transparent 1px),
+      radial-gradient(circle at 76% 58%, rgba(0,0,0,0.012) 0 1px, transparent 1px);
+    background-size: 7px 7px, 11px 11px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .page-header {
+    padding: 28px 48px 18px;
+    border-bottom: 1px solid var(--line-1);
+    display: flex; justify-content: space-between; align-items: baseline;
+    background: var(--bg); position: relative; z-index: 1;
+  }
+  .page-title { font-family: var(--font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.01em; margin: 0; }
+  .page-title em { font-style: italic; font-weight: 500; color: var(--ink-3); }
+  .page-meta { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); }
+
+  main {
+    padding: 28px 48px 80px; max-width: 1280px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 28px;
+    position: relative; z-index: 1;
+  }
+
+  .ctx-strip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 22px; background: var(--paper);
+    border: 1px solid var(--line-1); border-radius: var(--r-md);
+    border-left: 3px solid var(--str);
+  }
+  .ctx-strip.mixed { border-left-color: var(--landing-blue);
+    background: linear-gradient(90deg, rgba(26,97,217,0.04) 0%, var(--paper) 30%);
+  }
+  .ctx-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
+  .ctx-name em { font-style: italic; font-weight: 400; color: var(--ink-3); font-size: 13px; }
+  .ctx-meta { font-family: var(--font-body); font-size: 12px; color: var(--ink-3); }
+  .ctx-chip {
+    margin-left: auto;
+    font-family: var(--font-mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    padding: 5px 10px; border-radius: var(--r-sm);
+    font-weight: 600;
+  }
+  .ctx-chip.str { background: var(--str); color: white; }
+  .ctx-chip.mixed {
+    background: var(--paper); color: var(--ink-1);
+    border: 1px solid var(--line-2);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ctx-chip.mixed::before {
+    content: ''; width: 8px; height: 8px;
+    background: linear-gradient(90deg, var(--landing-blue) 0%, var(--landing-blue) 50%, var(--str) 50%, var(--str) 100%);
+    border-radius: 2px;
+  }
+
+  /* ─── Module ─── */
+  .pnl-module {
+    background: var(--paper);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(21,25,45,0.04);
+  }
+  .pnl-eyebrow {
+    padding: 16px 24px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 18px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line-0);
+  }
+  .pnl-eyebrow .left { display: flex; flex-direction: column; gap: 4px; }
+  .pnl-title {
+    font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.18em; color: var(--ink-1); font-weight: 600;
+  }
+  .pnl-subtitle { font-family: var(--font-body); font-size: 13px; color: var(--ink-3); font-style: italic; }
+  .pnl-eyebrow .right { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  .pov-toggle {
+    display: flex; background: var(--paper-warm);
+    border: 1px solid var(--line-2); border-radius: var(--r-md);
+    padding: 3px; box-shadow: inset 0 1px 1px rgba(21,25,45,0.04);
+  }
+  .pov-toggle button {
+    background: transparent; border: 0; padding: 6px 14px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    border-radius: var(--r-sm);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+  }
+  .pov-toggle button[data-pov="partner"].active {
+    background: var(--paper); color: var(--error);
+    box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--error);
+  }
+  .pov-toggle button[data-pov="landing"].active {
+    background: var(--paper); color: var(--landing-blue);
+    box-shadow: 0 1px 2px rgba(21,25,45,0.08), inset 0 0 0 1px var(--landing-blue);
+  }
+
+  /* Projection toggle — opt-in forward view. Disabled state for properties
+     with insufficient history. */
+  .proj-toggle-wrap {
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .proj-toggle {
+    display: flex; background: var(--paper-warm);
+    border: 1px solid var(--line-2); border-radius: var(--r-sm);
+    padding: 0;
+    overflow: hidden;
+  }
+  .proj-toggle button {
+    background: transparent; border: 0; padding: 6px 10px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    border-right: 1px solid var(--line-1);
+  }
+  .proj-toggle button:last-child { border-right: 0; }
+  .proj-toggle button.active {
+    background: var(--landing-blue); color: white;
+  }
+  .proj-toggle button:disabled {
+    color: var(--ink-4); cursor: not-allowed; opacity: 0.6;
+  }
+  .proj-toggle.disabled { opacity: 0.55; }
+
+  /* Disclaimer band below the chart when projection is on */
+  .pnl-proj-disclaimer {
+    display: none;
+    padding: 8px 14px;
+    margin: 0 24px 12px;
+    background: rgba(26, 97, 217, 0.05);
+    border: 1px dashed var(--landing-blue);
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono); font-size: 9.5px;
+    color: var(--ink-2); letter-spacing: 0.04em;
+    line-height: 1.5;
+  }
+  .pnl-module.proj-on .pnl-proj-disclaimer { display: block; }
+  .pnl-proj-disclaimer b { color: var(--ink-0); font-weight: 700; }
+  .pnl-proj-disclaimer .dot-row { display: inline-flex; gap: 12px; margin-left: 8px; }
+  .pnl-proj-disclaimer .conf-dot {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 9px;
+  }
+  .conf-dots { letter-spacing: 1px; font-family: var(--font-mono); }
+  .conf-dots.high { color: var(--success); }
+  .conf-dots.med  { color: var(--warning); }
+  .conf-dots.low  { color: var(--ink-3); }
+
+  /* SVG styles for projection band */
+  .proj-bar-lt  { fill: var(--landing-blue); opacity: 0.55; }
+  .proj-bar-str { fill: var(--str); opacity: 0.55; }
+  .proj-outline {
+    fill: none; stroke-width: 0.8; stroke-dasharray: 2 2;
+  }
+  .proj-outline.lt  { stroke: var(--landing-blue); }
+  .proj-outline.str { stroke: var(--str); }
+  .proj-divider {
+    stroke: var(--ink-3); stroke-width: 0.6; stroke-dasharray: 3 2;
+  }
+  .proj-band-label {
+    font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    fill: var(--landing-blue);
+  }
+  .proj-conf-dots {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .proj-conf-dots.high { fill: var(--success); }
+  .proj-conf-dots.med  { fill: var(--warning); }
+  .proj-conf-dots.low  { fill: var(--ink-3); }
+
+  /* Insufficient-data refusal block */
+  .pnl-proj-refuse {
+    display: none;
+    padding: 12px 14px;
+    margin: 0 24px 12px;
+    background: var(--paper-warm);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    font-family: var(--font-body); font-size: 12px;
+    color: var(--ink-2); line-height: 1.5;
+  }
+  .pnl-proj-refuse b { color: var(--ink-0); font-weight: 700; }
+  .pnl-module.proj-refused .pnl-proj-refuse { display: block; }
+  .pnl-module.proj-refused .pnl-proj-disclaimer { display: none; }
+  /* Always show the refusal block when the data signals insufficient history
+     (set via JS by adding the .proj-insufficient class) — so the rep sees the
+     reason without having to click a disabled button. */
+  .pnl-module.proj-insufficient .pnl-proj-refuse { display: block; }
+
+  /* Projection summary row in the summary card */
+  .proj-summary {
+    display: none;
+    padding: 10px 12px;
+    margin-top: 8px;
+    background: rgba(26, 97, 217, 0.04);
+    border: 1px solid var(--landing-blue);
+    border-radius: var(--r-sm);
+  }
+  .pnl-module.proj-on .proj-summary { display: block; }
+  .proj-summary .label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--landing-blue); font-weight: 700;
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .proj-summary .value {
+    font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+    color: var(--ink-0); letter-spacing: -0.01em;
+  }
+  .proj-summary .sub {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--ink-3); margin-top: 4px; line-height: 1.5;
+  }
+  .proj-summary .sub b { color: var(--ink-1); font-weight: 600; }
+
+  .lt-toggle-wrap {
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .lt-toggle-label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    cursor: help;
+    border-bottom: 1px dotted var(--ink-4);
+  }
+  .lt-toggle {
+    display: flex; border: 1px solid var(--line-1);
+    border-radius: var(--r-sm); overflow: hidden;
+  }
+  .lt-toggle button {
+    background: transparent; border: 0; padding: 6px 10px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3);
+  }
+  .lt-toggle button.active { background: var(--ink-0); color: var(--paper-warm); }
+
+  .pnl-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; }
+  @media (max-width: 980px) {
+    .pnl-body { grid-template-columns: 1fr; }
+    .pnl-summary { border-left: 0; border-top: 1px solid var(--line-1); }
+  }
+
+  /* ─── Chart ─── */
+  .pnl-chart-wrap { padding: 22px 24px 18px; position: relative; }
+  .pnl-chart-canvas { width: 100%; height: 240px; display: block; overflow: visible; }
+
+  .implied-bar { fill: var(--implied-bg); stroke: var(--implied-edge); stroke-width: 0.6; }
+
+  /* v3: separate fills for LT-derived vs STR-derived portions of actual */
+  .actual-lt  { fill: var(--landing-blue); }
+  .actual-str { fill: var(--str); }
+  /* When the entire actual is one type, color matches that source */
+
+  .implied-line {
+    fill: none; stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 3;
+  }
+  .lt-realistic-line {
+    fill: none; stroke: var(--warning); stroke-width: 1.2; stroke-dasharray: 1.5 3;
+  }
+  .ghost-block {
+    fill: rgba(26, 97, 217, 0.025);
+    stroke: var(--line-1); stroke-width: 0.5; stroke-dasharray: 1.4 1.4;
+  }
+  .axis-label {
+    font-family: var(--font-mono); font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.12em; fill: var(--ink-3);
+  }
+  .axis-label-strong { fill: var(--ink-1); font-weight: 600; }
+  .coverage-label { font-family: var(--font-mono); font-size: 9px; font-weight: 700; }
+  .coverage-label.bad  { fill: var(--error); }
+  .coverage-label.warn { fill: var(--warning); }
+  .coverage-label.good { fill: var(--success); }
+
+  .pnl-legend {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    margin-bottom: 14px;
+    font-family: var(--font-mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .pnl-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .pnl-legend .sw { width: 14px; height: 8px; display: inline-block; border-radius: 1px; }
+  .pnl-legend .sw-lt   { background: var(--landing-blue); }
+  .pnl-legend .sw-str  { background: var(--str); }
+  .pnl-legend .sw-implied  { background: var(--implied-bg); border: 1px solid var(--implied-edge); }
+  .pnl-legend .sw-shortfall {
+    width: 14px; height: 8px;
+    background: repeating-linear-gradient(45deg,
+      rgba(238,83,61,0.30) 0 2px, transparent 2px 4px);
+    border: 1px solid rgba(238,83,61,0.4);
+  }
+  .pnl-legend .sw-baseline    { width: 14px; height: 0; border-top: 1.2px dashed var(--ink-2); margin-top: 4px; }
+  .pnl-legend .sw-baseline-lt { width: 14px; height: 0; border-top: 1.3px dashed var(--warning); margin-top: 4px; }
+
+  /* ─── Summary card ─── */
+  .pnl-summary {
+    border-left: 1px solid var(--line-1);
+    padding: 20px 22px;
+    background: linear-gradient(180deg, var(--paper-warm) 0%, var(--paper) 100%);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .pov-pane { display: none; flex-direction: column; gap: 16px; }
+  .pov-pane.active { display: flex; }
+
+  .verdict { display: flex; flex-direction: column; gap: 4px; }
+  .verdict-label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-3); font-weight: 600;
+  }
+  .verdict-number {
+    font-family: var(--font-mono); font-size: 30px; font-weight: 700;
+    letter-spacing: -0.015em; line-height: 1;
+  }
+  .verdict-number.shortfall { color: var(--error); }
+  .verdict-number.surplus   { color: var(--success); }
+  .verdict-number.even      { color: var(--ink-1); }
+  .verdict-number.incremental { color: var(--landing-blue); }
+  .verdict-number .sign { font-size: 22px; margin-right: 2px; }
+  .verdict-pct {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--ink-2); margin-top: 2px; line-height: 1.5;
+  }
+  .verdict-pct b.bad  { color: var(--error);   font-weight: 700; }
+  .verdict-pct b.good { color: var(--success); font-weight: 700; }
+  .verdict-pct b.blue { color: var(--landing-blue); font-weight: 700; }
+
+  .breakdown {
+    display: flex; flex-direction: column;
+    padding: 12px 0;
+    border-top: 1px dashed var(--line-1);
+    border-bottom: 1px dashed var(--line-1);
+    gap: 7px;
+  }
+  .bk-row { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); }
+  .bk-row .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); }
+  .bk-row .v { font-size: 13px; font-weight: 600; color: var(--ink-0); }
+  .bk-row .v.muted { color: var(--ink-3); font-weight: 500; }
+  .bk-row .v.blue  { color: var(--landing-blue); }
+  .bk-row .v.green { color: var(--success); }
+  .bk-row .v.red   { color: var(--error); }
+  .bk-row .v.coral { color: var(--str); }
+  .bk-row.sub .l { padding-left: 10px; font-size: 9px; color: var(--ink-3); }
+  .bk-row.sub .v { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+
+  /* v3: source-mix mini bar — visual split of LT vs STR contribution */
+  .source-mix {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    background: var(--paper-warm);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-sm);
+    margin-top: 4px;
+  }
+  .source-mix .label {
+    font-family: var(--font-mono); font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-3); font-weight: 600;
+    white-space: nowrap;
+  }
+  .source-mix .bar {
+    flex: 1;
+    height: 14px;
+    display: flex;
+    border-radius: 2px; overflow: hidden;
+    background: var(--line-0);
+  }
+  .source-mix .bar .seg {
+    height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    color: white; letter-spacing: 0.02em;
+    transition: flex-basis 0.4s ease;
+  }
+  .source-mix .bar .seg.lt  { background: var(--landing-blue); }
+  .source-mix .bar .seg.str { background: var(--str); }
+  .source-mix .legend-mini {
+    display: flex; gap: 10px;
+    font-family: var(--font-mono); font-size: 9.5px;
+    color: var(--ink-2); letter-spacing: 0.02em;
+  }
+  .source-mix .legend-mini .dot { width: 8px; height: 8px; border-radius: 1px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+  .source-mix .legend-mini .dot.lt  { background: var(--landing-blue); }
+  .source-mix .legend-mini .dot.str { background: var(--str); }
+
+  .trajectory {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  }
+  .trajectory.widening { color: var(--error); }
+  .trajectory.surplus  { color: var(--success); }
+  .trajectory.incremental { color: var(--landing-blue); }
+  .trajectory .glyph { font-size: 16px; line-height: 1; }
+
+  .talking-points {
+    margin-top: 4px;
+    padding: 12px 14px;
+    background: var(--paper-warm);
+    border: 1px solid var(--line-1);
+    border-left: 3px solid var(--landing-blue);
+    border-radius: var(--r-sm);
+  }
+  .talking-points .label {
+    font-family: var(--font-mono); font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-3); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .talking-points .label::before {
+    content: '“'; color: var(--landing-blue); font-size: 18px; line-height: 0.5;
+    font-family: var(--font-display); font-weight: 700;
+  }
+  .talking-points ul {
+    margin: 0; padding-left: 18px;
+    font-family: var(--font-body); font-size: 12.5px;
+    color: var(--ink-1); line-height: 1.55;
+  }
+  .talking-points li { margin-bottom: 5px; }
+  .talking-points li:last-child { margin-bottom: 0; }
+  .talking-points b { color: var(--ink-0); font-weight: 600; }
+
+  .narrative {
+    font-family: var(--font-body); font-size: 12.5px; line-height: 1.55;
+    color: var(--ink-2); font-style: italic;
+  }
+  .narrative b { color: var(--ink-0); font-style: normal; font-weight: 600; }
+
+  /* Roll-up grid */
+  .pnl-rollup { padding: 0 24px 18px; }
+  .pnl-rollup-grid {
+    display: grid;
+    grid-template-columns: 80px repeat(11, minmax(0, 1fr));
+    border: 1px solid var(--line-0); border-radius: var(--r-sm);
+    overflow: hidden; background: var(--paper);
+  }
+  .pnl-rollup-cell {
+    padding: 6px 4px;
+    font-family: var(--font-mono); font-size: 10px;
+    text-align: center;
+    border-right: 1px solid var(--line-0);
+    border-top: 1px solid var(--line-0);
+    color: var(--ink-2); line-height: 1.4;
+  }
+  .pnl-rollup-cell:last-child { border-right: 0; }
+  .pnl-rollup-cell.label {
+    text-align: left; padding-left: 10px;
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-3); font-weight: 600;
+    background: var(--paper-warm);
+  }
+  .pnl-rollup-cell.label .swatch {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 1px; margin-right: 5px; vertical-align: middle;
+  }
+  .pnl-rollup-cell.label .swatch.lt  { background: var(--landing-blue); }
+  .pnl-rollup-cell.label .swatch.str { background: var(--str); }
+  .pnl-rollup-cell.month-header {
+    background: var(--paper-warm); font-size: 8.5px; color: var(--ink-3);
+    text-transform: uppercase; letter-spacing: 0.08em; border-top: 0;
+  }
+  .pnl-rollup-cell.lt   { color: var(--landing-blue); font-weight: 600; }
+  .pnl-rollup-cell.str  { color: var(--str); font-weight: 600; }
+  .pnl-rollup-cell.actual.bad  { color: var(--error); font-weight: 700; background: rgba(238,83,61,0.04); }
+  .pnl-rollup-cell.actual.warn { color: var(--warning); font-weight: 700; background: rgba(185,91,0,0.04); }
+  .pnl-rollup-cell.actual.good { color: var(--success); font-weight: 700; background: rgba(8,120,108,0.04); }
+  .pnl-rollup-cell.ghost { color: var(--ink-4); font-style: italic; font-size: 9px; }
+
+  /* Methodology disclosure — collapsed by default, click to audit. */
+  .pnl-methodology {
+    margin: 0 24px 18px;
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-sm);
+    background: var(--paper-warm);
+  }
+  .pnl-methodology > summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-2); font-weight: 600;
+    list-style: none;
+    display: flex; align-items: center; gap: 8px;
+    user-select: none;
+  }
+  .pnl-methodology > summary::-webkit-details-marker { display: none; }
+  .pnl-methodology > summary::before {
+    content: '▸'; font-size: 14px; color: var(--ink-3);
+    transition: transform 150ms ease;
+  }
+  .pnl-methodology[open] > summary::before { transform: rotate(90deg); }
+  .meth-body { padding: 8px 18px 18px; }
+  .meth-section { margin-bottom: 16px; }
+  .meth-section:last-child { margin-bottom: 0; }
+  .meth-h {
+    font-family: var(--font-mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-0); font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .meth-p {
+    font-family: var(--font-body); font-size: 12.5px;
+    color: var(--ink-1); line-height: 1.55;
+  }
+  .meth-p code {
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--paper); padding: 1px 4px; border-radius: 2px;
+    border: 1px solid var(--line-1);
+  }
+  .meth-p b { color: var(--ink-0); font-weight: 700; }
+  .meth-table {
+    width: 100%; border-collapse: collapse;
+    margin-top: 8px;
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--paper);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+  .meth-table th, .meth-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--line-0);
+    text-align: left;
+  }
+  .meth-table th { background: var(--paper-warm); font-weight: 600; color: var(--ink-2); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.12em; }
+  .meth-table td.num, .meth-table th.num { text-align: right; }
+  .meth-table tfoot td { background: var(--paper-warm); font-weight: 600; color: var(--ink-0); border-top: 1px solid var(--line-1); }
+  .meth-table tbody tr.lt  { color: var(--landing-blue); }
+  .meth-table tbody tr.str { color: var(--str); }
+
+  .design-notes {
+    background: var(--paper); border: 1px solid var(--line-1);
+    padding: 18px 22px; border-radius: var(--r-md);
+    font-family: var(--font-body); font-size: 12.5px;
+    color: var(--ink-2); line-height: 1.55;
+  }
+  .design-notes h3 {
+    font-family: var(--font-mono); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-0); margin: 0 0 10px; font-weight: 600;
+  }
+  .design-notes ul { margin: 0; padding-left: 18px; }
+  .design-notes li { margin-bottom: 5px; }
+  .design-notes code {
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--paper-warm); padding: 1px 4px; border-radius: 2px;
+  }
+
+  .actual-lt, .actual-str {
+    transform-origin: bottom;
+    animation: barRise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes barRise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .verdict-number, .talking-points {
+    animation: numIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+  }
+  @keyframes numIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 880px) {
+    .page-header, main { padding-left: 22px; padding-right: 22px; }
+    .pnl-eyebrow { padding: 14px 18px 12px; }
+    .pnl-chart-wrap { padding: 18px; }
+    .pnl-summary { padding: 18px; }
+    .pnl-rollup { padding: 0 18px 16px; }
+    .pnl-rollup-grid { grid-template-columns: 70px repeat(11, minmax(0, 1fr)); }
+    .pnl-rollup-cell { font-size: 9px; padding: 5px 2px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1 class="page-title">Partner P&amp;L <em>v4 · with forward projection</em></h1>
+  <div class="page-meta">Detail-panel module · design mock</div>
+</header>
+
+<main>
+
+  <!--
+    ════════════════════════════════════════════════════════════════════
+    EXAMPLE C · RIVERSIDE LOFTS · NASHVILLE (mixed mode — v3 motivating case)
+    20 units: 10 LT, 10 STR. LT is the stable floor (~$11K/mo every month).
+    STR is the variable (peak summer ~$18K, winter trough ~$4K).
+    The split bars surface exactly where STR is carrying upside vs dragging.
+    Placed first because it's the case the decomposition unlocks.
+    ════════════════════════════════════════════════════════════════════
+  -->
+  <div class="ctx-strip mixed">
+    <div>
+      <div class="ctx-name">Riverside Lofts · Nashville <em>(hypothetical · mixed-mode)</em></div>
+      <div class="ctx-meta">Nashville, TN · Mast Capital · 20 units (10 LT + 10 STR) · onboarded Jun 2025</div>
+    </div>
+    <span class="ctx-chip mixed">Mixed · 10 LT + 10 STR</span>
+  </div>
+
+  <section class="pnl-module" data-key="riverside" data-pov="partner">
+    <div class="pnl-eyebrow">
+      <div class="left">
+        <span class="pnl-title">Partner P&amp;L vs market rent</span>
+        <span class="pnl-subtitle">From LT vs from STR partner net, against base rent for all 20 units</span>
+      </div>
+      <div class="right">
+        <div class="pov-toggle">
+          <button data-pov="partner" class="active">Partner POV</button>
+          <button data-pov="landing">Landing POV</button>
+        </div>
+        <div class="lt-toggle-wrap">
+          <span class="lt-toggle-label" title="Hypothetical occupancy to assume if these units were LT-leased instead. Not the actual occupancy — that's shown in the summary card below.">LT counterfactual</span>
+          <div class="lt-toggle" role="tablist" aria-label="LT counterfactual occupancy assumption">
+            <button data-lt="0.75">75%</button>
+            <button data-lt="0.85" class="active">85%</button>
+            <button data-lt="0.95">95%</button>
+          </div>
+        </div>
+        <div class="proj-toggle-wrap">
+          <span class="lt-toggle-label" title="Extend the chart with projected next months. Each projection = booked future reservations + run-rate fill on remaining unit-nights at trailing-30d ADR. Not a forecast — see disclaimer.">Project forward</span>
+          <div class="proj-toggle" role="tablist" aria-label="Projection horizon">
+            <button data-proj="off" class="active">Off</button>
+            <button data-proj="3">+3mo</button>
+            <button data-proj="6">+6mo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pnl-body">
+      <div class="pnl-chart-wrap">
+        <div class="pnl-legend">
+          <span><span class="sw sw-lt"></span>From LT (monthly leases)</span>
+          <span><span class="sw sw-str"></span>From STR (nightly bookings)</span>
+          <span><span class="sw sw-shortfall"></span>Shortfall (missing $)</span>
+          <span><span class="sw-baseline"></span>Contract base (100% occ)</span>
+          <span><span class="sw-baseline-lt"></span>Realistic LT alt</span>
+        </div>
+        <svg class="pnl-chart-canvas" viewBox="0 0 660 240" preserveAspectRatio="none"></svg>
+      </div>
+
+      <div class="pnl-proj-disclaimer">
+        <b>Projection methodology:</b> each projected month = booked reservations already on the calendar × their rates <b>+</b> remaining available unit-nights × trailing-30d fill rate × trailing-30d ADR. <b>Not a forecast or guarantee</b> — projections assume recent patterns hold. Confidence drops as % run-rate (vs % booked) grows.
+        <span class="dot-row">
+          <span class="conf-dot"><span class="conf-dots high">●●●</span> high</span>
+          <span class="conf-dot"><span class="conf-dots med">●●○</span> medium</span>
+          <span class="conf-dot"><span class="conf-dots low">●○○</span> low</span>
+        </span>
+      </div>
+
+      <div class="pnl-proj-refuse">
+        <b>Projection unavailable.</b> This property has fewer than 6 months of reporting — not enough history to produce a defensible run-rate projection. Toggle will re-enable once <b>6+ months</b> are in the bundle.
+      </div>
+
+      <aside class="pnl-summary">
+
+        <!-- PARTNER POV -->
+        <div class="pov-pane active" data-pov="partner">
+          <div class="verdict">
+            <span class="verdict-label">Cumulative · 11mo</span>
+            <span class="verdict-number shortfall"><span class="sign">−</span>$57.1K</span>
+            <span class="verdict-pct">Partner received <b class="bad">81%</b> of contract base rent ($250.9K of $308.0K)</span>
+          </div>
+          <div class="source-mix">
+            <span class="label">Source mix</span>
+            <div class="bar">
+              <div class="seg lt"  style="flex-basis: 49.1%">49% LT</div>
+              <div class="seg str" style="flex-basis: 50.9%">51% STR</div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">Actual to partner</span><span class="v">$250.9K</span></div>
+            <div class="bk-row sub"><span class="l"><span class="swatch lt" style="display:inline-block;width:7px;height:7px;background:var(--landing-blue);border-radius:1px;margin-right:5px;vertical-align:middle"></span>From LT</span><span class="v blue">$123.2K</span></div>
+            <div class="bk-row sub"><span class="l"><span class="swatch str" style="display:inline-block;width:7px;height:7px;background:var(--str);border-radius:1px;margin-right:5px;vertical-align:middle"></span>From STR</span><span class="v coral">$127.7K</span></div>
+            <div class="bk-row"><span class="l">Contract base (20u × rent)</span><span class="v muted">$308.0K</span></div>
+            <div class="bk-row sub"><span class="l">Realistic LT @ <span data-lt-pct>85%</span> occ</span><span class="v" data-lt-realistic>$261.8K</span></div>
+            <div class="bk-row" style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px"><span class="l" title="Property's actual occupancy from rent-roll monthly_occ_rate. Not a toggle.">Actual occ · avg</span><span class="v" data-actual-occ-avg>—</span></div>
+            <div class="bk-row sub"><span class="l">vs LT counterfactual</span><span class="v" data-occ-gap>—</span></div>
+          </div>
+          <div class="trajectory widening">
+            <span class="glyph">▾</span><span>Winter STR drag · LT held the line</span>
+          </div>
+          <div class="narrative">
+            What the partner sees: LT delivered a <b>stable $11.2K/mo floor</b>.
+            STR added <b>$3.8K-$18.2K/mo</b> on top, with a sharp winter dip
+            (Nov-Jan ran at ~30-50% of seasonal peak). <b>LT carried the partnership</b>
+            through Q4-Q1; STR is now recovering with summer demand.
+          </div>
+          <div class="proj-summary" data-proj-summary>
+            <div class="label">Projected · next <span data-proj-horizon>—</span>mo</div>
+            <div class="value" data-proj-total>—</div>
+            <div class="sub" data-proj-sub>—</div>
+          </div>
+        </div>
+
+        <!-- LANDING POV -->
+        <div class="pov-pane" data-pov="landing">
+          <div class="verdict">
+            <span class="verdict-label">Net vs LT-only alt · 11mo</span>
+            <span class="verdict-number" data-verdict-headline>—</span>
+            <span class="verdict-pct" data-verdict-pct>—</span>
+          </div>
+          <div class="source-mix">
+            <span class="label">Source mix</span>
+            <div class="bar">
+              <div class="seg lt"  style="flex-basis: 49.1%">49% LT</div>
+              <div class="seg str" style="flex-basis: 50.9%">51% STR</div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">LT floor (10u stable)</span><span class="v blue">$123.2K</span></div>
+            <div class="bk-row"><span class="l">STR add-on (10u variable)</span><span class="v coral">$127.7K</span></div>
+            <div class="bk-row sub"><span class="l">Net delta vs LT-only @ <span data-lt-pct>85%</span></span><span class="v" data-net-delta>—</span></div>
+            <div class="bk-row" style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px"><span class="l" title="Property's REAL occupancy from rent roll. Compare to the LT counterfactual % above.">Actual occ · avg</span><span class="v" data-actual-occ-avg>—</span></div>
+            <div class="bk-row sub"><span class="l">vs LT counterfactual</span><span class="v" data-occ-gap>—</span></div>
+            <div class="bk-row"><span class="l">STR peak / trough</span><span class="v">$18.2K Jul / $3.8K Dec</span></div>
+          </div>
+          <div class="trajectory" data-trajectory>
+            <span class="glyph" data-trajectory-glyph>—</span><span data-trajectory-label>—</span>
+          </div>
+          <div class="talking-points">
+            <div class="label">Partner-call talking points</div>
+            <ul data-talking-points>
+              <li>The <b>10 LT units delivered a stable $11.2K/mo floor</b> — exactly what their contract base rent provides. No STR risk there.</li>
+              <li>The <b>10 STR units added $127.7K of variable revenue</b> over 11 months, with peak summer months hitting +62% above the LT-only alternative.</li>
+              <li>Winter STR softness (Nov-Jan) is seasonal, not structural. The LT floor protected the partnership through the trough — that's the program working as designed.</li>
+              <li data-talking-net>Net result: <b data-talking-net-val>—</b> vs 100% LT @ 85% occ — <span data-talking-verdict-text>essentially break-even</span>. STR is providing <b>seasonal upside</b> at the cost of <b>winter variance</b>.</li>
+            </ul>
+          </div>
+          <div class="proj-summary" data-proj-summary>
+            <div class="label">Projected · next <span data-proj-horizon>—</span>mo</div>
+            <div class="value" data-proj-total>—</div>
+            <div class="sub" data-proj-sub>—</div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <div class="pnl-rollup">
+      <div class="pnl-rollup-grid" data-rollup="riverside"></div>
+    </div>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         METHODOLOGY · audit trail for every number in this module.
+         Collapsed by default; reps click to expand when they need to
+         show a partner exactly where a number came from.
+    ───────────────────────────────────────────────────────────── -->
+    <details class="pnl-methodology">
+      <summary>How these numbers are computed · click to expand</summary>
+      <div class="meth-body">
+        <div class="meth-section">
+          <div class="meth-h">1. Contract base · monthly ($28.0K)</div>
+          <div class="meth-p">Sum of <code>dimhome.rent_cost</code> across all installed units this month — the total rent Landing owes the partner at full 100% occupancy. <b>Not</b> a flat per-unit assumption; each unit has its own contracted base rent. Riverside's 20 units:</div>
+          <table class="meth-table">
+            <thead><tr><th>Unit</th><th>Type</th><th class="num">Base rent</th></tr></thead>
+            <tbody data-unit-table="riverside"></tbody>
+            <tfoot>
+              <tr><td colspan="2"><b>LT subtotal (10 units)</b></td><td class="num"><b>$13,000</b></td></tr>
+              <tr><td colspan="2"><b>STR subtotal (10 units)</b></td><td class="num"><b>$15,000</b></td></tr>
+              <tr><td colspan="2"><b>Contract base / month</b></td><td class="num"><b>$28,000</b></td></tr>
+              <tr><td colspan="2">× 11 months reporting</td><td class="num"><b>$308,000</b></td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="meth-section">
+          <div class="meth-h">2. Actual partner net (LT + STR split)</div>
+          <div class="meth-p">From the rent-roll signoff sheet (<code>signoff_pulls.json</code>) per month. The <code>net_allocation</code> field is the partner's total cash. We split it into LT vs STR by reservation type: revenue from monthly-billed reservations → LT, revenue from nightly-billed reservations → STR. Sums to the partner's actual total each month.</div>
+        </div>
+
+        <div class="meth-section">
+          <div class="meth-h">3. Realistic LT alternative ($261.8K @ 85%)</div>
+          <div class="meth-p"><b>Contract base × LT occupancy factor</b> = $308.0K × 85% = <b>$261.8K</b>. The 85% factor is a stabilized multi-family standard. Toggle 75% / 95% in the eyebrow for a tighter or looser counterfactual. This is what the partner would have collected if every unit were LT-leased at base rent and ran at typical occupancy.</div>
+        </div>
+
+        <div class="meth-section">
+          <div class="meth-h">4. Net delta vs LT-only ($−10.9K @ 85%)</div>
+          <div class="meth-p">Actual total ($250.9K) − Realistic LT alt ($261.8K) = <b>−$10.9K</b>. Interpretation: the STR program delivered $10.9K LESS over 11mo than a 100%-LT counterfactual at 85% occ. The minus sign means STR is slightly underperforming pure LT — basically a wash at this scale.</div>
+        </div>
+
+        <div class="meth-section">
+          <div class="meth-h">5. Recovery % (81%)</div>
+          <div class="meth-p">Actual total ($250.9K) ÷ Contract base ($308.0K) = <b>81%</b>. What share of FULL 100%-occupied base rent the partner received. The number a partner will compute on their own — that's why it's the Partner POV headline.</div>
+        </div>
+
+        <div class="meth-section">
+          <div class="meth-h">Source mix (49% LT / 51% STR)</div>
+          <div class="meth-p">From LT ($123.2K) ÷ Actual total ($250.9K) = <b>49%</b>. From STR ($127.7K) ÷ Actual total ($250.9K) = <b>51%</b>.</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+
+  <!--
+    ════════════════════════════════════════════════════════════════════
+    EXAMPLE A · ONE CLUB GULF SHORES — pure STR (no LT split to show)
+    Kept to confirm decomposition handles 0/100 split cleanly.
+    ════════════════════════════════════════════════════════════════════
+  -->
+  <div class="ctx-strip" style="margin-top:6px">
+    <div>
+      <div class="ctx-name">One Club Gulf Shores</div>
+      <div class="ctx-meta">Gulf Shores, AL · Resort Lifestyle Communities · 15 units · onboarded Jan 2026</div>
+    </div>
+    <span class="ctx-chip str">STR enabled · 15 units</span>
+  </div>
+
+  <section class="pnl-module" data-key="oneclub" data-pov="partner">
+    <div class="pnl-eyebrow">
+      <div class="left">
+        <span class="pnl-title">Partner P&amp;L vs market rent</span>
+        <span class="pnl-subtitle">100% STR property — entire actual bar is coral (no LT contribution)</span>
+      </div>
+      <div class="right">
+        <div class="pov-toggle">
+          <button data-pov="partner" class="active">Partner POV</button>
+          <button data-pov="landing">Landing POV</button>
+        </div>
+        <div class="lt-toggle-wrap">
+          <span class="lt-toggle-label" title="Hypothetical occupancy to assume if these units were LT-leased instead. Not the actual occupancy — that's shown in the summary card below.">LT counterfactual</span>
+          <div class="lt-toggle" role="tablist" aria-label="LT counterfactual occupancy assumption">
+            <button data-lt="0.75">75%</button>
+            <button data-lt="0.85" class="active">85%</button>
+            <button data-lt="0.95">95%</button>
+          </div>
+        </div>
+        <div class="proj-toggle-wrap">
+          <span class="lt-toggle-label" title="Extend the chart with projected next months. Each projection = booked future reservations + run-rate fill on remaining unit-nights at trailing-30d ADR. Not a forecast — see disclaimer.">Project forward</span>
+          <div class="proj-toggle" role="tablist" aria-label="Projection horizon">
+            <button data-proj="off" class="active">Off</button>
+            <button data-proj="3">+3mo</button>
+            <button data-proj="6">+6mo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pnl-body">
+      <div class="pnl-chart-wrap">
+        <div class="pnl-legend">
+          <span><span class="sw sw-lt"></span>From LT (monthly leases)</span>
+          <span><span class="sw sw-str"></span>From STR (nightly bookings)</span>
+          <span><span class="sw sw-shortfall"></span>Shortfall (missing $)</span>
+          <span><span class="sw-baseline"></span>Contract base (100% occ)</span>
+          <span><span class="sw-baseline-lt"></span>Realistic LT alt</span>
+        </div>
+        <svg class="pnl-chart-canvas" viewBox="0 0 660 240" preserveAspectRatio="none"></svg>
+      </div>
+
+      <div class="pnl-proj-disclaimer">
+        <b>Projection methodology:</b> each projected month = booked reservations already on the calendar × their rates <b>+</b> remaining available unit-nights × trailing-30d fill rate × trailing-30d ADR. <b>Not a forecast or guarantee</b>.
+      </div>
+
+      <div class="pnl-proj-refuse">
+        <b>Projection unavailable.</b> One Club has only 4 months of reporting (Jan-Apr 2026) — not enough history to produce a defensible run-rate. The toggle re-enables at <b>6+ months</b>. Today's projection would just amplify ramp-period noise; better to wait for May-Jun data first.
+      </div>
+
+      <aside class="pnl-summary">
+        <div class="pov-pane active" data-pov="partner">
+          <div class="verdict">
+            <span class="verdict-label">Cumulative shortfall · 4mo</span>
+            <span class="verdict-number shortfall"><span class="sign">−</span>$58.4K</span>
+            <span class="verdict-pct">Partner received <b class="bad">19%</b> of contract base rent ($13.8K of $72.2K)</span>
+          </div>
+          <div class="source-mix">
+            <span class="label">Source mix</span>
+            <div class="bar">
+              <div class="seg str" style="flex-basis: 100%">100% STR</div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">Actual to partner</span><span class="v">$13.8K</span></div>
+            <div class="bk-row sub"><span class="l"><span style="display:inline-block;width:7px;height:7px;background:var(--str);border-radius:1px;margin-right:5px;vertical-align:middle"></span>From STR</span><span class="v coral">$13.8K (100%)</span></div>
+            <div class="bk-row"><span class="l">Contract base (15u × rent)</span><span class="v muted">$72.2K</span></div>
+            <div class="bk-row sub"><span class="l">Realistic LT @ <span data-lt-pct>85%</span> occ</span><span class="v" data-lt-realistic>$61.4K</span></div>
+            <div class="bk-row" style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px"><span class="l" title="Property's REAL occupancy from rent-roll monthly_occ_rate. Compare to the LT counterfactual %.">Actual occ · avg</span><span class="v" data-actual-occ-avg>—</span></div>
+            <div class="bk-row sub"><span class="l">vs LT counterfactual</span><span class="v" data-occ-gap>—</span></div>
+          </div>
+          <div class="trajectory widening">
+            <span class="glyph">▾</span><span>Gap widened in April · no LT floor here</span>
+          </div>
+          <div class="narrative">
+            Pure-STR property — partner has no LT floor to fall back on.
+            <b>100% of revenue is from STR</b>, fluctuating with bookings.
+            Mar peak narrowed the gap; Apr softness reopened it.
+          </div>
+        </div>
+
+        <div class="pov-pane" data-pov="landing">
+          <div class="verdict">
+            <span class="verdict-label">Net vs LT-only alt · 4mo</span>
+            <span class="verdict-number" data-verdict-headline>—</span>
+            <span class="verdict-pct" data-verdict-pct>—</span>
+          </div>
+          <div class="source-mix">
+            <span class="label">Source mix</span>
+            <div class="bar">
+              <div class="seg str" style="flex-basis: 100%">100% STR</div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="bk-row"><span class="l">With Landing (actual)</span><span class="v blue">$13.8K</span></div>
+            <div class="bk-row"><span class="l">Without Landing · LT alt</span><span class="v muted" data-lt-realistic>—</span></div>
+            <div class="bk-row sub"><span class="l">Net delta vs LT-only @ <span data-lt-pct>85%</span></span><span class="v" data-net-delta>—</span></div>
+            <div class="bk-row" style="margin-top:6px;border-top:1px dashed var(--line-1);padding-top:8px"><span class="l" title="Property's REAL occupancy from rent-roll monthly_occ_rate.">Actual occ · avg</span><span class="v" data-actual-occ-avg>—</span></div>
+            <div class="bk-row sub"><span class="l">vs LT counterfactual</span><span class="v" data-occ-gap>—</span></div>
+            <div class="bk-row"><span class="l">Ramp status</span><span class="v">4 of 11mo reporting</span></div>
+          </div>
+          <div class="trajectory" data-trajectory>
+            <span class="glyph" data-trajectory-glyph>—</span><span data-trajectory-label>—</span>
+          </div>
+          <div class="talking-points">
+            <div class="label">Partner-call talking points</div>
+            <ul data-talking-points>
+              <li>Pure-STR property — no LT units on the property to anchor against. Counterfactual is "what could these 15 units earn if LT-leased."</li>
+              <li>For a Gulf Shores resort in <b>shoulder season</b>, true LT alt is closer to 30-50% (Q1-Q2 transient market). Toggle the LT% down to 75% (or lower if defensible) for a more realistic comparison.</li>
+              <li>4-month track record is too early to defend or condemn. <b>May/Jun should ramp materially</b> with summer demand.</li>
+              <li data-talking-net>Net result: <b data-talking-net-val>—</b> vs LT @ 85% — <span data-talking-verdict-text>—</span>. Recommend revisiting after 12mo trailing for a full season cycle.</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="pnl-rollup">
+      <div class="pnl-rollup-grid" data-rollup="oneclub"></div>
+    </div>
+
+    <details class="pnl-methodology">
+      <summary>How these numbers are computed · click to expand</summary>
+      <div class="meth-body">
+        <div class="meth-section">
+          <div class="meth-h">1. Contract base · monthly ($24.1K)</div>
+          <div class="meth-p">Sum of <code>dimhome.rent_cost</code> across the 15 installed units. One Club's units are similar size with rents clustered at ~$1,604:</div>
+          <table class="meth-table">
+            <thead><tr><th>Unit</th><th>Type</th><th class="num">Base rent</th></tr></thead>
+            <tbody data-unit-table="oneclub"></tbody>
+            <tfoot>
+              <tr><td colspan="2"><b>STR subtotal (15 units)</b></td><td class="num"><b>$24,060</b></td></tr>
+              <tr><td colspan="2"><b>Contract base / month</b></td><td class="num"><b>$24,060</b></td></tr>
+              <tr><td colspan="2">× 3 reporting months (Feb-Apr; Jan was pre-units)</td><td class="num"><b>$72,180</b></td></tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="meth-section">
+          <div class="meth-h">2. Actual partner net ($13.8K)</div>
+          <div class="meth-p">Sum of <code>net_allocation</code> from the rent-roll signoff sheets, Feb 2026 ($446) + Mar ($8,574) + Apr ($4,806). All 100% from STR (no LT units on this property).</div>
+        </div>
+        <div class="meth-section">
+          <div class="meth-h">3. Realistic LT alternative</div>
+          <div class="meth-p">Contract base × LT occupancy factor. At <b>85%</b> = $72.2K × 0.85 = <b>$61.4K</b>. Toggle 75% / 95% in the eyebrow. For a Gulf Shores resort in shoulder season, a more honest LT alt is probably <b>50-75%</b> — operator can defend the lower number when prepping the partner call.</div>
+        </div>
+        <div class="meth-section">
+          <div class="meth-h">4. Net delta vs LT-only</div>
+          <div class="meth-p">Actual ($13.8K) − Realistic LT alt ($61.4K @ 85%) = <b>−$47.6K</b>. STR is underperforming the hypothetical LT alternative by a wide margin during ramp. Trajectory will be the test — Mar peak suggests summer demand could close most of the gap.</div>
+        </div>
+        <div class="meth-section">
+          <div class="meth-h">5. Recovery % (19%)</div>
+          <div class="meth-p">Actual ($13.8K) ÷ Contract base ($72.2K) = <b>19%</b>. The number the partner will compute on their own from the contract — that's the Partner POV headline.</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+
+  <div class="design-notes">
+    <h3>v3 changes vs v2</h3>
+    <ul>
+      <li><b>Actual partner-net bar splits into LT (blue, bottom) + STR (coral, top).</b> For mixed-mode properties — most of the portfolio — this surfaces whether LT is carrying the partnership while STR fluctuates, or whether STR is the engine. The shortfall stripes still fill the gap above to the contract-base baseline.</li>
+      <li><b>Source-mix mini bar in the summary card</b> — single-line LT/STR ratio with embedded percent labels. Read at a glance: is this a mostly-LT property with STR upside, or a STR-heavy property with LT floor support?</li>
+      <li><b>Breakdown rows show LT and STR contribution explicitly</b> with the source-color dot. The partner can scan the rows and see "the $123K LT is exactly what my contract pays; the $127K STR is what Landing added."</li>
+      <li><b>Roll-up grid gains LT and STR rows</b> — per-month decomposition, so the operator can point to a specific month and say "that was an STR-strong month" or "that was an LT-only month."</li>
+      <li><b>Mixed-mode chip in the property strip</b> — split-color square + label "Mixed · 10 LT + 10 STR." Distinguishes from pure-STR and pure-LT properties so operators know which framing applies before they read the chart.</li>
+      <li><b>Pure-STR properties (One Club, Compass) show 100% STR</b> — the source-mix bar collapses to one color, and the LT breakdown row simply doesn't render. The view degrades gracefully for these cases.</li>
+      <li><b>Riverside Lofts placed first</b> because the decomposition is the v3 motivating feature. Pure-STR examples follow to confirm the view works at the edge case.</li>
+    </ul>
+    <h3 style="margin-top:14px">Implementation requirements</h3>
+    <ul>
+      <li>Backend needs to split <code>net_allocation</code> per month into <code>actual_lt</code> and <code>actual_str</code>. From reservations: sum revenue contribution by <code>rent_unit</code> (night vs month) for each month in the reporting window, then apportion partner's share by take rate.</li>
+      <li>Alternatively, group source units by <code>str_status</code>: revenue from str-enabled units = STR portion, revenue from non-STR units = LT portion. Cleaner accounting if Landing tracks unit-level revenue allocation.</li>
+      <li>For the rent roll data we already have, the simplest approximation: split partner revenue by ratio of (STR reservation nights × ADR) to (LT reservation rent × occupied days). This is a derivation, not a primary field — flag in the tooltip that "STR/LT mix is estimated from reservation-level data."</li>
+    </ul>
+  </div>
+
+</main>
+
+<script>
+// ============================================================================
+// DATA — v3 adds actual_lt / actual_str per month
+// ============================================================================
+
+// Per-unit base rents — this is what Looker actually returns via dimhome.rent_cost.
+// The "implied" baseline is computed as sum(rent_cost) over installed units per
+// month, NOT a flat per-unit average. Riverside has heterogeneous rents
+// reflecting unit size, floor, view, etc. Total monthly implied = $28,000
+// (which is what every month rolls up to when all 20 units are installed).
+const RIVERSIDE_UNITS = [
+  // LT-only units (10) — typically smaller, no STR retrofit, lower base
+  { unit: '101', type: 'LT',  base: 1100 },
+  { unit: '102', type: 'LT',  base: 1150 },
+  { unit: '103', type: 'LT',  base: 1200 },
+  { unit: '104', type: 'LT',  base: 1250 },
+  { unit: '105', type: 'LT',  base: 1300 },
+  { unit: '106', type: 'LT',  base: 1300 },
+  { unit: '107', type: 'LT',  base: 1350 },
+  { unit: '108', type: 'LT',  base: 1400 },
+  { unit: '109', type: 'LT',  base: 1450 },
+  { unit: '110', type: 'LT',  base: 1500 },
+  // STR-enabled units (10) — typically furnished, premium, higher base
+  { unit: '201', type: 'STR', base: 1350 },
+  { unit: '202', type: 'STR', base: 1400 },
+  { unit: '203', type: 'STR', base: 1450 },
+  { unit: '204', type: 'STR', base: 1475 },
+  { unit: '205', type: 'STR', base: 1500 },
+  { unit: '206', type: 'STR', base: 1525 },
+  { unit: '207', type: 'STR', base: 1550 },
+  { unit: '208', type: 'STR', base: 1575 },
+  { unit: '209', type: 'STR', base: 1600 },
+  { unit: '210', type: 'STR', base: 1575 },
+];
+const RIVERSIDE_LT_BASE  = RIVERSIDE_UNITS.filter(u => u.type === 'LT').reduce((s, u) => s + u.base, 0);   // $13,000
+const RIVERSIDE_STR_BASE = RIVERSIDE_UNITS.filter(u => u.type === 'STR').reduce((s, u) => s + u.base, 0);  // $15,000
+const RIVERSIDE_IMPLIED  = RIVERSIDE_LT_BASE + RIVERSIDE_STR_BASE;                                          // $28,000/mo
+
+const RIVERSIDE = {
+  unitsArr: RIVERSIDE_UNITS,
+  ltBase:  RIVERSIDE_LT_BASE,
+  strBase: RIVERSIDE_STR_BASE,
+  units: RIVERSIDE_UNITS.length,
+  ltUnits:  RIVERSIDE_UNITS.filter(u => u.type === 'LT').length,
+  strUnits: RIVERSIDE_UNITS.filter(u => u.type === 'STR').length,
+  // Per-month partner net, split by source (LT vs STR rent type).
+  // actual_lt = partner's share of rent collected from LT-billed reservations
+  // actual_str = partner's share from nightly-billed reservations
+  // implied = same value every month here because all 20 units installed the
+  // whole window. In production this varies if units are added/removed.
+  // `o_actual` = the property's REAL occupancy that month from the rent roll's
+  // monthly_occ_rate field. NOT to be confused with the LT counterfactual %.
+  // Riverside's LT units always run ~100% (continuous leases); STR units swing
+  // seasonally. Blended property occ = weighted avg of both.
+  months: [
+    { label: "Jun '25", actual_lt: 11200, actual_str: 14500, implied: RIVERSIDE_IMPLIED, o_actual: 0.87 },
+    { label: "Jul '25", actual_lt: 11200, actual_str: 18200, implied: RIVERSIDE_IMPLIED, o_actual: 0.96 },
+    { label: "Aug '25", actual_lt: 11200, actual_str: 16800, implied: RIVERSIDE_IMPLIED, o_actual: 0.94 },
+    { label: "Sep '25", actual_lt: 11200, actual_str: 13400, implied: RIVERSIDE_IMPLIED, o_actual: 0.85 },
+    { label: "Oct '25", actual_lt: 11200, actual_str:  9800, implied: RIVERSIDE_IMPLIED, o_actual: 0.78 },
+    { label: "Nov '25", actual_lt: 11200, actual_str:  5200, implied: RIVERSIDE_IMPLIED, o_actual: 0.68 },
+    { label: "Dec '25", actual_lt: 11200, actual_str:  3800, implied: RIVERSIDE_IMPLIED, o_actual: 0.64 },
+    { label: "Jan '26", actual_lt: 11200, actual_str:  5500, implied: RIVERSIDE_IMPLIED, o_actual: 0.69 },
+    { label: "Feb '26", actual_lt: 11200, actual_str:  9200, implied: RIVERSIDE_IMPLIED, o_actual: 0.76 },
+    { label: "Mar '26", actual_lt: 11200, actual_str: 14800, implied: RIVERSIDE_IMPLIED, o_actual: 0.88 },
+    { label: "Apr '26", actual_lt: 11200, actual_str: 16500, implied: RIVERSIDE_IMPLIED, o_actual: 0.93 },
+  ],
+  // Projection methodology: each future month combines
+  //   booked = sum of future reservations' nights × their nightly rates
+  //   runRate = remaining available unit-nights × trailing-30d fill × ADR
+  // confidence: 'high' when booked_share > 50%, 'med' 20-50%, 'low' < 20%.
+  // The numbers below are illustrative for the mockup; production pulls from
+  // dimreservation future rows + recent trailing metrics.
+  projection: {
+    historyMonths: 11,
+    months: [
+      { label: "May '26", lt: 11200, booked: 9800,  runRate: 7200, conf: 'high' },
+      { label: "Jun '26", lt: 11200, booked: 6200,  runRate: 9300, conf: 'high' },
+      { label: "Jul '26", lt: 11200, booked: 3700,  runRate: 14800, conf: 'med' },
+      { label: "Aug '26", lt: 11200, booked: 1700,  runRate: 15300, conf: 'med' },
+      { label: "Sep '26", lt: 11200, booked: 700,   runRate: 13100, conf: 'low' },
+      { label: "Oct '26", lt: 11200, booked: 0,     runRate: 10500, conf: 'low' },
+    ],
+  },
+};
+
+// One Club's 15 units — base rents tightly clustered around $1,604 (similar
+// floor plans). Sum = $24,060/mo implied baseline.
+const ONECLUB_UNITS = [
+  { unit: '604',  type: 'STR', base: 1594 },
+  { unit: '606',  type: 'STR', base: 1594 },
+  { unit: '703',  type: 'STR', base: 1604 },
+  { unit: '806',  type: 'STR', base: 1594 },
+  { unit: '1101', type: 'STR', base: 1604 },
+  { unit: '1103', type: 'STR', base: 1604 },
+  { unit: '1401', type: 'STR', base: 1604 },
+  { unit: '1501', type: 'STR', base: 1604 },
+  { unit: '1506', type: 'STR', base: 1604 },
+  { unit: '1601', type: 'STR', base: 1604 },
+  { unit: '3103', type: 'STR', base: 1604 },
+  { unit: '3309', type: 'STR', base: 1604 },
+  { unit: '3503', type: 'STR', base: 1604 },
+  { unit: '3601', type: 'STR', base: 1604 },
+  { unit: '3603', type: 'STR', base: 1644 },
+];
+
+const ONECLUB = {
+  unitsArr: ONECLUB_UNITS,
+  basePerUnit: 1604,
+  units: 15,
+  ltUnits: 0,
+  strUnits: 15,
+  // o_actual = REAL occupancy from rent-roll monthly_occ_rate for One Club
+  // (values pulled live earlier in the build).
+  months: [
+    { label: "Jun '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Jul '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Aug '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Sep '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Oct '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Nov '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Dec '25", actual_lt: null, actual_str: null, implied: null, ghost: true },
+    { label: "Jan '26", actual_lt: 0,    actual_str: 0,    implied: 0,     onboarded: true, o_actual: 0     },
+    { label: "Feb '26", actual_lt: 0,    actual_str: 446,  implied: 24060, o_actual: 0.0524 },
+    { label: "Mar '26", actual_lt: 0,    actual_str: 8574, implied: 24060, o_actual: 0.4516 },
+    { label: "Apr '26", actual_lt: 0,    actual_str: 4806, implied: 24060, o_actual: 0.3511 },
+  ],
+  // Projection refused: only 4 months of history.
+  projection: { historyMonths: 4, refused: true, reason: 'Needs 6+ months of history. Currently at 4mo.' },
+};
+
+// ============================================================================
+// RENDER
+// ============================================================================
+
+function totalActual(m) {
+  return (m.actual_lt || 0) + (m.actual_str || 0);
+}
+function coverageClass(total, implied) {
+  if (implied == null || implied === 0) return 'neutral';
+  const ratio = total / implied;
+  if (ratio >= 1.0)  return 'good';
+  if (ratio >= 0.60) return 'warn';
+  return 'bad';
+}
+function fmtK(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1000) return '$' + (v / 1000).toFixed(1) + 'K';
+  return '$' + Math.round(v);
+}
+
+function renderChart(svg, data, ltFactor, projHorizon) {
+  const histN = data.months.length;
+  // Projection: include if toggle is on AND projection isn't refused for this property
+  const proj = (projHorizon > 0 && data.projection && !data.projection.refused)
+    ? data.projection.months.slice(0, projHorizon)
+    : [];
+  const N = histN + proj.length;
+  const left = 36, right = 660, top = 18, bottom = 200;
+  const colW = (right - left) / N;
+  const barW = colW * 0.62;
+
+  let maxY = 0;
+  for (const m of data.months) {
+    if (m.implied != null && m.implied > maxY) maxY = m.implied;
+    const tot = totalActual(m);
+    if (tot > maxY) maxY = tot;
+  }
+  for (const pm of proj) {
+    const total = (pm.lt || 0) + (pm.booked || 0) + (pm.runRate || 0);
+    if (total > maxY) maxY = total;
+  }
+  maxY = Math.max(maxY * 1.12, 1000);
+
+  const niceMax = (() => {
+    const mag = Math.pow(10, Math.floor(Math.log10(maxY)));
+    const ratio = maxY / mag;
+    let nice = 10;
+    if (ratio <= 1) nice = 1; else if (ratio <= 2) nice = 2; else if (ratio <= 5) nice = 5;
+    return nice * mag;
+  })();
+
+  const yToPx = v => bottom - (v / niceMax) * (bottom - top);
+  const patternId = `${svg.dataset.id}-stripe-${Math.round(ltFactor*100)}`;
+
+  const defs = `<defs>
+    <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(238, 83, 61, 0.35)" stroke-width="2"/>
+    </pattern>
+  </defs>`;
+
+  const ticks = [0.25, 0.5, 0.75, 1.0].map(t => niceMax * t);
+  let gridHtml = '';
+  for (const tv of ticks) {
+    const y = yToPx(tv);
+    gridHtml += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="var(--line-0)" stroke-width="0.6"/>`;
+    const label = tv >= 1000 ? '$' + Math.round(tv / 1000) + 'K' : '$' + Math.round(tv);
+    gridHtml += `<text class="axis-label" x="${left - 6}" y="${y + 3}" text-anchor="end">${label}</text>`;
+  }
+
+  let barsHtml = '';
+  let xLabelsHtml = '';
+  let coverageHtml = '';
+  // Iterate only historical months for actuals; projection bars are rendered
+  // separately below using a different data source (data.projection.months).
+  for (let i = 0; i < histN; i++) {
+    const m = data.months[i];
+    const cx = left + i * colW + colW / 2;
+    const x  = cx - barW / 2;
+
+    const cls = (i === 0 || (proj.length === 0 && i === histN - 1)) ? 'axis-label axis-label-strong' : 'axis-label';
+    xLabelsHtml += `<text class="${cls}" x="${cx}" y="220" text-anchor="middle">${m.label}</text>`;
+
+    if (m.ghost) {
+      barsHtml += `<rect class="ghost-block" x="${x}" y="${bottom - 22}" width="${barW}" height="22" rx="1.5"/>`;
+      continue;
+    }
+
+    if (m.implied != null && m.implied > 0) {
+      const impliedY = yToPx(m.implied);
+      const impliedH = bottom - impliedY;
+      barsHtml += `<rect class="implied-bar" x="${x}" y="${impliedY}" width="${barW}" height="${impliedH}" rx="2"/>`;
+
+      // v3: actual now splits into LT (bottom) + STR (top)
+      const ltVal  = Math.min(m.actual_lt || 0,  m.implied);
+      const strVal = Math.min(m.actual_str || 0, Math.max(m.implied - ltVal, 0));
+      const totalCapped = ltVal + strVal;
+
+      // LT segment (bottom)
+      if (ltVal > 0) {
+        const ltTopY = yToPx(ltVal);
+        const ltH = bottom - ltTopY;
+        barsHtml += `<rect class="actual-lt" x="${x}" y="${ltTopY}" width="${barW}" height="${ltH}" rx="2" style="animation-delay:${i * 60}ms"/>`;
+      }
+      // STR segment (stacked on top of LT)
+      if (strVal > 0) {
+        const ltTopY = yToPx(ltVal);
+        const strTopY = yToPx(ltVal + strVal);
+        const strH = ltTopY - strTopY;
+        barsHtml += `<rect class="actual-str" x="${x}" y="${strTopY}" width="${barW}" height="${strH}" rx="${ltVal === 0 ? 2 : 0}" style="animation-delay:${i * 60 + 100}ms"/>`;
+      }
+
+      // Shortfall stripes — gap between total and implied
+      if (totalCapped < m.implied) {
+        const stripeStartY = totalCapped > 0 ? yToPx(totalCapped) : bottom;
+        const stripeEndY = impliedY;
+        const stripeH = stripeStartY - stripeEndY;
+        barsHtml += `<rect x="${x}" y="${stripeEndY}" width="${barW}" height="${stripeH}" fill="url(#${patternId})" rx="2"/>`;
+      }
+
+      // Coverage % label above each bar
+      const tot = totalActual(m);
+      const pct = Math.round((tot / m.implied) * 100);
+      const labelY = Math.max(impliedY - 6, top + 4);
+      const lcc = pct >= 100 ? 'good' : (pct >= 60 ? 'warn' : 'bad');
+      coverageHtml += `<text class="coverage-label ${lcc}" x="${cx}" y="${labelY}" text-anchor="middle">${pct}%</text>`;
+    } else if (m.onboarded) {
+      barsHtml += `<line x1="${x}" y1="${bottom}" x2="${x + barW}" y2="${bottom}" stroke="var(--ink-3)" stroke-width="0.8"/>`;
+      coverageHtml += `<text class="axis-label" x="${cx}" y="${bottom - 6}" text-anchor="middle" style="font-size:8px">onb</text>`;
+    }
+  }
+
+  let implPts = [], ltPts = [];
+  for (let i = 0; i < histN; i++) {
+    const m = data.months[i];
+    if (m.implied == null || m.implied <= 0) continue;
+    const cx = left + i * colW + colW / 2;
+    implPts.push(`${cx},${yToPx(m.implied)}`);
+    ltPts.push(`${cx},${yToPx(m.implied * ltFactor)}`);
+  }
+  // Extend reference lines through projection band (assumes same monthly base)
+  if (proj.length > 0) {
+    const lastImplied = data.months[histN - 1]?.implied || 0;
+    for (let j = 0; j < proj.length; j++) {
+      const cx = left + (histN + j) * colW + colW / 2;
+      if (lastImplied > 0) {
+        implPts.push(`${cx},${yToPx(lastImplied)}`);
+        ltPts.push(`${cx},${yToPx(lastImplied * ltFactor)}`);
+      }
+    }
+  }
+  const implLine = implPts.length >= 2 ? `<polyline class="implied-line" points="${implPts.join(' ')}"/>` : '';
+  const ltLine   = ltPts.length >= 2   ? `<polyline class="lt-realistic-line" points="${ltPts.join(' ')}"/>` : '';
+
+  // Projection band — bars, divider, label, confidence dots
+  let projHtml = '';
+  if (proj.length > 0) {
+    const divX = left + histN * colW;
+    projHtml += `<line class="proj-divider" x1="${divX}" y1="${top - 4}" x2="${divX}" y2="${bottom + 12}"/>`;
+    const labelX = divX + (proj.length * colW) / 2;
+    projHtml += `<text class="proj-band-label" x="${labelX}" y="${top - 6}" text-anchor="middle">PROJECTED →</text>`;
+    for (let j = 0; j < proj.length; j++) {
+      const pm = proj[j];
+      const cx = left + (histN + j) * colW + colW / 2;
+      const x  = cx - barW / 2;
+      // X label
+      const cls = (j === proj.length - 1) ? 'axis-label axis-label-strong' : 'axis-label';
+      xLabelsHtml += `<text class="${cls}" x="${cx}" y="220" text-anchor="middle">${pm.label}</text>`;
+      // Stacked: LT base + booked STR + run-rate STR
+      const ltH      = (pm.lt || 0)      / maxY * (bottom - top);
+      const bookedH  = (pm.booked || 0)  / maxY * (bottom - top);
+      const runH     = (pm.runRate || 0) / maxY * (bottom - top);
+      let cursorY = bottom;
+      if (ltH > 0) {
+        projHtml += `<rect class="proj-bar-lt" x="${x}" y="${cursorY - ltH}" width="${barW}" height="${ltH}" rx="2"/>`;
+        cursorY -= ltH;
+      }
+      if (bookedH > 0) {
+        // Booked portion — slightly more opaque (this is real, on-the-books)
+        projHtml += `<rect class="proj-bar-str" x="${x}" y="${cursorY - bookedH}" width="${barW}" height="${bookedH}" rx="2" style="opacity:0.72"/>`;
+        cursorY -= bookedH;
+      }
+      if (runH > 0) {
+        // Run-rate portion — dashed outline + lower opacity
+        projHtml += `<rect x="${x}" y="${cursorY - runH}" width="${barW}" height="${runH}" rx="2" fill="var(--str)" style="opacity:0.32"/>`;
+        projHtml += `<rect class="proj-outline str" x="${x}" y="${cursorY - runH}" width="${barW}" height="${runH}" rx="2"/>`;
+        cursorY -= runH;
+      }
+      // Confidence dot above bar
+      const dots = pm.conf === 'high' ? '●●●' : pm.conf === 'med' ? '●●○' : '●○○';
+      const dotCls = pm.conf === 'high' ? 'high' : pm.conf === 'med' ? 'med' : 'low';
+      projHtml += `<text class="proj-conf-dots ${dotCls}" x="${cx}" y="${top + 6}" text-anchor="middle">${dots}</text>`;
+    }
+  }
+
+  svg.innerHTML = defs + gridHtml + barsHtml + ltLine + implLine + projHtml + xLabelsHtml + coverageHtml;
+}
+
+function renderRollup(el, data) {
+  const cells = ['<div class="pnl-rollup-cell label">&nbsp;</div>'];
+  for (const m of data.months) cells.push(`<div class="pnl-rollup-cell month-header">${m.label}</div>`);
+
+  // LT row (only render if data has any LT)
+  const hasLT = data.months.some(m => m.actual_lt && m.actual_lt > 0);
+  if (hasLT) {
+    cells.push('<div class="pnl-rollup-cell label"><span class="swatch lt"></span>LT</div>');
+    for (const m of data.months) {
+      if (m.ghost) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+      const v = m.actual_lt || 0;
+      cells.push(`<div class="pnl-rollup-cell lt">${v >= 1000 ? '$' + (v/1000).toFixed(1) + 'K' : '$' + v}</div>`);
+    }
+  }
+  // STR row
+  cells.push('<div class="pnl-rollup-cell label"><span class="swatch str"></span>STR</div>');
+  for (const m of data.months) {
+    if (m.ghost) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const v = m.actual_str || 0;
+    cells.push(`<div class="pnl-rollup-cell str">${v >= 1000 ? '$' + (v/1000).toFixed(1) + 'K' : '$' + v}</div>`);
+  }
+  // Total row
+  cells.push('<div class="pnl-rollup-cell label">Total</div>');
+  for (const m of data.months) {
+    if (m.ghost) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const tot = totalActual(m);
+    const cc = coverageClass(tot, m.implied);
+    cells.push(`<div class="pnl-rollup-cell actual ${cc}">${tot >= 1000 ? '$' + (tot/1000).toFixed(1) + 'K' : '$' + tot}</div>`);
+  }
+  // Recovery
+  cells.push('<div class="pnl-rollup-cell label">Recovery</div>');
+  for (const m of data.months) {
+    if (m.ghost || m.implied == null || m.implied === 0) { cells.push('<div class="pnl-rollup-cell ghost">—</div>'); continue; }
+    const tot = totalActual(m);
+    const pct = Math.round((tot / m.implied) * 100);
+    const cc = pct >= 100 ? 'good' : (pct >= 60 ? 'warn' : 'bad');
+    cells.push(`<div class="pnl-rollup-cell actual ${cc}">${pct}%</div>`);
+  }
+  el.innerHTML = cells.join('');
+}
+
+function updateLtFigures(moduleEl, data, ltFactor) {
+  const totalImplied = data.months.reduce((s, m) => s + (m.implied || 0), 0);
+  const totalAct     = data.months.reduce((s, m) => s + totalActual_(m), 0);
+  const totalStr     = data.months.reduce((s, m) => s + (m.actual_str || 0), 0);
+  const ltRealistic  = totalImplied * ltFactor;
+  const netDelta     = totalAct - ltRealistic;
+  const fmtSigned    = v => (v >= 0 ? '+' : '−') + fmtK(Math.abs(v));
+  const ltPctStr     = Math.round(ltFactor * 100) + '%';
+
+  moduleEl.querySelectorAll('[data-lt-pct]').forEach(el => el.textContent = ltPctStr);
+  moduleEl.querySelectorAll('[data-lt-realistic]').forEach(el => el.textContent = fmtK(ltRealistic));
+  moduleEl.querySelectorAll('[data-net-delta]').forEach(el => {
+    el.textContent = fmtSigned(netDelta);
+    el.classList.remove('green', 'red');
+    el.classList.add(netDelta >= 0 ? 'green' : 'red');
+  });
+
+  // Landing POV verdict headline + narrative + trajectory — all driven by netDelta
+  // so the LT% toggle and any data change recompute everything together.
+  const headline = moduleEl.querySelector('[data-verdict-headline]');
+  const pct      = moduleEl.querySelector('[data-verdict-pct]');
+  const traj     = moduleEl.querySelector('[data-trajectory]');
+  const trajG    = moduleEl.querySelector('[data-trajectory-glyph]');
+  const trajL    = moduleEl.querySelector('[data-trajectory-label]');
+  if (headline) {
+    headline.textContent = fmtSigned(netDelta);
+    headline.classList.remove('shortfall', 'surplus', 'even', 'incremental');
+    if (Math.abs(netDelta) < ltRealistic * 0.05) headline.classList.add('even');
+    else if (netDelta >= 0) headline.classList.add('surplus');
+    else headline.classList.add('shortfall');
+  }
+  if (pct) {
+    const totalLt = data.months.reduce((s, m) => s + (m.actual_lt || 0), 0);
+    const pctVsLT = ltRealistic > 0 ? Math.round((totalAct / ltRealistic) * 100) : 0;
+    const verb = netDelta >= 0 ? 'beating' : 'under';
+    const cls  = netDelta >= 0 ? 'good' : 'bad';
+    const lead = totalLt > 0
+      ? `STR earned <b class="blue">${fmtK(totalStr)}</b> on top of the <b class="blue">${fmtK(totalLt)}</b> LT floor`
+      : `STR delivered <b class="blue">${fmtK(totalStr)}</b> (pure-STR property, no LT on these units)`;
+    pct.innerHTML = `${lead}; total <b class="${cls}">${pctVsLT}%</b> of realistic LT-only alt @ <span data-lt-pct>${ltPctStr}</span> (${verb} by ${fmtK(Math.abs(netDelta))}).`;
+  }
+  if (traj && trajG && trajL) {
+    traj.classList.remove('widening', 'surplus', 'incremental');
+    if (netDelta >= ltRealistic * 0.05) {
+      traj.classList.add('surplus'); trajG.textContent = '↗'; trajL.textContent = 'STR upside beating LT-only';
+    } else if (netDelta <= -ltRealistic * 0.05) {
+      traj.classList.add('widening'); trajG.textContent = '▾'; trajL.textContent = 'STR program net negative vs LT-only';
+    } else {
+      traj.classList.add('incremental'); trajG.textContent = '→'; trajL.textContent = 'STR essentially break-even vs LT-only';
+    }
+  }
+  // Talking-points net line
+  const tNet = moduleEl.querySelector('[data-talking-net-val]');
+  const tVerdict = moduleEl.querySelector('[data-talking-verdict-text]');
+  if (tNet) tNet.textContent = fmtSigned(netDelta);
+  if (tVerdict) {
+    if (Math.abs(netDelta) < ltRealistic * 0.05) tVerdict.textContent = 'essentially break-even';
+    else if (netDelta >= 0) tVerdict.textContent = 'a net positive';
+    else tVerdict.textContent = 'a net drag';
+  }
+
+  // Actual occupancy (factual, from rent roll) — average across reporting months.
+  // The gap between actual occ and the LT counterfactual % explains much of any
+  // shortfall: if actual occ is 35% and LT counterfactual is 85%, that 50pt gap
+  // is structurally why revenue can't reach the LT alt baseline.
+  const reportingMonths = data.months.filter(m => !m.ghost && m.o_actual != null);
+  const avgActualOcc = reportingMonths.length
+    ? reportingMonths.reduce((s, m) => s + m.o_actual, 0) / reportingMonths.length
+    : null;
+  const occGap = avgActualOcc != null ? (avgActualOcc - ltFactor) : null;
+  moduleEl.querySelectorAll('[data-actual-occ-avg]').forEach(el => {
+    el.textContent = avgActualOcc != null ? Math.round(avgActualOcc * 100) + '%' : '—';
+    el.classList.remove('green', 'red');
+    if (avgActualOcc != null) {
+      el.classList.add(avgActualOcc >= ltFactor ? 'green' : 'red');
+    }
+  });
+  moduleEl.querySelectorAll('[data-occ-gap]').forEach(el => {
+    if (occGap == null) { el.textContent = '—'; return; }
+    const sign = occGap >= 0 ? '+' : '−';
+    el.textContent = `${sign}${Math.abs(Math.round(occGap * 100))}pt`;
+    el.classList.remove('green', 'red');
+    el.classList.add(occGap >= 0 ? 'green' : 'red');
+  });
+}
+function totalActual_(m) { return (m.actual_lt || 0) + (m.actual_str || 0); }
+
+function updateProjSummary(moduleEl, data, projHorizon) {
+  if (!data.projection || data.projection.refused) return;
+  const months = data.projection.months.slice(0, projHorizon);
+  if (!months.length) return;
+  const total = months.reduce((s, m) => s + (m.lt || 0) + (m.booked || 0) + (m.runRate || 0), 0);
+  const booked = months.reduce((s, m) => s + (m.booked || 0), 0);
+  const runRate = months.reduce((s, m) => s + (m.runRate || 0), 0);
+  const ltSum = months.reduce((s, m) => s + (m.lt || 0), 0);
+  const bookedShare = total > 0 ? Math.round(((booked + ltSum) / total) * 100) : 0;
+  moduleEl.querySelectorAll('[data-proj-horizon]').forEach(el => el.textContent = projHorizon);
+  moduleEl.querySelectorAll('[data-proj-total]').forEach(el => el.textContent = fmtK(total));
+  moduleEl.querySelectorAll('[data-proj-sub]').forEach(el => {
+    el.innerHTML = `<b>${bookedShare}%</b> from booked + LT, <b>${100 - bookedShare}%</b> from run-rate fill. Confidence drops further out.`;
+  });
+}
+
+function wireModule(moduleEl, data) {
+  const svg = moduleEl.querySelector('.pnl-chart-canvas');
+  svg.dataset.id = moduleEl.dataset.key;
+  const ltBtn = moduleEl.querySelector('.lt-toggle .active');
+  const ltFactor = parseFloat(ltBtn.dataset.lt) || 0.85;
+  let projHorizon = 0;
+  const projRefused = data.projection?.refused;
+
+  // Disable +3mo/+6mo buttons when projection is refused
+  if (projRefused) {
+    moduleEl.querySelectorAll('.proj-toggle button[data-proj]').forEach(b => {
+      if (b.dataset.proj !== 'off') {
+        b.disabled = true;
+        b.title = data.projection.reason || 'Insufficient history';
+      }
+    });
+    moduleEl.querySelector('.proj-toggle')?.classList.add('disabled');
+    // Persistently show the refusal text so the rep sees the reason without
+    // having to interact with a disabled button.
+    moduleEl.classList.add('proj-insufficient');
+  }
+
+  renderChart(svg, data, ltFactor, projHorizon);
+  renderRollup(moduleEl.querySelector('.pnl-rollup-grid'), data);
+  updateLtFigures(moduleEl, data, ltFactor);
+
+  moduleEl.querySelectorAll('.pov-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const pov = b.dataset.pov;
+      moduleEl.dataset.pov = pov;
+      moduleEl.querySelectorAll('.pov-toggle button').forEach(x => x.classList.toggle('active', x.dataset.pov === pov));
+      moduleEl.querySelectorAll('.pov-pane').forEach(p => p.classList.toggle('active', p.dataset.pov === pov));
+    });
+  });
+
+  moduleEl.querySelectorAll('.lt-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      const f = parseFloat(b.dataset.lt);
+      moduleEl.querySelectorAll('.lt-toggle button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      renderChart(svg, data, f, projHorizon);
+      updateLtFigures(moduleEl, data, f);
+    });
+  });
+
+  // Projection toggle
+  moduleEl.querySelectorAll('.proj-toggle button[data-proj]').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.disabled) return;
+      const horizonStr = b.dataset.proj;
+      // If proj is refused but user clicked off, allow it; otherwise switch to refused state
+      if (projRefused && horizonStr !== 'off') {
+        moduleEl.classList.add('proj-refused');
+        moduleEl.classList.remove('proj-on');
+        return;
+      }
+      projHorizon = horizonStr === 'off' ? 0 : parseInt(horizonStr, 10);
+      moduleEl.querySelectorAll('.proj-toggle button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      moduleEl.classList.toggle('proj-on', projHorizon > 0);
+      moduleEl.classList.remove('proj-refused');
+      const curLt = parseFloat(moduleEl.querySelector('.lt-toggle .active').dataset.lt);
+      renderChart(svg, data, curLt, projHorizon);
+      if (projHorizon > 0) updateProjSummary(moduleEl, data, projHorizon);
+    });
+  });
+}
+
+function renderUnitTable(el, units) {
+  if (!el || !units) return;
+  el.innerHTML = units.map(u => `<tr class="${u.type.toLowerCase()}"><td>${u.unit}</td><td>${u.type}</td><td class="num">$${u.base.toLocaleString()}</td></tr>`).join('');
+}
+
+wireModule(document.querySelector('.pnl-module[data-key="riverside"]'), RIVERSIDE);
+wireModule(document.querySelector('.pnl-module[data-key="oneclub"]'),   ONECLUB);
+renderUnitTable(document.querySelector('[data-unit-table="riverside"]'), RIVERSIDE_UNITS);
+renderUnitTable(document.querySelector('[data-unit-table="oneclub"]'),   ONECLUB_UNITS);
+</script>
+</body>
+</html>
