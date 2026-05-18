@@ -2,6 +2,15 @@
 
 ## Open
 
+- **Neon Postgres migration for revshare data** (deferred 2026-05-18, after grid v2 + Partner P&L module shipped). Today `data/revshare.json` (755KB, 685 properties × 11 months) is bundled into every Netlify function and re-read on every cold start. It works for now but caps us at ~5K properties before bundle size + cold-start cost become an issue, and ad-hoc cross-property queries (leaderboards, segment counts, "top 5 ramping STR partners last 30d") all happen client-side after loading the entire payload. Migrating to Neon Postgres is the natural next step:
+  1. **Schema decision** — flat fact table (`property_month_actuals` with l/p/g/o/u + mgmt/ffe/install/wifi/partner_adj per row) vs normalized (`properties`, `partners`, `monthly_actuals`, `fee_breakdown`). The query patterns we already have (per-property trend, cross-property leaderboards, segment aggregates) suggest flat-fact is fine; only break out if join performance forces it.
+  2. **Neon project setup** — new Landing-shared project or scoped to autopilot-dashboard? Branching strategy (dev / staging / prod)? Secret in Netlify env as `NEON_DATABASE_URL`.
+  3. **ETL** — port `scripts/build-revshare-bundle.js` to an INSERT path. Keep the bundle as fallback for a transition period (cache loader reads DB first, JSON second).
+  4. **Cutover** — swap `_revshare-cache.js`, `grid-data.js`, `property-detail.js` to query Postgres. Consider running side-by-side for a week before deprecating the JSON.
+  5. **Other consumers** — scope what rep scorecard, pitch tracker, growth dashboards would query from the same DB so the schema covers their needs upfront (vs migrating each separately).
+  6. **Source-of-truth re-pulls** — currently subsidy-session pulls live in `expansion-enrichment-agent/.claude/worktrees/.../_scratch_subsidy_data`. Once in Postgres we want a monthly ingest path (likely `scripts/ingest-revshare-sheet.js` extended to write rows, not JSON).
+  Why this matters: the leaderboard / segment / KPI features built in grid v2 are bottlenecked by bundle scale. Postgres unlocks them at portfolio growth scale + lets other Landing tools query the same data without duplicating bundles.
+
 - **CoStar targets website enrichment.** Only ~39 of 1,553 CoStar targets have `property_website` or `costar_leasing_company_website`. Marketing URLs aren't in CoStar PDFs, so the ingest can't populate directly. The "Website" button only renders when a URL exists — the Google Maps link works as a workaround (uses property name + address, lands on the named place). Next steps when picked up:
   1. **Brave Search API backfill** — sign up at https://api-dashboard.search.brave.com/register (free 2k queries/month, no card required for free tier), store key as `BRAVE_API_KEY` in Netlify env, build a one-time script that runs each target name+market through Brave and writes the top non-aggregator result to `property_website` in HubSpot.
   2. **Weekly cron** to backfill any new CoStar targets from the latest ingest.
