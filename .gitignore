@@ -1,2 +1,5 @@
 # Local Netlify folder
 .netlify
+
+# npm install artifacts (package-lock.json IS committed for reproducible builds)
+node_modules/
