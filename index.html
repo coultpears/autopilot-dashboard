@@ -195,6 +195,35 @@ body::after {
 .topnav-right .nav-updated {
   color: var(--ink-3); white-space: nowrap;
 }
+/* Map button — single-purpose link sitting to the right of the main toggle.
+   Visually outlined so it reads as a secondary destination, not part of the
+   primary Leaderboard/Partner-Performance toggle. */
+.topnav-right .nav-map-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-display);
+  font-size: 0.78rem; font-weight: 500;
+  padding: 7px 14px; border-radius: var(--r-md);
+  color: var(--ink-2); text-decoration: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  transition: all 0.15s;
+  letter-spacing: -0.005em;
+  margin-right: 14px;
+  padding-right: 14px; /* override padding above so it's not pushed too far */
+  white-space: nowrap;
+}
+.topnav-right .nav-map-btn svg { width: 13px; height: 13px; }
+.topnav-right .nav-map-btn:hover {
+  color: var(--ink-0);
+  background: var(--surface-1);
+  border-color: var(--ink-3);
+}
+.topnav-right .nav-map-btn.active {
+  color: #fff;
+  background: var(--landing-navy);
+  border-color: var(--landing-navy);
+  box-shadow: 0 1px 2px rgba(21,25,45,0.12);
+}
 /* Hide timestamp on tighter widths so nav stays clean */
 @media (max-width: 1200px) {
   .topnav-right .nav-updated { display: none; }
@@ -1784,18 +1813,24 @@ tbody td {
     <h1>Autopilot Dashboard<span>Multifamily Partnerships</span></h1>
   </div>
   <div class="topnav-nav">
+    <!-- Primary toggle: Leaderboard (this page, rep scorecard) ↔ Partner Performance (grid view of properties).
+         Map is demoted to the right-side button — it's a peek, not a primary destination. -->
     <div class="nav-links">
       <a href="index.html" class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+        Leaderboard
       </a>
       <a href="map.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
-        Map
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Partner Performance
       </a>
     </div>
   </div>
   <div class="topnav-right">
+    <a href="map.html?view=map" class="nav-map-btn" title="Open the geographic supply map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
+      Map
+    </a>
     <span class="nav-live"><span class="status-dot"></span>Live Data</span>
     <span id="last-updated" class="nav-updated"></span>
   </div>
