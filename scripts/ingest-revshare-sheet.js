@@ -255,13 +255,77 @@ function parseTab(values, tabName) {
   }
 
   if (dry) {
-    console.log('\n--dry: not writing data/revshare.json');
+    console.log('\n--dry: not writing (set NEON_DATABASE_URL to test DB write, leave unset to test bundle write)');
     return;
   }
 
-  // 5) Merge into data/revshare.json (uses discovered REPO_ROOT, not __dirname,
-  // so the script can be invoked from any CWD with --AUTOPILOT_DASHBOARD_REPO
-  // env override or auto-detection. See findRepoRoot() at top of file.)
+  // 5) Write to the active backend:
+  //   - If NEON_DATABASE_URL is set → write to Postgres (production path).
+  //     Data lands live; no git commit needed; Netlify functions pick it up
+  //     on next request.
+  //   - Otherwise → write to data/revshare.json (legacy bundle path; valid
+  //     for dev mode or pre-DB-cutover). User commits + pushes; Netlify
+  //     rebuilds; functions pick up the new bundle.
+  if (process.env.NEON_DATABASE_URL) {
+    await writeToPostgres(newEntries);
+  } else {
+    writeToBundle(newEntries);
+  }
+})().catch(e => { console.error('ERR', e); process.exit(1); });
+
+
+// ─── Postgres write path ─────────────────────────────────────────────
+async function writeToPostgres(newEntries) {
+  let pg;
+  try {
+    pg = require('pg');
+  } catch (e) {
+    console.error('pg module not found. Install with: npm install pg');
+    process.exit(1);
+  }
+  const client = new pg.Client({ connectionString: process.env.NEON_DATABASE_URL });
+  await client.connect();
+  console.log(`\nConnected to Postgres (${process.env.NEON_DATABASE_URL.replace(/:[^:@]+@/, ':****@')})`);
+
+  const t0 = Date.now();
+  let inserted = 0, updated = 0;
+  for (const [propName, rec] of Object.entries(newEntries)) {
+    const result = await client.query(
+      `INSERT INTO monthly_actuals (
+         property_name, period_key, period,
+         landing_margin, net_allocation, total_revenue,
+         occupancy_rate, stay_count,
+         mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment,
+         source
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'sheet')
+       ON CONFLICT (property_name, period_key) DO UPDATE SET
+         period = EXCLUDED.period,
+         landing_margin = EXCLUDED.landing_margin,
+         net_allocation = EXCLUDED.net_allocation,
+         total_revenue = EXCLUDED.total_revenue,
+         occupancy_rate = EXCLUDED.occupancy_rate,
+         stay_count = EXCLUDED.stay_count,
+         mgmt_fee = EXCLUDED.mgmt_fee,
+         ffe_fee = EXCLUDED.ffe_fee,
+         install_fee = EXCLUDED.install_fee,
+         wifi_fee = EXCLUDED.wifi_fee,
+         partner_adjustment = EXCLUDED.partner_adjustment,
+         source = 'sheet',
+         ingested_at = NOW()
+       RETURNING (xmax = 0) AS was_insert`,
+      [propName, rec.period_key, rec.period,
+       rec.l, rec.p, rec.g, rec.o, rec.u,
+       rec.mf, rec.ff, rec.if_, rec.wf, rec.pa]
+    );
+    if (result.rows[0]?.was_insert) inserted++; else updated++;
+  }
+  await client.end();
+  console.log(`Wrote ${inserted + updated} rows in ${((Date.now() - t0) / 1000).toFixed(1)}s (${inserted} new · ${updated} replaced)`);
+  console.log(`\nDashboard will reflect the new data on next request — no rebuild needed.`);
+}
+
+// ─── Bundle write path (legacy / dev) ────────────────────────────────
+function writeToBundle(newEntries) {
   const bundlePath = path.join(REPO_ROOT, 'data', 'revshare.json');
   const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
   let added = 0, replaced = 0, newProps = 0;
@@ -270,28 +334,25 @@ function parseTab(values, tabName) {
       bundle.by_property[propName] = {};
       newProps++;
     }
-    const key = String(periodKey);
+    const key = String(rec.period_key);
     if (bundle.by_property[propName][key]) replaced++; else added++;
     bundle.by_property[propName][key] = rec;
   }
-
-  // Update _meta.source_months if this is a new period
-  const existingPeriod = bundle._meta.source_months.find(s => s.period_key === periodKey);
-  if (!existingPeriod) {
-    bundle._meta.source_months.push({ period, period_key: periodKey });
+  const existingPeriod = bundle._meta.source_months.find(s => s.period_key === [...Object.values(newEntries)][0]?.period_key);
+  if (!existingPeriod && Object.values(newEntries)[0]) {
+    const first = Object.values(newEntries)[0];
+    bundle._meta.source_months.push({ period: first.period, period_key: first.period_key });
     bundle._meta.source_months.sort((a, b) => a.period_key - b.period_key);
   }
   bundle._meta.generated_at = new Date().toISOString();
-
   fs.writeFileSync(bundlePath, JSON.stringify(bundle, null, 0));
   const sizeKB = (fs.statSync(bundlePath).size / 1024).toFixed(1);
   console.log(`\nWrote ${bundlePath}`);
   console.log(`  ${added} new entries · ${replaced} replaced · ${newProps} brand-new properties`);
   console.log(`  bundle size: ${sizeKB} KB`);
   console.log(`  source_months now: ${bundle._meta.source_months.length}`);
-
   console.log(`\nNext steps:`);
-  console.log(`  1. Verify a sample: jq '.by_property["One Club Gulf Shores"]' data/revshare.json`);
+  console.log(`  1. cd ${REPO_ROOT}`);
   console.log(`  2. git diff data/revshare.json | head -30`);
-  console.log(`  3. git add data/revshare.json && git commit -m "rev-share: ingest ${period}"`);
-})().catch(e => { console.error('ERR', e); process.exit(1); });
+  console.log(`  3. git add data/revshare.json && git commit -m "rev-share: ingest" && git push`);
+}

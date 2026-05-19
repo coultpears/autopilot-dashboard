@@ -134,7 +134,13 @@ exports.handler = async (event) => {
   }
 
   try {
-    const token = await getLookerToken();
+    // Warm the revshare cache (Postgres-backed when NEON_DATABASE_URL is set,
+    // falls back to data/revshare.json bundle otherwise). Parallel with the
+    // Looker token fetch — both kick off independently.
+    const [token, _] = await Promise.all([
+      getLookerToken(),
+      revshareCache.init(),
+    ]);
     const date = event.queryStringParameters?.date || 'today';
 
     // 4 Looker queries in parallel — core + financials split to halve the critical path

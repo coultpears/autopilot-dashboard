@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getTrend, getCoverage } = require('./_revshare-cache');
+const { init: initRevshare, getTrend, getCoverage } = require('./_revshare-cache');
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 
@@ -68,7 +68,12 @@ exports.handler = async (event) => {
   if (!name) return { statusCode: 400, body: JSON.stringify({ error: 'name parameter required' }) };
 
   try {
-    const token = await getLookerToken();
+    // Warm the revshare cache in parallel with the Looker token fetch.
+    // Postgres-backed when NEON_DATABASE_URL is set; falls back to bundle.
+    const [token, _] = await Promise.all([
+      getLookerToken(),
+      initRevshare(),
+    ]);
     const monthStart = startOfMonthISO();
 
     // Three Looker queries in parallel:

@@ -4,10 +4,15 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = []
+  # pg is marked external because esbuild can't bundle native modules cleanly
+  # and pg's pure-JS path needs to load at runtime from node_modules. Netlify
+  # installs it during the build via package.json dependencies.
+  external_node_modules = ["pg"]
   # Include the repo-committed data files in every function bundle.
   # Without this, fs.readFileSync in _geocode-cache.js / _partner-aliases.js
   # finds nothing in prod and pins fall back to jittered market centers.
+  # data/revshare.json stays in the bundle as a fallback when NEON_DATABASE_URL
+  # isn't set (graceful dev mode + rollback path during the Postgres cutover).
   included_files = ["data/**"]
 
 [functions."grid-data"]
