@@ -1,0 +1,14 @@
+{
+  "name": "autopilot-dashboard",
+  "version": "1.0.0",
+  "description": "Landing's AP Supply Map + property dashboard. Netlify-hosted static site + serverless functions.",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.11.0"
+  },
+  "scripts": {
+    "build-bundle": "node scripts/build-revshare-bundle.js",
+    "etl-bundle-to-pg": "node scripts/db/etl-bundle-to-pg.js",
+    "ingest-sheet": "node scripts/ingest-revshare-sheet.js"
+  }
+}

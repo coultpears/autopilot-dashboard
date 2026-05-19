@@ -1,51 +1,152 @@
-// Shared loader for the repo-committed revshare cache (data/revshare.json).
-// Loaded once at module init — survives across warm Lambda invocations.
+// Shared revshare data loader. Backed by Neon Postgres when
+// NEON_DATABASE_URL is set, falls back to the bundled JSON
+// (data/revshare.json) when not — graceful dev mode + safety net.
 //
-// Data source: built by scripts/build-revshare-bundle.js from the
-// subsidy-session pulls (signoff_pulls.json + revshare_FULL_pull.json).
-// Per-property × per-month: Landing margin, partner net allocation, gross
-// rent, occupancy, and stay count over the 11 months that have been pulled.
+// API:
+//   await revshareCache.init();          // call once per handler invocation
+//   revshareCache.getTrend(propertyName)  // sync after init()
+//   revshareCache.getMgmtFeeRate(name)    // sync after init()
+//   revshareCache.getCoverage()           // sync after init()
+//
+// Why init() is async but the rest is sync:
+//   grid-data.js calls these helpers inside .map() loops where Promise.all
+//   gymnastics would be invasive. By doing the one DB round-trip at handler
+//   start, we hydrate an in-memory cache that survives across warm Lambda
+//   invocations. The full dataset is ~1.5 MB (7,700 rows × ~200 bytes) so
+//   loading it all into memory is fine — much smaller than the bundle.
+//
+// Module-level cache:
+//   The _cachePromise pattern means the first invocation in a cold container
+//   pays the DB round-trip (~150ms); subsequent invocations in the same warm
+//   container resolve instantly. Across cold starts, fresh data is loaded.
 
 const fs = require('fs');
 const path = require('path');
 
-let _cache = null;
+let _cachePromise = null;
 
-function loadJsonNear(filename) {
-  // Same layered lookup pattern as _geocode-cache.js — local fs first
-  // (so dev edits don't need a restart), bundled require() fallback for
-  // prod Netlify where the function is esbuilt.
+// ─── Bundle fallback (dev mode / DB not configured) ─────────────────
+function loadBundle() {
   const candidates = [
-    path.resolve(__dirname, '..', '..', 'data', filename),
-    path.resolve(process.cwd(), 'data', filename),
-    path.resolve(__dirname, 'data', filename),
+    path.resolve(__dirname, '..', '..', 'data', 'revshare.json'),
+    path.resolve(process.cwd(), 'data', 'revshare.json'),
+    path.resolve(__dirname, 'data', 'revshare.json'),
   ];
   for (const p of candidates) {
-    try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
-    catch (e) { /* try next */ }
+    try {
+      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+      console.log(`[revshare-cache] loaded bundle from ${p}`);
+      return data;
+    } catch (e) { /* try next */ }
   }
-  try { return require('../../data/revshare.json'); } catch (e) { /* none */ }
-  return null;
+  try {
+    const data = require('../../data/revshare.json');
+    console.log('[revshare-cache] loaded bundle via require()');
+    return data;
+  } catch (e) { /* none */ }
+  console.warn('[revshare-cache] no bundle found — returning empty');
+  return { _meta: {}, by_property: {} };
 }
 
-function load() {
+// ─── Postgres backend ────────────────────────────────────────────────
+// Loads ALL rows into memory once. The dataset is tiny; sub-200ms even
+// over a cold pooled connection. Builds the same shape as the bundle so
+// the rest of the code is identical regardless of source.
+async function loadFromPostgres() {
+  const pg = require('pg');
+  const client = new pg.Client({ connectionString: process.env.NEON_DATABASE_URL });
+  await client.connect();
+  try {
+    // 1) All monthly_actuals rows
+    const t0 = Date.now();
+    const rows = await client.query(`
+      SELECT
+        property_name, period_key, period,
+        landing_margin, net_allocation, total_revenue, occupancy_rate, stay_count,
+        mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment
+      FROM monthly_actuals
+      ORDER BY property_name, period_key
+    `);
+    // 2) Distinct months in the dataset (used for the _meta.source_months
+    // shape consumers expect). Order by period_key so consumers can iterate
+    // chronologically without re-sorting.
+    const months = await client.query(`
+      SELECT DISTINCT period_key, period
+      FROM monthly_actuals
+      ORDER BY period_key
+    `);
+    console.log(`[revshare-cache] loaded ${rows.rows.length} rows × ${months.rows.length} months from Postgres in ${Date.now() - t0}ms`);
+
+    // Reshape into the same { _meta, by_property: { name: { period_key: slot } } } structure
+    const by_property = {};
+    for (const r of rows.rows) {
+      if (!by_property[r.property_name]) by_property[r.property_name] = {};
+      by_property[r.property_name][String(r.period_key)] = {
+        period: r.period,
+        l: r.landing_margin != null ? Number(r.landing_margin) : null,
+        p: r.net_allocation != null ? Number(r.net_allocation) : null,
+        g: r.total_revenue != null ? Number(r.total_revenue) : null,
+        o: r.occupancy_rate != null ? Number(r.occupancy_rate) : null,
+        u: r.stay_count,
+        mf: r.mgmt_fee != null ? Number(r.mgmt_fee) : null,
+        ff: r.ffe_fee != null ? Number(r.ffe_fee) : null,
+        if_: r.install_fee != null ? Number(r.install_fee) : null,
+        wf: r.wifi_fee != null ? Number(r.wifi_fee) : null,
+        pa: r.partner_adjustment != null ? Number(r.partner_adjustment) : null,
+      };
+    }
+    return {
+      _meta: {
+        source: 'postgres',
+        loaded_at: new Date().toISOString(),
+        source_months: months.rows.map(m => ({ period: m.period, period_key: m.period_key })),
+      },
+      by_property,
+    };
+  } finally {
+    await client.end();
+  }
+}
+
+// ─── Public API ──────────────────────────────────────────────────────
+// Memoizes a Promise so concurrent first-invocation requests share the
+// load. After resolution, the cached data is sync-accessible via the
+// other exported helpers.
+let _cache = null;
+async function init() {
   if (_cache) return _cache;
-  const data = loadJsonNear('revshare.json') || { _meta: {}, by_property: {} };
-  _cache = data;
-  const propCount = Object.keys(data.by_property || {}).length;
-  const monthCount = (data._meta?.source_months || []).length;
-  console.log(`[revshare-cache] loaded ${propCount} properties × ${monthCount} months`);
+  if (!_cachePromise) {
+    _cachePromise = (async () => {
+      if (process.env.NEON_DATABASE_URL) {
+        try {
+          return await loadFromPostgres();
+        } catch (e) {
+          console.error('[revshare-cache] Postgres load failed, falling back to bundle:', e.message);
+          return loadBundle();
+        }
+      }
+      return loadBundle();
+    })();
+  }
+  _cache = await _cachePromise;
+  return _cache;
+}
+
+function _requireCache() {
+  if (!_cache) {
+    throw new Error('revshare-cache: call await init() before getTrend/getMgmtFeeRate/getCoverage');
+  }
   return _cache;
 }
 
 // Returns an ordered array of monthly slots (oldest → newest) for the given
-// property name. Each slot has shape:
-//   { period_key, period, l, p, g, o, u }
-// All numeric fields may be null when a month has no data for this property.
-// Returns null when the property is not in the bundle at all.
+// property name. Same shape as before the Postgres backend:
+//   { period_key, period, l, p, g, o, u, mf, ff, if_, wf, pa }
+// Numeric fields may be null. Returns null when the property isn't in the
+// dataset.
 function getTrend(propertyName) {
   if (!propertyName) return null;
-  const c = load();
+  const c = _requireCache();
   const monthsMeta = c._meta?.source_months || [];
   const propData = c.by_property?.[propertyName];
   if (!propData) return null;
@@ -60,8 +161,6 @@ function getTrend(propertyName) {
       g: slot?.g ?? null,
       o: slot?.o ?? null,
       u: slot?.u ?? null,
-      // Fee breakdown — pass through if present in the bundle. Older bundles
-      // (built before the fee fields were captured) won't have these keys.
       mf: slot?.mf ?? null,
       ff: slot?.ff ?? null,
       if_: slot?.if_ ?? null,
@@ -72,15 +171,8 @@ function getTrend(propertyName) {
   return out;
 }
 
-// Compute the contracted management-fee rate for a property — this is the
-// REAL rev share % per the partnership agreement (e.g. 30% for 2121, 25% for
-// 281 Willow). Returns the rate as a 0-100 percentage and the months it was
-// derived from.
-//
-// Math: median of (|mgmt_fee| / total_revenue) across months that have both
-// fields populated and non-zero. We use median (not mean) so a single outlier
-// month doesn't skew the rate; mgmt fee % is typically a flat contract rate
-// that doesn't move month-to-month.
+// Median of (|mgmt_fee| / total_revenue) across months that have both
+// populated — the contracted Landing take rate per the partnership.
 function getMgmtFeeRate(propertyName) {
   const trend = getTrend(propertyName);
   if (!trend) return null;
@@ -94,18 +186,16 @@ function getMgmtFeeRate(propertyName) {
   rates.sort((a, b) => a - b);
   const median = rates[Math.floor(rates.length / 2)];
   return {
-    rate_pct: Math.round(median * 1000) / 10,   // one decimal
+    rate_pct: Math.round(median * 1000) / 10,
     months_observed: rates.length,
     min_pct: Math.round(rates[0] * 1000) / 10,
     max_pct: Math.round(rates[rates.length - 1] * 1000) / 10,
   };
 }
 
-// Coverage helper for diagnostics — returns the bundle's source-month list
-// so callers can know what window the trend covers without re-reading it.
 function getCoverage() {
-  const c = load();
+  const c = _requireCache();
   return c._meta?.source_months || [];
 }
 
-module.exports = { getTrend, getCoverage, getMgmtFeeRate };
+module.exports = { init, getTrend, getCoverage, getMgmtFeeRate };
