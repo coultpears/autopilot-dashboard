@@ -1815,13 +1815,16 @@ tr.expanded .expand-chevron {
   min-width: 0;
   max-width: 100%;
 }
-/* Breakdown rows: label + value with guaranteed separation. flex: 1 on the
-   label fills the row width, but a gap ensures the numeric value never
-   visually butts up against the label. */
+/* Breakdown rows: label on the left flexes/wraps to fit; value stays
+   anchored right on the same baseline. NO flex-wrap on the row itself —
+   that was causing the value to drop to its own line when the label was
+   long ("Contracted base for partner · 5u · sum of actual rents"), making
+   the dollar amount look orphaned. With flex: 1 1 auto + min-width: 0 on
+   the label, long labels wrap internally while the value stays in place. */
 .gd-bk-row {
-  flex-wrap: wrap;
   min-width: 0; max-width: 100%;
   gap: 14px;
+  align-items: baseline;
 }
 .gd-bk-row .l {
   flex: 1 1 auto; min-width: 0;
