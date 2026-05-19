@@ -2,8 +2,18 @@
 // Ingest a single month's rev-share rent-roll Google Sheet into data/revshare.json.
 //
 // Usage:
-//   node scripts/ingest-revshare-sheet.js <sheet-id-or-url> "<Period>"
+//   node scripts/ingest-revshare-sheet.js <sheet-id-or-url> "<Period>" [--dry]
 //   node scripts/ingest-revshare-sheet.js 1z2N5kNY...  "May 2026"
+//   node /any/abs/path/scripts/ingest-revshare-sheet.js <sheet> "<Period>"
+//
+// REPO DISCOVERY — runs from any CWD. Looks for the autopilot-dashboard
+// repo in this order:
+//   1. $AUTOPILOT_DASHBOARD_REPO env var (explicit override)
+//   2. Walking up from CWD looking for data/revshare.json (in-repo case)
+//   3. Walking up from __dirname (script is in <repo>/scripts/)
+//   4. Hardcoded default C:/Users/matt/Projects/autopilot-dashboard
+// The Sheets pull uses Google OAuth from ~/.google-landing.env regardless
+// of CWD — that file is in the user's home directory.
 //
 // Reads each tab whose name matches "<PropertyName> (<PropertyID>)" — that's
 // the standard rev-share sheet layout. Per tab, scans for the rows containing
@@ -16,13 +26,57 @@
 // counts the data rows on each tab for the "stays" approximation that the
 // trend chart uses.
 //
-// Writes the new month into data/revshare.json under each property's
-// monthly map, then prints a diff summary. If --dry is passed, prints what
-// would happen without writing.
+// Writes per-month per-property:
+//   l: landing_margin (Landing's keep)
+//   p: net_allocation (Partner's net cash)
+//   g: total_revenue (gross)
+//   o: occupancy rate (decimal)
+//   u: stay count
+//   mf: mgmt_fee (negative; |mf|/g = contracted Landing take rate)
+//   ff: ffe_fee, if_: install_fee, wf: wifi_fee, pa: partner_adjustment
+//
+// The fee breakdown is what the dashboard's contracted_mgmt_pct chip
+// depends on — without it, the "contract X%" chip won't render for the
+// newly-ingested month.
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+// ─── Repo discovery — runs from any CWD ───────────────────────────────
+function findRepoRoot() {
+  const candidates = [];
+  if (process.env.AUTOPILOT_DASHBOARD_REPO) candidates.push(process.env.AUTOPILOT_DASHBOARD_REPO);
+  // Walk up from CWD
+  let cur = process.cwd();
+  for (let i = 0; i < 8; i++) {
+    candidates.push(cur);
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  // Walk up from this script's location (scripts/ingest-revshare-sheet.js)
+  cur = __dirname;
+  for (let i = 0; i < 4; i++) {
+    candidates.push(cur);
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  // Hardcoded default
+  candidates.push('C:/Users/matt/Projects/autopilot-dashboard');
+
+  for (const c of candidates) {
+    if (!c) continue;
+    const bundlePath = path.join(c, 'data', 'revshare.json');
+    if (fs.existsSync(bundlePath)) return c;
+  }
+  throw new Error(
+    'Could not find autopilot-dashboard repo. Set AUTOPILOT_DASHBOARD_REPO env var, ' +
+    'or run from inside the repo, or ensure C:/Users/matt/Projects/autopilot-dashboard exists.'
+  );
+}
+const REPO_ROOT = findRepoRoot();
 
 // ─── CLI ─────────────────────────────────────────────────────────────
 const args = process.argv.slice(2).filter(a => !a.startsWith('--'));
@@ -137,6 +191,7 @@ function parseTab(values, tabName) {
 // ─── Main ────────────────────────────────────────────────────────────
 (async () => {
   console.log(`Ingest: sheet=${sheetId} period="${period}" periodKey=${periodKey} ${dry ? '(dry)' : ''}`);
+  console.log(`Repo:   ${REPO_ROOT}  (override with AUTOPILOT_DASHBOARD_REPO env var)`);
   const token = await getAccessToken();
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -172,13 +227,22 @@ function parseTab(values, tabName) {
     const t = parseTab(values, tab.title);
     if (t.total_revenue == null && t.landing_margin == null && t.net_allocation == null) continue;
     withData++;
+    const round2 = v => v != null ? Math.round(v * 100) / 100 : null;
     newEntries[propName] = {
       period, period_key: periodKey,
-      l: t.landing_margin != null ? Math.round(t.landing_margin * 100) / 100 : null,
-      p: t.net_allocation != null ? Math.round(t.net_allocation * 100) / 100 : null,
-      g: t.total_revenue != null  ? Math.round(t.total_revenue * 100) / 100 : null,
-      o: t.occupancy != null      ? Math.round(t.occupancy * 10000) / 10000 : null,
+      l: round2(t.landing_margin),
+      p: round2(t.net_allocation),
+      g: round2(t.total_revenue),
+      o: t.occupancy != null ? Math.round(t.occupancy * 10000) / 10000 : null,
       u: t.stay_count || null,
+      // Fee breakdown — required for the dashboard's contracted_mgmt_pct chip.
+      // Without these the "contract X%" indicator won't render for this month.
+      // Stored signed (mf typically negative in source sheets).
+      mf:  round2(t.mgmt_fee),
+      ff:  round2(t.ffe_fee),
+      if_: round2(t.install_fee),
+      wf:  round2(t.wifi_fee),
+      pa:  round2(t.partner_adjustment),
     };
   }
   console.log(`Parsed ${parsed} tabs, ${withData} had numeric data`);
@@ -195,8 +259,10 @@ function parseTab(values, tabName) {
     return;
   }
 
-  // 5) Merge into data/revshare.json
-  const bundlePath = path.join(__dirname, '..', 'data', 'revshare.json');
+  // 5) Merge into data/revshare.json (uses discovered REPO_ROOT, not __dirname,
+  // so the script can be invoked from any CWD with --AUTOPILOT_DASHBOARD_REPO
+  // env override or auto-detection. See findRepoRoot() at top of file.)
+  const bundlePath = path.join(REPO_ROOT, 'data', 'revshare.json');
   const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
   let added = 0, replaced = 0, newProps = 0;
   for (const [propName, rec] of Object.entries(newEntries)) {
