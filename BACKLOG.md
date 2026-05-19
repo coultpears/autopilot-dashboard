@@ -2,14 +2,22 @@
 
 ## Open
 
-- **Neon Postgres migration for revshare data** (deferred 2026-05-18, after grid v2 + Partner P&L module shipped). Today `data/revshare.json` (755KB, 685 properties × 11 months) is bundled into every Netlify function and re-read on every cold start. It works for now but caps us at ~5K properties before bundle size + cold-start cost become an issue, and ad-hoc cross-property queries (leaderboards, segment counts, "top 5 ramping STR partners last 30d") all happen client-side after loading the entire payload. Migrating to Neon Postgres is the natural next step:
-  1. **Schema decision** — flat fact table (`property_month_actuals` with l/p/g/o/u + mgmt/ffe/install/wifi/partner_adj per row) vs normalized (`properties`, `partners`, `monthly_actuals`, `fee_breakdown`). The query patterns we already have (per-property trend, cross-property leaderboards, segment aggregates) suggest flat-fact is fine; only break out if join performance forces it.
-  2. **Neon project setup** — new Landing-shared project or scoped to autopilot-dashboard? Branching strategy (dev / staging / prod)? Secret in Netlify env as `NEON_DATABASE_URL`.
-  3. **ETL** — port `scripts/build-revshare-bundle.js` to an INSERT path. Keep the bundle as fallback for a transition period (cache loader reads DB first, JSON second).
-  4. **Cutover** — swap `_revshare-cache.js`, `grid-data.js`, `property-detail.js` to query Postgres. Consider running side-by-side for a week before deprecating the JSON.
-  5. **Other consumers** — scope what rep scorecard, pitch tracker, growth dashboards would query from the same DB so the schema covers their needs upfront (vs migrating each separately).
-  6. **Source-of-truth re-pulls** — currently subsidy-session pulls live in `expansion-enrichment-agent/.claude/worktrees/.../_scratch_subsidy_data`. Once in Postgres we want a monthly ingest path (likely `scripts/ingest-revshare-sheet.js` extended to write rows, not JSON).
-  Why this matters: the leaderboard / segment / KPI features built in grid v2 are bottlenecked by bundle scale. Postgres unlocks them at portfolio growth scale + lets other Landing tools query the same data without duplicating bundles.
+- **First real monthly Sheet ingest end-to-end.** First production validation of the new Postgres-backed ingest path. When the May 2026 (or first available new month) rent-roll Sheet drops, run the skill from any Claude session:
+  ```
+  export NEON_DATABASE_URL="postgresql://...sslmode=verify-full"   # pooled URL
+  node /c/Users/matt/Projects/autopilot-dashboard/scripts/ingest-revshare-sheet.js <sheet-id> "May 2026" --dry
+  # then drop --dry once the sample rows look right
+  ```
+  Verify in the Neon SQL editor that the new month's rows appear with `source='sheet'` (vs `source='bootstrap'` for the existing rows). Verify the dashboard renders the new month immediately, no Netlify rebuild required. This is the path that proves the whole pipeline works end-to-end; expected to be uneventful.
+
+- **Bundle deprecation PR** (do after ~2-4 weeks of stable Postgres operation). The DB is the source of truth; `data/revshare.json` is now a 755KB frozen snapshot kept in the repo only as a rollback safety net. Once we have confidence the DB path is reliable:
+  1. `git rm data/revshare.json`
+  2. Remove the `loadBundle()` fallback path from `netlify/functions/_revshare-cache.js`
+  3. Drop `data/**` from `included_files` in `netlify.toml` (saves bundle space — though we still need it for `_geocode-cache.js` etc, so check the other consumers first)
+  4. Drop `scripts/build-revshare-bundle.js` — the subsidy-session bootstrap is no longer useful
+  Net effect: smaller function bundles, less code surface area, no more "which source is authoritative" question. Pure cleanup, no behavior change.
+
+- **DB migration tooling** (only when we need it the second time). Schema changes today require manually pasting SQL into the Neon SQL editor. Acceptable for now — we've done it once. If we hit a second schema change, set up a proper migration runner (e.g. `node-pg-migrate` or just a hand-rolled `scripts/db/migrate.js` that reads numbered files from `scripts/db/migrations/` and tracks applied versions in a `schema_versions` table). Not worth doing speculatively.
 
 - **CoStar targets website enrichment.** Only ~39 of 1,553 CoStar targets have `property_website` or `costar_leasing_company_website`. Marketing URLs aren't in CoStar PDFs, so the ingest can't populate directly. The "Website" button only renders when a URL exists — the Google Maps link works as a workaround (uses property name + address, lands on the named place). Next steps when picked up:
   1. **Brave Search API backfill** — sign up at https://api-dashboard.search.brave.com/register (free 2k queries/month, no card required for free tier), store key as `BRAVE_API_KEY` in Netlify env, build a one-time script that runs each target name+market through Brave and writes the top non-aggregator result to `property_website` in HubSpot.
@@ -26,6 +34,10 @@
 - **Bulk-curate `property_website`** for high-priority CoStar targets via reps (organic growth). Map button picks it up automatically.
 
 - **Saans / Akkurat Mono self-hosting.** Brand guide specifies these fonts but neither is freely licensed. Current design uses Instrument Sans + JetBrains Mono as free Google Fonts analogs. If Landing has licensed copies, host them in `/fonts/` and swap the `@font-face` + CSS custom properties (`--font-display`, `--font-mono`).
+
+## Done (recent — May 2026 session)
+
+- **Grid v2 + Partner P&L module + portfolio KPIs + Neon Postgres migration.** Shipped across PR #1 (grid + bundle infrastructure) and PR #2 (Postgres cutover). New surfaces in the grid view: 8-tile KPI strip with click-to-drill segment filters; smart segment chips (All / STR / Mixed / LT / At-risk / Ramping / Top) with live counts; smart leaderboards (Top 5 Landing / Top 3 Ramping by absolute $ gain / At-risk 3); new columns This-month split / Last mo % of base / 12mo sparkline / Proj next 3mo with confidence dots. Expanded row gets the v4 Partner P&L module — Partner POV / Landing POV with verdict + breakdown + trajectory + narrative; vacant-fallback counterfactual at 10/15/25% (matches Landing's actual value-prop framing rather than the LT-stabilized 85% framing); realized + contracted take rates side-by-side; per-month rollup table; chart tooltip with MoM chip; methodology disclosure with per-unit base rent table; honest refusal state for the ~100 properties without bundle data. Unit-classification rewrite: "Short-term" requires actual reservation < 30 nights (not min_nightly_stay, which Looker stores as 30 even for properties hosting 2-7 night stays). Layout: detail panel capped at `min(viewport, 1680px)` so it doesn't stretch on ultra-wide screens. Backend: extended revshare bundle to capture full fee breakdown (mgmt_fee / ffe_fee / install_fee / wifi_fee / partner_adjustment) so the contracted_mgmt_pct chip can derive the real rate from the rent rolls. Migrated entire revshare store from JSON bundle to Neon Postgres — schema + ETL + dual-backend cache loader + ingest path; bundle preserved as rollback safety net; data updates now land live with no git commit needed. Skill (`/revshare-ingest`) decoupled from the subsidy session worktree so it runs from any Claude session.
 
 ## Done (recent — Apr 2026 session)
 
