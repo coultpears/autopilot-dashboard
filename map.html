@@ -651,34 +651,40 @@ code, pre, kbd { font-variant-numeric: tabular-nums; font-feature-settings: "tnu
   transition: width 0.3s; width: 0%;
 }
 
-/* ─── VIEW SWITCH (Map/Grid — secondary sub-toggle on map page) ─── */
-.view-switch {
-  display: inline-flex; background: var(--surface-2);
+/* ─── MAP BUTTON (right side of topnav, on both index.html and map.html).
+       Demoted from the old Map/Grid sub-toggle — Map is now a single-purpose
+       link, "go look at the geographic view" rather than a co-equal view.
+       Active state lights up when on map.html?view=map. */
+.topnav-right .nav-map-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-display);
+  font-size: 0.78rem; font-weight: 500;
+  padding: 7px 14px; border-radius: var(--r-md);
+  color: var(--ink-2); text-decoration: none;
+  background: var(--surface-2);
   border: 1px solid var(--line-1);
-  border-radius: var(--r-md); padding: 2px;
-}
-.vs-btn {
-  font-family: var(--font-display); font-size: 0.7rem; font-weight: 500;
-  padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;
-  background: transparent; color: var(--ink-3); transition: all 0.15s;
-  display: inline-flex; align-items: center; gap: 5px;
+  transition: all 0.15s;
   letter-spacing: -0.005em;
-  line-height: 1;
+  white-space: nowrap;
 }
-.vs-btn:hover { color: var(--ink-1); }
-.vs-btn.active {
-  background: var(--surface-1); color: var(--landing-navy);
-  box-shadow: 0 1px 2px rgba(21,25,45,0.08);
-  font-weight: 600;
+.topnav-right .nav-map-btn svg { width: 13px; height: 13px; }
+.topnav-right .nav-map-btn:hover {
+  color: var(--ink-0);
+  background: var(--surface-1);
+  border-color: var(--ink-3);
 }
-.vs-btn svg { width: 12px; height: 12px; }
+.topnav-right .nav-map-btn.active {
+  color: #fff;
+  background: var(--landing-navy);
+  border-color: var(--landing-navy);
+  box-shadow: 0 1px 2px rgba(21,25,45,0.12);
+}
 
-/* Label the view-switch for context */
-.view-switch-wrap { display: inline-flex; align-items: center; gap: 8px; }
-.view-switch-label {
-  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 500;
-  color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em;
-}
+/* Legacy .vs-btn / .view-switch styles kept as a small block in case any
+   stray usage in the JS still references them — they're no longer in the
+   nav markup but the switchMapGrid() function still toggles .active on
+   data-vs="..." elements as a no-op safety. */
+.vs-btn, .view-switch, .view-switch-wrap, .view-switch-label { display: none; }
 
 /* ─── GRID VIEW ─── */
 /* Whole grid-view scrolls as a single document. The inner .grid-scroll keeps
@@ -2089,31 +2095,24 @@ input:focus-visible, button:focus-visible, a:focus-visible {
     <h1>Supply Map<span>AP Partnerships</span></h1>
   </div>
   <div class="topnav-nav">
+    <!-- Primary toggle: Leaderboard ↔ Partner Performance. Map is demoted
+         to the right-side button — same routing, just visually secondary. -->
     <div class="nav-links">
       <a href="index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+        Leaderboard
       </a>
-      <a href="map.html" class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
-        Map
+      <a href="map.html" class="active" id="nav-partner-perf" onclick="event.preventDefault(); switchMapGrid('grid');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Partner Performance
       </a>
     </div>
   </div>
   <div class="topnav-right">
-    <div class="view-switch-wrap">
-      <span class="view-switch-label">View</span>
-      <div class="view-switch" id="view-switch">
-        <button class="vs-btn active" data-vs="map" onclick="switchMapGrid('map')" title="Map view">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
-          Map
-        </button>
-        <button class="vs-btn" data-vs="grid" onclick="switchMapGrid('grid')" title="Grid view">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          Grid
-        </button>
-      </div>
-    </div>
+    <a href="map.html?view=map" class="nav-map-btn" id="nav-map-btn" title="Open the geographic supply map" onclick="event.preventDefault(); switchMapGrid('map');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
+      Map
+    </a>
   </div>
 </nav>
 
@@ -4053,7 +4052,14 @@ const PERIOD_META = {
 
 function switchMapGrid(mode) {
   activeViewMode = mode;
+  // Legacy .vs-btn elements no longer exist in the DOM, but keep the call as a no-op
+  // safety net in case any stragglers come back.
   document.querySelectorAll('.vs-btn').forEach(b => b.classList.toggle('active', b.dataset.vs === mode));
+  // New nav: Partner Performance (grid) toggle on the left, Map button on the right.
+  const navPerf = document.getElementById('nav-partner-perf');
+  const navMap  = document.getElementById('nav-map-btn');
+  if (navPerf) navPerf.classList.toggle('active', mode === 'grid');
+  if (navMap)  navMap.classList.toggle('active', mode === 'map');
 
   const mapEl = document.getElementById('map');
   const gridEl = document.getElementById('grid-view');
@@ -4072,6 +4078,12 @@ function switchMapGrid(mode) {
     if (bottomBar) bottomBar.style.display = 'none';
     if (detailPanel) detailPanel.classList.remove('open');
     if (!gridData.length) loadGrid();
+    // Reflect mode in URL without adding history entries
+    try {
+      const url = new URL(location.href);
+      url.searchParams.delete('view');
+      history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    } catch (_) {}
   } else {
     mapEl.style.display = '';
     gridEl.style.display = 'none';
@@ -4079,8 +4091,13 @@ function switchMapGrid(mode) {
     if (legend) legend.style.display = '';
     if (searchBox) searchBox.style.display = '';
     if (bottomBar) bottomBar.style.display = '';
-    map.invalidateSize();
+    if (map && map.invalidateSize) map.invalidateSize();
     renderView();
+    try {
+      const url = new URL(location.href);
+      url.searchParams.set('view', 'map');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (_) {}
   }
 }
 
@@ -6055,11 +6072,25 @@ function gridUpdateStats() {
 // Prefetch grid data immediately — will be ready by the time user clicks Grid
 loadGrid();
 
-if (_isLocal) {
-  switchMapGrid('grid');
-  initMap().catch(() => {});
-} else {
-  initMap();
+// Default view is Partner Performance (grid); user must click Map (or load with
+// ?view=map) to see the map. Map is always initialized in the background so it's
+// instant when toggled in.
+const _wantMap = (() => {
+  try { return new URLSearchParams(location.search).get('view') === 'map'; }
+  catch (_) { return false; }
+})();
+
+// Always start in grid mode so the active-state classes get applied even if
+// we're about to flip to map below. This avoids a flash but more importantly
+// guarantees the nav highlight is correct from frame one.
+switchMapGrid('grid');
+const _mapInitPromise = Promise.resolve().then(() => {
+  try { return initMap(); } catch (_) {}
+});
+if (_wantMap) {
+  // Wait for the map to finish initializing, then flip the view. initMap()
+  // may be sync or return a Promise — handle both.
+  Promise.resolve(_mapInitPromise).then(() => switchMapGrid('map'));
 }
 
 </script>
