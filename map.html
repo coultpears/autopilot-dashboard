@@ -19,16 +19,28 @@
 })();
 </script>
 <style>
-/* Hide grid when in map mode, hide map UI when in grid mode. CSS-only swap
-   prevents the "show wrong view, then flip" flash on initial load AND on
-   toggle (because switchMapGrid swaps the class first, before touching
-   inline display styles). */
-html.view-grid #map,
+/* View switching strategy:
+   - #map stays in the flex layout AT FULL SIZE in both modes. This is
+     critical because Leaflet only loads tiles when its container has
+     computed dimensions. Hiding the map with display:none kills the tile
+     cache and produces a visible tile-fetch flash on the first Map click.
+   - In grid mode, #grid-view is positioned absolutely on top of the map,
+     covering it. The map keeps loading tiles in the background, so the
+     Map button is instant when clicked.
+   - The .map-controls / .map-legend / .search-box / .bottom-bar are simply
+     hidden in grid mode (they'd be visible overlays on the obscured map). */
+html.view-map #grid-view { display: none; }
+html.view-grid #grid-view {
+  position: absolute;
+  top: 60px; /* matches .topnav height */
+  left: 0; right: 0; bottom: 0;
+  z-index: 50; /* above #map, below .detail-panel/modals */
+  background: var(--surface-0);
+}
 html.view-grid .map-controls,
 html.view-grid .map-legend,
 html.view-grid .search-box,
 html.view-grid .bottom-bar { display: none; }
-html.view-map #grid-view { display: none; }
 </style>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231A61D9'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='20' fill='white'%3EL%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
