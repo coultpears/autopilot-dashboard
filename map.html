@@ -4,6 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AP Supply Map — Landing</title>
+<!-- Anti-flash: set the view class on <html> BEFORE first paint based on the URL.
+     Paired with CSS below that hides the wrong view from frame 1 so toggling
+     between Partner Performance (grid) and Map never shows a blank intermediate
+     state. switchMapGrid() keeps the class in sync on subsequent toggles. -->
+<script>
+(function() {
+  try {
+    var want = new URLSearchParams(location.search).get('view');
+    document.documentElement.classList.add(want === 'map' ? 'view-map' : 'view-grid');
+  } catch (_) {
+    document.documentElement.classList.add('view-grid');
+  }
+})();
+</script>
+<style>
+/* Hide grid when in map mode, hide map UI when in grid mode. CSS-only swap
+   prevents the "show wrong view, then flip" flash on initial load AND on
+   toggle (because switchMapGrid swaps the class first, before touching
+   inline display styles). */
+html.view-grid #map,
+html.view-grid .map-controls,
+html.view-grid .map-legend,
+html.view-grid .search-box,
+html.view-grid .bottom-bar { display: none; }
+html.view-map #grid-view { display: none; }
+</style>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231A61D9'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='20' fill='white'%3EL%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2175,7 +2201,7 @@ input:focus-visible, button:focus-visible, a:focus-visible {
 <div id="map"></div>
 
 <!-- ─── GRID VIEW ─── -->
-<div id="grid-view" class="grid-view" style="display:none">
+<div id="grid-view" class="grid-view">
 
   <!-- Portfolio KPI strip — cross-property aggregates computed from gridData.
        8 tiles wired to drill into corresponding cohorts when clicked. -->
@@ -4052,6 +4078,10 @@ const PERIOD_META = {
 
 function switchMapGrid(mode) {
   activeViewMode = mode;
+  // Swap the synchronous class on <html> first — CSS rules above hide the
+  // wrong view immediately, so the toggle is a single repaint, never a flash.
+  document.documentElement.classList.toggle('view-grid', mode === 'grid');
+  document.documentElement.classList.toggle('view-map',  mode === 'map');
   // Legacy .vs-btn elements no longer exist in the DOM, but keep the call as a no-op
   // safety net in case any stragglers come back.
   document.querySelectorAll('.vs-btn').forEach(b => b.classList.toggle('active', b.dataset.vs === mode));
@@ -4061,21 +4091,9 @@ function switchMapGrid(mode) {
   if (navPerf) navPerf.classList.toggle('active', mode === 'grid');
   if (navMap)  navMap.classList.toggle('active', mode === 'map');
 
-  const mapEl = document.getElementById('map');
-  const gridEl = document.getElementById('grid-view');
-  const controls = document.querySelector('.map-controls');
-  const legend = document.getElementById('map-legend');
-  const searchBox = document.querySelector('.search-box');
-  const bottomBar = document.getElementById('bottom-bar');
   const detailPanel = document.getElementById('detail-panel');
 
   if (mode === 'grid') {
-    mapEl.style.display = 'none';
-    gridEl.style.display = 'flex';
-    if (controls) controls.style.display = 'none';
-    if (legend) legend.style.display = 'none';
-    if (searchBox) searchBox.style.display = 'none';
-    if (bottomBar) bottomBar.style.display = 'none';
     if (detailPanel) detailPanel.classList.remove('open');
     if (!gridData.length) loadGrid();
     // Reflect mode in URL without adding history entries
@@ -4085,12 +4103,7 @@ function switchMapGrid(mode) {
       history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + url.hash);
     } catch (_) {}
   } else {
-    mapEl.style.display = '';
-    gridEl.style.display = 'none';
-    if (controls) controls.style.display = '';
-    if (legend) legend.style.display = '';
-    if (searchBox) searchBox.style.display = '';
-    if (bottomBar) bottomBar.style.display = '';
+    // Map was hidden via CSS; Leaflet's tile sizing needs a nudge after reveal.
     if (map && map.invalidateSize) map.invalidateSize();
     renderView();
     try {
@@ -6072,25 +6085,23 @@ function gridUpdateStats() {
 // Prefetch grid data immediately — will be ready by the time user clicks Grid
 loadGrid();
 
-// Default view is Partner Performance (grid); user must click Map (or load with
-// ?view=map) to see the map. Map is always initialized in the background so it's
-// instant when toggled in.
-const _wantMap = (() => {
-  try { return new URLSearchParams(location.search).get('view') === 'map'; }
-  catch (_) { return false; }
-})();
-
-// Always start in grid mode so the active-state classes get applied even if
-// we're about to flip to map below. This avoids a flash but more importantly
-// guarantees the nav highlight is correct from frame one.
-switchMapGrid('grid');
-const _mapInitPromise = Promise.resolve().then(() => {
-  try { return initMap(); } catch (_) {}
-});
+// CSS already hid the wrong view based on the .view-grid / .view-map class on
+// <html> (set synchronously in the head). All we need to do here is:
+//   1. Sync the JS state (activeViewMode + nav .active classes)
+//   2. Kick off the appropriate initialization
+// Map is initialized in the background even on grid load so the toggle is
+// instant when the user clicks Map later.
+const _wantMap = document.documentElement.classList.contains('view-map');
+const _mapInit = Promise.resolve().then(() => { try { return initMap(); } catch (_) {} });
 if (_wantMap) {
-  // Wait for the map to finish initializing, then flip the view. initMap()
-  // may be sync or return a Promise — handle both.
-  Promise.resolve(_mapInitPromise).then(() => switchMapGrid('map'));
+  // Set nav state immediately (cheap, no markers needed); once initMap finishes,
+  // call switchMapGrid('map') again to trigger renderView() with markers.
+  document.getElementById('nav-partner-perf').classList.remove('active');
+  document.getElementById('nav-map-btn').classList.add('active');
+  activeViewMode = 'map';
+  Promise.resolve(_mapInit).then(() => switchMapGrid('map'));
+} else {
+  switchMapGrid('grid');
 }
 
 </script>
