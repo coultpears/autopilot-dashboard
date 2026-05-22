@@ -135,7 +135,9 @@ async function getAccessToken() {
 const FIELD_LABELS = {
   total_revenue:      [/^total revenue/i, /^gross rev/i, /^rent revenue/i],
   mgmt_fee:           [/management fee/i, /pmc fee/i, /mgmt fee/i],
-  install_fee:        [/install fee/i, /^installation/i],
+  // "Install / Other Fees" (slash, not "fee") is the actual sheet label;
+  // the old "install fee" pattern missed it.
+  install_fee:        [/^install\b/i, /install fee/i, /^installation/i],
   ffe_fee:            [/ffe fee/i, /^ff&e/i, /furniture/i],
   wifi_fee:           [/wifi/i, /internet fee/i],
   partner_adjustment: [/partner adjustment/i, /adjustment/i],
@@ -151,18 +153,39 @@ function matchField(label) {
   }
   return null;
 }
-function lastNumeric(row) {
-  for (let i = row.length - 1; i >= 0; i--) {
-    const v = row[i];
-    if (v == null || v === '') continue;
-    const n = Number(String(v).replace(/[$,\s%]/g, ''));
-    if (!isNaN(n)) {
-      // Percentages: if the cell had a "%", convert to decimal
-      return String(v).includes('%') ? n / 100 : n;
-    }
+// Parse one cell into a number. Handles:
+//   - $ and , and whitespace inside the value
+//   - "%": returned as a decimal (e.g. "56.00%" → 0.56)
+//   - Accounting-style negatives "(4,780.51)" → -4780.51
+//   - The " $ -   " zero placeholder used on these sheets (returned as 0)
+// Returns null on anything non-numeric.
+function parseCell(v) {
+  if (v == null || v === '') return null;
+  const s = String(v);
+  // " $ -   " / "-" alone is the zero placeholder
+  if (/^\s*\$?\s*-\s*$/.test(s.replace(/%/g, ''))) return 0;
+  const isNeg = /^\s*\$?\s*\(.*\)\s*$/.test(s);
+  const cleaned = s.replace(/[\$,\s%()]/g, '');
+  if (cleaned === '' || cleaned === '-') return null;
+  const n = Number(cleaned);
+  if (isNaN(n)) return null;
+  const signed = isNeg ? -n : n;
+  return s.includes('%') ? signed / 100 : signed;
+}
+
+// First numeric cell to the RIGHT of `startCol`. Used after a label match —
+// the value lives in the cell(s) immediately following the label, not
+// "wherever the rightmost number happens to be in the row" (which can collide
+// with another field's value on rows that carry two labels — e.g. col A
+// "Occupancy Rate" + col D "Install / Other Fees").
+function valueRightOf(row, startCol) {
+  for (let i = startCol + 1; i < row.length; i++) {
+    const n = parseCell(row[i]);
+    if (n != null) return n;
   }
   return null;
 }
+
 function parseTab(values, tabName) {
   // values = 2D array of cell strings
   const out = {
@@ -173,18 +196,37 @@ function parseTab(values, tabName) {
   let dataRows = 0;
   for (const row of values) {
     if (!row || !row.length) continue;
-    const labelCell = row[0];
-    const field = matchField(labelCell);
-    if (field) {
-      out[field] = lastNumeric(row);
+    // Scan EVERY cell for a label match. Some tabs put the Financial Summary
+    // line items in col D while col A holds left-side section labels
+    // ("Property Name", "Month", "Occupancy Rate"). Earlier tabs put them all
+    // in col A. The multi-column scan + value-right-of-label handles both.
+    for (let c = 0; c < row.length; c++) {
+      const field = matchField(row[c]);
+      if (!field) continue;
+      if (out[field] != null) continue;     // first match per field wins
+      const val = valueRightOf(row, c);
+      if (val != null) out[field] = val;
     }
-    // Heuristic for stay count: rows whose first cell looks like a date/unit-stay row
-    // (i.e. neither empty nor a known label)
-    if (labelCell && !field && /^\d|^unit|^home/i.test(String(labelCell))) {
-      dataRows++;
+    // Heuristic for stay count: rows whose col-A looks like a real
+    // unit/reservation identifier — starts with a digit ("01-112", "2105") OR
+    // a letter immediately followed by a digit ("A206", "C312"). This excludes
+    // the section headers "Unit Number" / "Home ID" that a naive /^unit/i
+    // pattern would mistakenly count.
+    const labelCell = row[0];
+    if (labelCell && !matchField(labelCell)) {
+      const s = String(labelCell);
+      if (/^\d/.test(s) || /^[A-Za-z]\d/.test(s)) dataRows++;
     }
   }
   if (dataRows > 0) out.stay_count = dataRows;
+
+  // Derive Landing margin when the sheet doesn't carry an explicit row.
+  // The Autopilot Revenue Share template (2026+) has Total Revenue, fee
+  // breakdown, and Net Allocation — but no "Landing Margin" line. Landing's
+  // keep = what doesn't flow to the partner = Total Revenue − Net Allocation.
+  if (out.landing_margin == null && out.total_revenue != null && out.net_allocation != null) {
+    out.landing_margin = Math.round((out.total_revenue - out.net_allocation) * 100) / 100;
+  }
   return out;
 }
 
@@ -205,14 +247,32 @@ function parseTab(values, tabName) {
     .filter(p => tabPattern.test(p.title));
   console.log(`Found ${propTabs.length} property tabs (of ${meta.sheets.length} total tabs)`);
 
-  // 2) Batch-pull values for all property tabs in one call to avoid quota burn
-  const ranges = propTabs.map(t => `'${t.title.replace(/'/g, "''")}'!A1:Z200`);
-  const batchR = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&')}`,
-    { headers: auth }
-  );
-  const batch = await batchR.json();
-  if (!batch.valueRanges) throw new Error('Batch get failed: ' + JSON.stringify(batch).slice(0, 300));
+  // 2) Batch-pull values in CHUNKS. One big batchGet for hundreds of tabs
+  // returns an HTML error page (response size / URL length limits) — splitting
+  // into chunks of ~100 tabs keeps each request comfortably inside Sheets'
+  // limits. A1:Z100 is enough to cover the Financial Summary + unit-detail
+  // rows on the standard rev-share tabs.
+  const CHUNK = 100;
+  // A1:Z300 covers the Financial Summary + the full reservation-detail block
+  // even for high-volume STR properties (Hayworth ~178 stays + headers).
+  const allRanges = propTabs.map(t => `'${t.title.replace(/'/g, "''")}'!A1:Z300`);
+  const valueRanges = [];
+  for (let i = 0; i < allRanges.length; i += CHUNK) {
+    const slice = allRanges.slice(i, i + CHUNK);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${slice.map(r => 'ranges=' + encodeURIComponent(r)).join('&')}`;
+    const resp = await fetch(url, { headers: auth });
+    const ct = resp.headers.get('content-type') || '';
+    if (!resp.ok || !ct.includes('application/json')) {
+      const body = await resp.text();
+      throw new Error(`Batch get chunk ${i}/${allRanges.length} failed: HTTP ${resp.status} ${body.slice(0, 200)}`);
+    }
+    const json = await resp.json();
+    if (!json.valueRanges) throw new Error('Chunk ' + i + ' missing valueRanges: ' + JSON.stringify(json).slice(0, 200));
+    valueRanges.push(...json.valueRanges);
+    process.stdout.write(`\r  pulled ${valueRanges.length}/${allRanges.length} tabs`);
+  }
+  process.stdout.write('\n');
+  const batch = { valueRanges };
 
   // 3) Parse each tab → property record
   const newEntries = {}; // property_name → { l, p, g, o, u }
