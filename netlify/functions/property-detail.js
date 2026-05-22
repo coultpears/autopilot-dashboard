@@ -238,10 +238,18 @@ exports.handler = async (event) => {
     // STR enablement is purely whether any unit has str_status='enabled'.
     const propertyHasNightlyBookings = nightlyRateCount > 0;
 
-    // 11-month Landing-vs-Partner trend from the bundled revshare cache.
-    // Null when the property isn't in the bundle (e.g. recent additions
+    // Landing-vs-Partner monthly trend from the revshare cache (Postgres-backed).
+    // Null when the property isn't in the dataset (e.g. recent additions
     // pre-onboarding); the FE renders the section conditionally.
     const trend = getTrend(name);
+
+    // Coverage window of the revshare dataset — the FE shows this in the
+    // "P&L unavailable" refusal state so the message stays accurate as new
+    // months are ingested (was previously hardcoded "Jun 2025 → Apr 2026").
+    const coverage = getCoverage() || [];
+    const revshare_coverage = coverage.length
+      ? { first: coverage[0].period, last: coverage[coverage.length - 1].period, months: coverage.length }
+      : null;
 
     return {
       statusCode: 200,
@@ -255,6 +263,7 @@ exports.handler = async (event) => {
           property_adr: propertyAdr,
           mtd_day_of_month: daysElapsed,
           trend_months: trend ? trend.length : 0,
+          revshare_coverage,
         },
       }),
     };

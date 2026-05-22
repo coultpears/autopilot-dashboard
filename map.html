@@ -5301,8 +5301,10 @@ function renderTrendModule(name, data) {
         <span class="gd-trend-title">Revenue trajectory</span>
       </div>
       <div class="gd-proj-refuse">
-        <b>P&amp;L unavailable.</b> This property hasn't reported into the revshare bundle yet
-        (bundle covers Jun 2025 → Apr 2026). Once a month of revshare data exists,
+        <b>P&amp;L unavailable.</b> This property hasn't reported into the revshare data yet${(() => {
+          const cov = meta.revshare_coverage;
+          return cov && cov.first && cov.last ? ` (dataset covers ${cov.first} → ${cov.last})` : '';
+        })()}. Once a month of revshare data exists,
         Partner POV recovery, Landing POV vs-LT comparison, and the per-month rollup
         will populate automatically.
         ${units > 0 ? `<div style="margin-top:8px;font-size:11px;color:var(--ink-3)">Snapshot: ${units} installed units${strUnits ? ' (' + strUnits + ' STR-eligible)' : ''}${monthlyBase > 0 ? ' · contract base $' + Math.round(monthlyBase).toLocaleString() + '/mo' : ''}</div>` : ''}
