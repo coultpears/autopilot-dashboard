@@ -25,6 +25,29 @@ const path = require('path');
 
 let _cachePromise = null;
 
+// ─── Property-name alias map ─────────────────────────────────────────
+// Looker/portfolio property_name vs rent-roll property_name can diverge.
+// data/revshare-aliases.json is a hand-curated { lookerName: revshareName }
+// override, tried only after an exact name match misses. Safe by design —
+// empty map = pure exact matching (current behavior).
+function loadAliases() {
+  const candidates = [
+    path.resolve(__dirname, '..', '..', 'data', 'revshare-aliases.json'),
+    path.resolve(process.cwd(), 'data', 'revshare-aliases.json'),
+    path.resolve(__dirname, 'data', 'revshare-aliases.json'),
+  ];
+  for (const p of candidates) {
+    try {
+      const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+      const aliases = j.aliases || {};
+      const n = Object.keys(aliases).length;
+      if (n) console.log(`[revshare-cache] loaded ${n} property aliases from ${p}`);
+      return aliases;
+    } catch (e) { /* try next */ }
+  }
+  return {};
+}
+
 // ─── Bundle fallback (dev mode / DB not configured) ─────────────────
 function loadBundle() {
   const candidates = [
@@ -129,6 +152,9 @@ async function init() {
     })();
   }
   _cache = await _cachePromise;
+  // Attach the alias map once (tiny synchronous file read; cheap to repeat
+  // but we memoize it on the cache object alongside the data).
+  if (_cache && !_cache._aliases) _cache._aliases = loadAliases();
   return _cache;
 }
 
@@ -148,7 +174,13 @@ function getTrend(propertyName) {
   if (!propertyName) return null;
   const c = _requireCache();
   const monthsMeta = c._meta?.source_months || [];
-  const propData = c.by_property?.[propertyName];
+  let propData = c.by_property?.[propertyName];
+  // Alias fallback — the rent-roll sheet spells this property differently.
+  // Only consulted on an exact-match miss; data/revshare-aliases.json.
+  if (!propData) {
+    const alias = c._aliases?.[propertyName];
+    if (alias) propData = c.by_property?.[alias];
+  }
   if (!propData) return null;
   const out = [];
   for (const m of monthsMeta) {
@@ -198,4 +230,11 @@ function getCoverage() {
   return c._meta?.source_months || [];
 }
 
-module.exports = { init, getTrend, getCoverage, getMgmtFeeRate };
+// Every property_name present in the revshare dataset. Used by the
+// reconciliation diagnostic (scripts/list-revshare-gaps.js).
+function getAllProperties() {
+  const c = _requireCache();
+  return Object.keys(c.by_property || {});
+}
+
+module.exports = { init, getTrend, getCoverage, getMgmtFeeRate, getAllProperties };

@@ -1,0 +1,5 @@
+{
+  "_comment": "Manual property-name alias map for revshare lookups. The grid/Looker side spells a property as dimproperty.property_name; the rev-share rent-roll sheet sometimes spells the SAME property differently (suffix dropped, 'The' added, operator prefix, etc.). _revshare-cache.js tries an exact name match first, then falls back to this map. ONLY add a pair after confirming both names are the SAME physical property (same address) -- a wrong entry misattributes one property's P&L to another, which is worse than showing 'P&L unavailable'. Run `node scripts/list-revshare-gaps.js` to surface candidate pairs for review. Key = Looker/portfolio property_name, value = rev-share rent-roll property_name.",
+  "version": 1,
+  "aliases": {}
+}
