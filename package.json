@@ -9,6 +9,7 @@
   "scripts": {
     "build-bundle": "node scripts/build-revshare-bundle.js",
     "etl-bundle-to-pg": "node scripts/db/etl-bundle-to-pg.js",
-    "ingest-sheet": "node scripts/ingest-revshare-sheet.js"
+    "ingest-sheet": "node scripts/ingest-revshare-sheet.js",
+    "revshare-gaps": "node scripts/list-revshare-gaps.js"
   }
 }

@@ -2,6 +2,8 @@
 
 ## Open
 
+- **Revshare ↔ portfolio matching by property ID (the real fix).** Today the grid matches a property to its rev-share P&L by exact `property_name` string (with a `data/revshare-aliases.json` manual-override fallback added 2026-05-19). 582 of 679 portfolio properties match exactly; 97 are coverage gaps and 103 revshare names are orphans. Analysis (`node scripts/list-revshare-gaps.js`) showed the two unmatched sets barely overlap — the 97 gaps are overwhelmingly *genuinely* absent from statements (LT-only / not-yet-reporting STR), not misspelled — so fuzzy auto-matching is unsafe (it would misattribute one property's P&L to another). The bulletproof fix: the rev-share rent-roll sheet tabs are named `"<PropertyName> (<PropertyID>)"` — `scripts/ingest-revshare-sheet.js` already captures that numeric ID in its `tabPattern` regex but throws it away. Steps: (1) add a `property_id` column to `monthly_actuals`; (2) extend the ingest to persist the ID; (3) confirm that ID equals a Looker `dimproperty` field the grid can query; (4) match by ID, fall back to name. Backfilling historical IDs needs each month's source sheet re-pulled. Until then, real mismatches get hand-curated into `data/revshare-aliases.json`.
+
 - **First real monthly Sheet ingest end-to-end.** First production validation of the new Postgres-backed ingest path. When the May 2026 (or first available new month) rent-roll Sheet drops, run the skill from any Claude session:
   ```
   export NEON_DATABASE_URL="postgresql://...sslmode=verify-full"   # pooled URL
