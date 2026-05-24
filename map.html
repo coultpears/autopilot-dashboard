@@ -2165,7 +2165,7 @@ input:focus-visible, button:focus-visible, a:focus-visible {
     </div>
   </div>
   <div class="topnav-right">
-    <a href="map.html?view=map" class="nav-map-btn" id="nav-map-btn" title="Open the geographic supply map" onclick="event.preventDefault(); switchMapGrid('map');">
+    <a href="map.html?view=map" class="nav-map-btn" id="nav-map-btn" title="Open the geographic supply map" onclick="event.preventDefault(); (window.ensureMapInit ? window.ensureMapInit() : Promise.resolve()).then(() => switchMapGrid('map'));">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
       Map
     </a>
@@ -6187,19 +6187,35 @@ loadGrid();
 // <html> (set synchronously in the head). All we need to do here is:
 //   1. Sync the JS state (activeViewMode + nav .active classes)
 //   2. Kick off the appropriate initialization
-// Map is initialized in the background even on grid load so the toggle is
-// instant when the user clicks Map later.
+//
+// Map init is EXPENSIVE — second Lambda call (/api/map-data), 700+ Leaflet
+// markers, tile fetches. On grid-view loads we defer it to browser idle time
+// (or to the moment the user clicks Map, whichever fires first) so it doesn't
+// compete with grid render on the main thread. The Map nav button awaits the
+// same promise via ensureMapInit(), so clicking before idle has fired triggers
+// init immediately.
+let _mapInitPromise = null;
+window.ensureMapInit = function ensureMapInit() {
+  if (!_mapInitPromise) {
+    _mapInitPromise = Promise.resolve().then(() => { try { return initMap(); } catch (_) {} });
+  }
+  return _mapInitPromise;
+};
 const _wantMap = document.documentElement.classList.contains('view-map');
-const _mapInit = Promise.resolve().then(() => { try { return initMap(); } catch (_) {} });
 if (_wantMap) {
-  // Set nav state immediately (cheap, no markers needed); once initMap finishes,
-  // call switchMapGrid('map') again to trigger renderView() with markers.
+  // Deep link to ?view=map: init now (the user explicitly asked for the map).
   document.getElementById('nav-partner-perf').classList.remove('active');
   document.getElementById('nav-map-btn').classList.add('active');
   activeViewMode = 'map';
-  Promise.resolve(_mapInit).then(() => switchMapGrid('map'));
+  ensureMapInit().then(() => switchMapGrid('map'));
 } else {
   switchMapGrid('grid');
+  // Pre-warm the map during the next idle window so a later Map click is
+  // instant — but doesn't fire until the browser has finished the grid render.
+  // 3s timeout caps how long we'll wait for genuine idle.
+  const _prewarm = () => ensureMapInit();
+  if (window.requestIdleCallback) requestIdleCallback(_prewarm, { timeout: 3000 });
+  else setTimeout(_prewarm, 2000);
 }
 
 </script>
