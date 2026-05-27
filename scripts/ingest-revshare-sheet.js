@@ -241,7 +241,12 @@ function parseTab(values, tabName) {
   const metaR = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties(title,sheetId)`, { headers: auth });
   const meta = await metaR.json();
   if (!meta.sheets) throw new Error('No sheets in response: ' + JSON.stringify(meta));
-  const tabPattern = /^(.+?)\s+\((\d+)\)$/;
+  // Closing paren is optional: some monthly sheets have property tabs whose
+  // names got truncated mid-rename (e.g. 'Series at Riverview Landing (38'
+  // with no closing ')'). The strict pattern silently filtered ~85 such tabs
+  // across 12 monthly sheets, hiding entire properties from the dashboard.
+  // \d+ still requires at least one digit so we don't pick up summary / index tabs.
+  const tabPattern = /^(.+?)\s+\((\d+)\)?$/;
   const propTabs = meta.sheets
     .map(s => s.properties)
     .filter(p => tabPattern.test(p.title));
