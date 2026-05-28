@@ -4505,14 +4505,15 @@ function gvComputeAggregates() {
   const strUnits = active.reduce((s, r) => s + (r.str_unit_count || 0), 0);
   const strProps = active.filter(r => r.str_property_eligible || (r.str_unit_count || 0) > 0).length;
   const atRisk = active.filter(r => r.recovery_pct != null && r.recovery_pct < 60).length;
-  // 12mo gross + Landing net from trend totals
+  // 11mo gross + Landing net from trend totals — both series are in the
+  // revshare bundle / Postgres, so we sum them directly instead of estimating
+  // gross as landing/0.31 (the legacy approach made the "take %" tile
+  // mathematically circular — always exactly 31%).
   let gross12 = 0, landing12 = 0;
   active.forEach(r => {
     (r.trend_l || []).forEach(v => { if (v != null) landing12 += v; });
-    // No gross in current bundle — approximate as landing / 0.31 (Landing's avg take)
-    // until DB adds the actual gross series. Flagged in delta text as "est."
+    (r.trend_g || []).forEach(v => { if (v != null) gross12 += v; });
   });
-  gross12 = landing12 / 0.31;
   const take = landing12 > 0 && gross12 > 0 ? (landing12 / gross12) * 100 : null;
   // Next-month projection sum
   const projectedNext = active.reduce((s, r) => {
@@ -4533,8 +4534,8 @@ function gvRenderKpisAndSegments() {
       <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Partners</span><span class="val">${a.partners}</span><span class="delta">distinct</span></div>
       <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Units</span><span class="val">${a.totalUnits.toLocaleString()}</span><span class="delta">installed</span></div>
       <div class="gv-kpi-tile" data-kpi-seg="str"><span class="lbl">STR units</span><span class="val">${a.strUnits.toLocaleString()} <span class="frac">/ ${a.totalUnits.toLocaleString()}</span></span><span class="delta"><b class="up">${strPct}%</b> of total</span></div>
-      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Gross 12mo · est.</span><span class="val">${gvFmtKShort(a.gross12)}</span><span class="delta">Landing÷31%</span></div>
-      <div class="gv-kpi-tile blue" data-kpi-seg="all"><span class="lbl">Landing net 11mo</span><span class="val">${gvFmtKShort(a.landing12)}</span><span class="delta"><b class="up">${a.take ? a.take.toFixed(0) + '% take' : '—'}</b></span></div>
+      <div class="gv-kpi-tile" data-kpi-seg="all"><span class="lbl">Gross 11mo</span><span class="val">${gvFmtKShort(a.gross12)}</span><span class="delta">across reporting props</span></div>
+      <div class="gv-kpi-tile blue" data-kpi-seg="all"><span class="lbl">Landing net 11mo</span><span class="val">${gvFmtKShort(a.landing12)}</span><span class="delta"><b class="up">${a.take ? a.take.toFixed(1) + '% take' : '—'}</b></span></div>
       <div class="gv-kpi-tile warn" data-kpi-seg="risk"><span class="lbl">At-risk</span><span class="val">${a.atRisk}</span><span class="delta"><b class="warn">rec &lt; 60%</b></span></div>
       <div class="gv-kpi-tile blue" data-kpi-seg="all"><span class="lbl">Proj next mo</span><span class="val">${gvFmtKShort(a.projectedNext)}</span><span class="delta">sum of props</span></div>
     </div>`;
