@@ -230,6 +230,34 @@ function getCoverage() {
   return c._meta?.source_months || [];
 }
 
+// Portfolio-wide effective Landing take rate, derived from actuals:
+//   Σ landing_margin / Σ total_revenue across every (property × month) row
+// that has both populated. Returns a decimal (e.g., 0.389 = 38.9%).
+//
+// Used as the fallback projection ratio for properties without per-property
+// trend data, and to anchor the KPI strip's "take %" so it reflects reality
+// instead of a hardcoded constant. Computed once and memoized on the cache.
+//
+// Returns null if no rows have both fields (shouldn't happen in practice but
+// callers should fall back to a sane default like 0.31 if this returns null).
+function getPortfolioTakeRate() {
+  const c = _requireCache();
+  if (c._portfolio_take_rate !== undefined) return c._portfolio_take_rate;
+  let totalLanding = 0, totalGross = 0;
+  for (const propName in (c.by_property || {})) {
+    const months = c.by_property[propName];
+    for (const key in months) {
+      const m = months[key];
+      if (m.l != null && m.g != null && m.g > 0) {
+        totalLanding += m.l;
+        totalGross += m.g;
+      }
+    }
+  }
+  c._portfolio_take_rate = totalGross > 0 ? totalLanding / totalGross : null;
+  return c._portfolio_take_rate;
+}
+
 // Every property_name present in the revshare dataset. Used by the
 // reconciliation diagnostic (scripts/list-revshare-gaps.js).
 function getAllProperties() {
@@ -237,4 +265,4 @@ function getAllProperties() {
   return Object.keys(c.by_property || {});
 }
 
-module.exports = { init, getTrend, getCoverage, getMgmtFeeRate, getAllProperties };
+module.exports = { init, getTrend, getCoverage, getMgmtFeeRate, getPortfolioTakeRate, getAllProperties };

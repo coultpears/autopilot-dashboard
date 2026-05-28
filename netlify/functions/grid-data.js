@@ -234,7 +234,8 @@ exports.handler = async (event) => {
       //   - projection_next3 : forward 3mo Landing net (multi-tier confidence)
       //   - projection_method : 'trend' | 'short-trend' | 'runrate-bookings'
       //   - recovery_pct : last (l+p) / monthly_base where base = units × avg_rent
-      let trend_l = null, last_landing = null, last_partner = null, last_gross = null;
+      let trend_l = null, trend_g = null, last_landing = null, last_partner = null, last_gross = null;
+      let last_month = null;
       let projection_next3 = null, projection_conf = null, projection_method = null;
       let recovery_pct = null;
       // Contracted mgmt fee rate — the real "rev share %" per the partnership
@@ -249,17 +250,37 @@ exports.handler = async (event) => {
       const trend = revshareCache.getTrend(r.property_name);
       const validCount = trend ? trend.filter(t => t.l != null).length : 0;
       const monthlyBase = (r.home_count || 0) * (r.home_average_rent_cost || 0);
+      // Effective take rate from this property's own actuals (Σl / Σg across
+      // months where both populated). Materially differs from the contracted
+      // mgmt% for properties with FF&E / install / wifi fee drag — surfacing
+      // both lets the FE show contracted vs. effective side-by-side.
+      let effective_landing_pct = null;
       if (trend && trend.length) {
         trend_l = trend.map(t => t.l);
-        const last = trend[trend.length - 1];
-        last_landing = last?.l ?? null;
-        last_partner = last?.p ?? null;
-        last_gross   = last?.g ?? null;
+        trend_g = trend.map(t => t.g);
+        // Last month WITH ACTUAL DATA for this property — fixes the previous
+        // bug where a property that missed the dataset's latest global month
+        // would silently fall back to today's run-rate even though it had
+        // recent historical data.
+        let lastWithData = null;
+        for (let i = trend.length - 1; i >= 0; i--) {
+          if (trend[i].l != null || trend[i].p != null) { lastWithData = trend[i]; break; }
+        }
+        last_landing = lastWithData?.l ?? null;
+        last_partner = lastWithData?.p ?? null;
+        last_gross   = lastWithData?.g ?? null;
+        last_month   = lastWithData?.period ?? null;
         // Recovery: last_total / contract_base (trend-derived path)
         const lastTotal = (last_landing || 0) + (last_partner || 0);
         if (monthlyBase > 0 && lastTotal > 0) {
           recovery_pct = Math.round((lastTotal / monthlyBase) * 100);
         }
+        // Effective take across this property's reporting history
+        let sumL = 0, sumG = 0;
+        for (const t of trend) {
+          if (t.l != null && t.g != null && t.g > 0) { sumL += t.l; sumG += t.g; }
+        }
+        if (sumG > 0) effective_landing_pct = Math.round((sumL / sumG) * 1000) / 10;
       }
       // Fallback recovery: when no trend OR trend has zero recent revenue, use
       // today's daily run-rate × 30 vs contract base. This makes "at-risk"
@@ -280,7 +301,14 @@ exports.handler = async (event) => {
       //          adjusted up/down by future-vs-current reservation ratio.
       //          Low conf — derived from today's snapshot, not history.
       // Tier 5 · refuse — no trend AND no daily revenue signal.
-      const LANDING_TAKE_RATE = 0.31;
+      //
+      // Take-rate fallback for Tier 4 (no trend): use the portfolio-wide
+      // effective Landing take, derived at cache init from Σl/Σg across all
+      // properties (currently ~39%, much higher than the legacy hardcoded
+      // 31% which under-projected by ~25%). Per-partner / per-property rates
+      // vary widely — Bellrock at 20%, Riverview at 45% — but for properties
+      // with NO trend at all, portfolio mean is the honest signal we have.
+      const LANDING_TAKE_RATE = revshareCache.getPortfolioTakeRate() || 0.31;
       if (trend && validCount >= 6) {
         const last3 = trend.slice(-3).map(t => t.l).filter(v => v != null);
         const avg = last3.reduce((s, v) => s + v, 0) / last3.length;
@@ -327,9 +355,11 @@ exports.handler = async (event) => {
         lat: geo?.lat ?? null,
         lng: geo?.lng ?? null,
         trend_l,
+        trend_g,
         last_landing,
         last_partner,
         last_gross,
+        last_month,
         projection_next3,
         projection_conf,
         projection_method,
@@ -338,6 +368,7 @@ exports.handler = async (event) => {
         contracted_mgmt_months,
         contracted_mgmt_min,
         contracted_mgmt_max,
+        effective_landing_pct,
         ...status,
       };
     });

@@ -179,10 +179,15 @@ exports.handler = async (event) => {
           mtdNightsByUnit[unit] = (mtdNightsByUnit[unit] || 0) + nightsInMonth;
         }
       } else if (r.reservation_monthly_rent && r.current_reservation_count > 0) {
-        // LT/MT currently active — accrued slice this month
-        const slice = (r.reservation_monthly_rent / 30.42) * daysElapsed;
+        // LT/MT currently active — accrued slice this month, counting from
+        // the LATER of reservation start or month start (was previously
+        // always full daysElapsed, which over-counted for leases that
+        // started mid-month).
+        const accrualStart = Math.max(start, monthStartTs);
+        const accrualDays = Math.max(0, Math.floor((todayTs - accrualStart) / 86400000) + 1);
+        const slice = (r.reservation_monthly_rent / 30.42) * accrualDays;
         mtdByUnit[unit] = (mtdByUnit[unit] || 0) + slice;
-        mtdNightsByUnit[unit] = (mtdNightsByUnit[unit] || 0) + daysElapsed;
+        mtdNightsByUnit[unit] = (mtdNightsByUnit[unit] || 0) + accrualDays;
       }
     }
 
