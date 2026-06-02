@@ -70,27 +70,35 @@ exports.handler = async (event) => {
   if (!name) return { statusCode: 400, body: JSON.stringify({ error: 'name parameter required' }) };
 
   const cacheKey = `property-detail:${name}`;
-  // How long a Neon-cached property payload is served without re-querying
-  // Looker. The data is a daily snapshot (units today) + reservations, so a
-  // ~30 min server TTL is plenty fresh while making "click around the
-  // portfolio" instant for everyone after the first viewer warms each property.
-  const SERVER_TTL_MS = Number(process.env.PROPERTY_DETAIL_TTL_MS) || 1800000;
+  // FRESH: under this age a cached payload is served as-is and labelled fresh.
+  // MAX:   up to this age it's still served immediately (labelled stale) rather
+  //        than making the user wait on Looker — the background warmer is
+  //        responsible for refreshing entries before they get old. Only a
+  //        missing or older-than-MAX entry pays a live Looker fetch.
+  const SERVE_FRESH_MS = Number(process.env.PROPERTY_DETAIL_TTL_MS) || 1800000;    // 30 min
+  const SERVE_MAX_MS = Number(process.env.PROPERTY_DETAIL_MAX_AGE_MS) || 86400000; // 24 h
+  // The warmer calls with ?refresh=1 to force a live fetch + cache update,
+  // bypassing the serve-from-cache shortcut below.
+  const forceRefresh = event.queryStringParameters?.refresh === '1';
 
   // ── Read-through cache ───────────────────────────────────────────────
-  // A warm entry returns straight from Neon (~hundreds of ms) with zero
-  // Looker round-trip — this is the main lever against the per-property lag.
-  // Also doubles as the stale-serve source if the live fetch below fails.
+  // A cached entry returns straight from Neon (~hundreds of ms) with zero
+  // Looker round-trip — the main lever against per-property lag, and it means
+  // the request path never blocks on a slow/degraded Explore when we already
+  // have data. Always loaded (even on forceRefresh) so it can still serve as
+  // the stale fallback if the live fetch fails.
   let cachedEntry = null;
   try { cachedEntry = await responseCache.load(cacheKey); } catch (e) { /* ignore */ }
-  if (cachedEntry) {
+  if (!forceRefresh && cachedEntry) {
     const ageMs = Date.now() - new Date(cachedEntry.updatedAt).getTime();
-    if (ageMs < SERVER_TTL_MS) {
+    if (ageMs < SERVE_MAX_MS) {
+      const fresh = ageMs < SERVE_FRESH_MS;
       return {
         statusCode: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=600, s-maxage=600',
-          'X-Data-Source': 'cache',
+          'Cache-Control': fresh ? 'public, max-age=600, s-maxage=600' : 'no-store',
+          'X-Data-Source': fresh ? 'cache' : 'stale-cache',
           'X-Data-As-Of': new Date(cachedEntry.updatedAt).toISOString(),
         },
         body: cachedEntry.payloadJson,
