@@ -4162,8 +4162,16 @@ async function loadGrid(attempt = 1) {
     // Wire segment chips + paint KPI strip / leaderboards now that data is in.
     gvWireSegmentChips();
     gvRenderKpisAndSegments();
-    const now = new Date();
-    document.getElementById('grid-date-ref').textContent = 'Data as of ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    // When the live source (Looker) is degraded, the function serves the last
+    // good payload from cache and flags it via headers \u2014 reflect the real
+    // freshness instead of "now" so users don't trust stale numbers.
+    const isStale = resp.headers.get('X-Data-Source') === 'stale-cache';
+    const asOf = isStale && resp.headers.get('X-Data-As-Of') ? new Date(resp.headers.get('X-Data-As-Of')) : new Date();
+    let asOfLabel = 'Data as of ' + asOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' \u2022 ' + asOf.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    if (isStale) asOfLabel += ' \u2022 cached (live source temporarily unavailable)';
+    const dateRef = document.getElementById('grid-date-ref');
+    dateRef.textContent = asOfLabel;
+    dateRef.style.color = isStale ? 'var(--amber, #b7791f)' : '';
     // Reflect persisted period choice in the segmented control
     document.querySelectorAll('#grid-period .grid-period-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.period === gridPeriod);
