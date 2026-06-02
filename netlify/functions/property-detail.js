@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { init: initRevshare, getTrend, getCoverage } = require('./_revshare-cache');
 const { timedFetch } = require('./_looker.js');
+const responseCache = require('./_response-cache.js');
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 
@@ -67,6 +68,35 @@ function startOfMonthISO() {
 exports.handler = async (event) => {
   const name = event.queryStringParameters?.name;
   if (!name) return { statusCode: 400, body: JSON.stringify({ error: 'name parameter required' }) };
+
+  const cacheKey = `property-detail:${name}`;
+  // How long a Neon-cached property payload is served without re-querying
+  // Looker. The data is a daily snapshot (units today) + reservations, so a
+  // ~30 min server TTL is plenty fresh while making "click around the
+  // portfolio" instant for everyone after the first viewer warms each property.
+  const SERVER_TTL_MS = Number(process.env.PROPERTY_DETAIL_TTL_MS) || 1800000;
+
+  // ── Read-through cache ───────────────────────────────────────────────
+  // A warm entry returns straight from Neon (~hundreds of ms) with zero
+  // Looker round-trip — this is the main lever against the per-property lag.
+  // Also doubles as the stale-serve source if the live fetch below fails.
+  let cachedEntry = null;
+  try { cachedEntry = await responseCache.load(cacheKey); } catch (e) { /* ignore */ }
+  if (cachedEntry) {
+    const ageMs = Date.now() - new Date(cachedEntry.updatedAt).getTime();
+    if (ageMs < SERVER_TTL_MS) {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=600, s-maxage=600',
+          'X-Data-Source': 'cache',
+          'X-Data-As-Of': new Date(cachedEntry.updatedAt).toISOString(),
+        },
+        body: cachedEntry.payloadJson,
+      };
+    }
+  }
 
   try {
     // Warm the revshare cache in parallel with the Looker token fetch.
@@ -257,24 +287,48 @@ exports.handler = async (event) => {
       ? { first: coverage[0].period, last: coverage[coverage.length - 1].period, months: coverage.length }
       : null;
 
+    const body = JSON.stringify({
+      units, reservations, trend,
+      meta: {
+        property_str_eligible: propertyStrEligible,  // any unit has str_status='enabled'
+        str_unit_count: strUnitCount,
+        property_has_nightly_bookings: propertyHasNightlyBookings,
+        property_adr: propertyAdr,
+        mtd_day_of_month: daysElapsed,
+        trend_months: trend ? trend.length : 0,
+        revshare_coverage,
+      },
+    });
+    // Warm the read-through cache so the next viewer of this property (and the
+    // stale-serve fallback) gets it without a Looker round-trip. Best-effort.
+    await responseCache.save(cacheKey, body);
+
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600, s-maxage=600' },
-      body: JSON.stringify({
-        units, reservations, trend,
-        meta: {
-          property_str_eligible: propertyStrEligible,  // any unit has str_status='enabled'
-          str_unit_count: strUnitCount,
-          property_has_nightly_bookings: propertyHasNightlyBookings,
-          property_adr: propertyAdr,
-          mtd_day_of_month: daysElapsed,
-          trend_months: trend ? trend.length : 0,
-          revshare_coverage,
-        },
-      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=600, s-maxage=600',
+        'X-Data-Source': 'live',
+      },
+      body,
     };
   } catch (err) {
     console.error(err);
+    // Looker failed/timed out. If we have any prior payload (even older than
+    // the TTL), serve it stale rather than erroring the drawer.
+    if (cachedEntry) {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-Data-Source': 'stale-cache',
+          'X-Data-As-Of': new Date(cachedEntry.updatedAt).toISOString(),
+          'X-Stale-Reason': String(err.message || 'upstream error').slice(0, 200),
+        },
+        body: cachedEntry.payloadJson,
+      };
+    }
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
