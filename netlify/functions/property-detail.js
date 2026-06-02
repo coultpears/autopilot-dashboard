@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { init: initRevshare, getTrend, getCoverage } = require('./_revshare-cache');
+const { timedFetch } = require('./_looker.js');
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 
@@ -16,7 +17,7 @@ let _tokenExpiry = 0;
 
 async function getLookerToken() {
   if (_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/login`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `client_id=${process.env.LANDING_CLIENT_ID}&client_secret=${process.env.LANDING_CLIENT_SECRET}`,
@@ -29,7 +30,7 @@ async function getLookerToken() {
 }
 
 async function lookerQuery(token, view, fields, filters, sorts, limit = 5000) {
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'landing', view, fields, filters, sorts, limit: String(limit) }),

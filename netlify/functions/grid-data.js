@@ -5,6 +5,8 @@ const LOOKER_BASE = 'https://landing.cloud.looker.com';
 const geocodeCache = require('./_geocode-cache.js');
 const partnerAliases = require('./_partner-aliases.js');
 const revshareCache = require('./_revshare-cache.js');
+const { timedFetch } = require('./_looker.js');
+const responseCache = require('./_response-cache.js');
 
 // Module-level token cache — survives across warm Lambda invocations (saves ~300ms)
 let _cachedToken = null;
@@ -12,7 +14,7 @@ let _tokenExpiry = 0;
 
 async function getLookerToken() {
   if (_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/login`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `client_id=${process.env.LANDING_CLIENT_ID}&client_secret=${process.env.LANDING_CLIENT_SECRET}`,
@@ -28,7 +30,7 @@ async function lookerQuery(token, view, fields, filters, sorts, limit = 5000) {
   const body = { model: 'landing', view, fields, limit: String(limit) };
   if (filters) body.filters = filters;
   if (sorts) body.sorts = sorts;
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -133,6 +135,9 @@ exports.handler = async (event) => {
     return { statusCode: 500, body: JSON.stringify({ error: 'Credentials not configured' }) };
   }
 
+  const date = event.queryStringParameters?.date || 'today';
+  const cacheKey = `grid-data:${date}`;
+
   try {
     // Warm the revshare cache (Postgres-backed when NEON_DATABASE_URL is set,
     // falls back to data/revshare.json bundle otherwise). Parallel with the
@@ -141,7 +146,6 @@ exports.handler = async (event) => {
       getLookerToken(),
       revshareCache.init(),
     ]);
-    const date = event.queryStringParameters?.date || 'today';
 
     // 4 Looker queries in parallel — core + financials split to halve the critical path
     const installedFilter = { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'tbldailyhomemetrics.home_is_installed': 'Yes' };
@@ -373,17 +377,50 @@ exports.handler = async (event) => {
       };
     });
 
+    const body = JSON.stringify(records);
+    // Persist the last-good payload so we can serve it stale if a later
+    // request hits a slow/degraded Looker. Best-effort — never blocks/breaks
+    // the live response.
+    await responseCache.save(cacheKey, body);
+
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=300, stale-while-revalidate=1800',
         'Netlify-CDN-Cache-Control': 'public, max-age=1800, stale-while-revalidate=7200',
+        'X-Data-Source': 'live',
       },
-      body: JSON.stringify(records),
+      body,
     };
   } catch (err) {
     console.error(err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    // Upstream (almost always Looker) failed or timed out. Rather than a 504
+    // / hard 500, serve the most recent successful payload from Neon so the
+    // dashboard degrades to slightly-stale data. The frontend reads
+    // X-Data-Source / X-Data-As-Of to flag the staleness to the user.
+    const stale = await responseCache.load(cacheKey);
+    if (stale) {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          // Don't let a stale body poison the shared CDN cache as if fresh.
+          'Cache-Control': 'no-store',
+          'X-Data-Source': 'stale-cache',
+          'X-Data-As-Of': new Date(stale.updatedAt).toISOString(),
+          'X-Stale-Reason': String(err.message || 'upstream error').slice(0, 200),
+        },
+        body: stale.payloadJson,
+      };
+    }
+    return {
+      statusCode: 503,
+      headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
+      body: JSON.stringify({
+        error: 'Upstream data source timed out and no cached data is available',
+        detail: err.message,
+      }),
+    };
   }
 };

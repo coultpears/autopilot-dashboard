@@ -3,6 +3,7 @@
 // revenue, ADR, and RevPAU for an owner-operator lookback window.
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
+const { timedFetch } = require('./_looker.js');
 
 // Module-level token cache (same pattern as grid-data.js)
 let _cachedToken = null;
@@ -10,7 +11,7 @@ let _tokenExpiry = 0;
 
 async function getLookerToken() {
   if (_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/login`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `client_id=${process.env.LANDING_CLIENT_ID}&client_secret=${process.env.LANDING_CLIENT_SECRET}`,
@@ -26,7 +27,7 @@ async function lookerQuery(token, view, fields, filters, sorts, limit = 5000) {
   const body = { model: 'landing', view, fields, limit: String(limit) };
   if (filters) body.filters = filters;
   if (sorts) body.sorts = sorts;
-  const resp = await fetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
+  const resp = await timedFetch(`${LOOKER_BASE}/api/4.0/queries/run/json`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
