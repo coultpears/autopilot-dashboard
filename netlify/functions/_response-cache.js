@@ -77,4 +77,22 @@ async function load(cacheKey) {
   }
 }
 
-module.exports = { save, load };
+// Returns [{ key, updatedAt }] for every cache entry whose key starts with
+// `prefix`. Used by the warmer to find the stalest/missing property payloads.
+async function listAges(prefix) {
+  try {
+    return await withClient(async (client) => {
+      await ensureTable(client);
+      const r = await client.query(
+        `SELECT cache_key, updated_at FROM response_cache WHERE cache_key LIKE $1`,
+        [prefix + '%']
+      );
+      return r.rows.map((x) => ({ key: x.cache_key, updatedAt: x.updated_at }));
+    });
+  } catch (e) {
+    console.warn('[response-cache] listAges failed:', e.message);
+    return [];
+  }
+}
+
+module.exports = { save, load, listAges };

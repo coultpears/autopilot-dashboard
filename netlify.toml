@@ -24,6 +24,14 @@
 [functions."grid-history"]
   timeout = 30
 
+# Background warmer for the property-detail Neon cache. Refreshes a small batch
+# of the stalest properties on a cadence so UI opens hit a warm cache. Kept
+# under the function time budget (small batch + low concurrency); a cut-off or
+# failed run is harmless (read-through path covers un-warmed properties).
+[functions."warm-property-cache"]
+  schedule = "*/15 * * * *"
+  timeout = 26
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
