@@ -8,6 +8,13 @@
       "port": 5001
     },
     {
+      "name": "netlify",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["netlify-cli", "dev", "--port", "5001"],
+      "port": 5001,
+      "autoPort": false
+    },
+    {
       "name": "static",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8889"],

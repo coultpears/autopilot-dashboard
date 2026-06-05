@@ -189,6 +189,7 @@ function valueRightOf(row, startCol) {
 function parseTab(values, tabName) {
   // values = 2D array of cell strings
   const out = {
+    property_id: null, property_name: null,
     total_revenue: null, mgmt_fee: null, install_fee: null, ffe_fee: null,
     wifi_fee: null, partner_adjustment: null, net_allocation: null,
     landing_margin: null, occupancy: null, stay_count: 0,
@@ -196,6 +197,28 @@ function parseTab(values, tabName) {
   let dataRows = 0;
   for (const row of values) {
     if (!row || !row.length) continue;
+    // ── Authoritative property_id + name from the in-sheet header block ──
+    // The tab TITLE is unreliable: long-named tabs get truncated mid-rename
+    // ("Cortland Southpark Terraces (39" → bogus id "39", which can even
+    // collide with a real low-number property id). The header rows inside the
+    // tab carry the full, untruncated values:
+    //   "Autopilot Revenue Share | <property_id>"   (id, all digits)
+    //   "Property Name | <name>"
+    for (let c = 0; c < row.length; c++) {
+      const cell = String(row[c] == null ? '' : row[c]).trim();
+      if (out.property_id == null && /^autopilot revenue share$/i.test(cell)) {
+        for (let j = c + 1; j < row.length; j++) {
+          const v = String(row[j] == null ? '' : row[j]).replace(/[^0-9]/g, '');
+          if (v) { out.property_id = v; break; }
+        }
+      }
+      if (out.property_name == null && /^property name$/i.test(cell)) {
+        for (let j = c + 1; j < row.length; j++) {
+          const v = String(row[j] == null ? '' : row[j]).trim();
+          if (v) { out.property_name = v; break; }
+        }
+      }
+    }
     // Scan EVERY cell for a label match. Some tabs put the Financial Summary
     // line items in col D while col A holds left-side section labels
     // ("Property Name", "Month", "Occupancy Rate"). Earlier tabs put them all
@@ -280,20 +303,42 @@ function parseTab(values, tabName) {
   const batch = { valueRanges };
 
   // 3) Parse each tab → property record
-  const newEntries = {}; // property_name → { l, p, g, o, u }
-  let parsed = 0, withData = 0;
+  // Keyed by property_id (the parenthesized Landing property ID in the tab
+  // title), NOT property_name. Two distinct properties can share a marketing
+  // name (e.g. "The Grayson" in Spring TX 36817 AND Alexandria VA 41909).
+  // Keying by name silently overwrote one with the other; property_id is the
+  // unique join key carried on both the rent roll and Looker's dimproperty.
+  const newEntries = {}; // property_id → { property_id, property_name, l, p, g, o, u, ... }
+  let parsed = 0, withData = 0, nameCollisions = 0;
+  const seenNames = new Map(); // property_name → first property_id seen (collision detector)
   for (let i = 0; i < propTabs.length; i++) {
     const tab = propTabs[i];
     const m = tab.title.match(tabPattern);
-    const propName = m[1].trim();
+    const titleName = m[1].trim();
+    const titleId = m[2]; // from the tab title — may be TRUNCATED for long names
     const values = batch.valueRanges[i]?.values || [];
     if (!values.length) continue;
     parsed++;
     const t = parseTab(values, tab.title);
     if (t.total_revenue == null && t.landing_margin == null && t.net_allocation == null) continue;
     withData++;
+    // Prefer the authoritative in-sheet property_id/name; fall back to the tab
+    // title only when the header block is absent (older sheet formats).
+    const propId = t.property_id || titleId;
+    const propName = t.property_name || titleName;
+    if (t.property_id && titleId && t.property_id !== titleId) {
+      console.log(`  tab "${tab.title}": title id ${titleId} != in-sheet id ${t.property_id} (using in-sheet)`);
+    }
+    if (seenNames.has(propName) && seenNames.get(propName) !== propId) {
+      nameCollisions++;
+      console.log(`  name collision: "${propName}" → ids ${seenNames.get(propName)} & ${propId} (both kept, keyed by id)`);
+    } else {
+      seenNames.set(propName, propId);
+    }
     const round2 = v => v != null ? Math.round(v * 100) / 100 : null;
-    newEntries[propName] = {
+    newEntries[propId] = {
+      property_id: propId,
+      property_name: propName,
       period, period_key: periodKey,
       l: round2(t.landing_margin),
       p: round2(t.net_allocation),
@@ -310,13 +355,13 @@ function parseTab(values, tabName) {
       pa:  round2(t.partner_adjustment),
     };
   }
-  console.log(`Parsed ${parsed} tabs, ${withData} had numeric data`);
+  console.log(`Parsed ${parsed} tabs, ${withData} had numeric data, ${nameCollisions} name collisions resolved by id`);
 
   // 4) Spot-check 3 random entries so the human can sanity-check
   const sample = Object.entries(newEntries).slice(0, 3);
   console.log('\nSample entries:');
-  for (const [name, rec] of sample) {
-    console.log(`  ${name}: gross=$${rec.g} landing=$${rec.l} partner=$${rec.p} occ=${rec.o} stays=${rec.u}`);
+  for (const [id, rec] of sample) {
+    console.log(`  ${rec.property_name} (${id}): gross=$${rec.g} landing=$${rec.l} partner=$${rec.p} occ=${rec.o} stays=${rec.u}`);
   }
 
   if (dry) {
@@ -354,16 +399,17 @@ async function writeToPostgres(newEntries) {
 
   const t0 = Date.now();
   let inserted = 0, updated = 0;
-  for (const [propName, rec] of Object.entries(newEntries)) {
+  for (const [propId, rec] of Object.entries(newEntries)) {
     const result = await client.query(
       `INSERT INTO monthly_actuals (
-         property_name, period_key, period,
+         property_id, property_name, period_key, period,
          landing_margin, net_allocation, total_revenue,
          occupancy_rate, stay_count,
          mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment,
          source
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'sheet')
-       ON CONFLICT (property_name, period_key) DO UPDATE SET
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'sheet')
+       ON CONFLICT (property_id, period_key) DO UPDATE SET
+         property_name = EXCLUDED.property_name,
          period = EXCLUDED.period,
          landing_margin = EXCLUDED.landing_margin,
          net_allocation = EXCLUDED.net_allocation,
@@ -378,7 +424,7 @@ async function writeToPostgres(newEntries) {
          source = 'sheet',
          ingested_at = NOW()
        RETURNING (xmax = 0) AS was_insert`,
-      [propName, rec.period_key, rec.period,
+      [propId, rec.property_name, rec.period_key, rec.period,
        rec.l, rec.p, rec.g, rec.o, rec.u,
        rec.mf, rec.ff, rec.if_, rec.wf, rec.pa]
     );
@@ -393,15 +439,19 @@ async function writeToPostgres(newEntries) {
 function writeToBundle(newEntries) {
   const bundlePath = path.join(REPO_ROOT, 'data', 'revshare.json');
   const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+  // Bundle is keyed by property_id (matches the Postgres shape post-migration).
+  // Records carry property_id + property_name inside so the cache can build
+  // both id and name indexes.
+  if (!bundle.by_property_id) bundle.by_property_id = {};
   let added = 0, replaced = 0, newProps = 0;
-  for (const [propName, rec] of Object.entries(newEntries)) {
-    if (!bundle.by_property[propName]) {
-      bundle.by_property[propName] = {};
+  for (const [propId, rec] of Object.entries(newEntries)) {
+    if (!bundle.by_property_id[propId]) {
+      bundle.by_property_id[propId] = {};
       newProps++;
     }
     const key = String(rec.period_key);
-    if (bundle.by_property[propName][key]) replaced++; else added++;
-    bundle.by_property[propName][key] = rec;
+    if (bundle.by_property_id[propId][key]) replaced++; else added++;
+    bundle.by_property_id[propId][key] = rec;
   }
   const existingPeriod = bundle._meta.source_months.find(s => s.period_key === [...Object.values(newEntries)][0]?.period_key);
   if (!existingPeriod && Object.values(newEntries)[0]) {

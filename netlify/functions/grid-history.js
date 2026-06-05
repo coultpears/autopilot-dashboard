@@ -67,7 +67,7 @@ exports.handler = async (event) => {
 
     const [dailyData, resData] = await Promise.all([
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name',
+        'dimproperty.property_id', 'dimproperty.property_name',
         'tbldailyhomemetrics.home_count',                    // available unit-nights (sum over days)
         'tbldailyhomemetrics.home_occupied_count',           // occupied unit-nights
         'tbldailyhomemetrics.home_daily_rent_revenue',       // total revenue in period
@@ -79,21 +79,22 @@ exports.handler = async (event) => {
       }, ['dimproperty.property_name'], 5000),
 
       lookerQuery(token, 'dimreservation', [
-        'dimproperty.property_name',
+        'dimproperty.property_id', 'dimproperty.property_name',
         'dimreservation.count',                              // bookings started in period
       ], {
         'dimreservation.reservation_start_date': dateFilter,
       }, ['dimproperty.property_name'], 5000),
     ]);
 
-    // Index by property name
+    // Index by property_id (the unique join key — distinct properties can
+    // share a name, e.g. "The Grayson" in two states).
     const byProp = {};
 
     for (const row of dailyData) {
-      const name = row['dimproperty.property_name'];
-      if (!name) continue;
-      byProp[name] = byProp[name] || { property_name: name };
-      const r = byProp[name];
+      const pid = row['dimproperty.property_id'];
+      if (pid == null) continue;
+      byProp[pid] = byProp[pid] || { property_id: String(pid), property_name: row['dimproperty.property_name'] };
+      const r = byProp[pid];
       r.period_available_nights = (r.period_available_nights || 0) + (row['tbldailyhomemetrics.home_count'] || 0);
       r.period_occupied_nights = (r.period_occupied_nights || 0) + (row['tbldailyhomemetrics.home_occupied_count'] || 0);
       r.period_revenue = (r.period_revenue || 0) + (row['tbldailyhomemetrics.home_daily_rent_revenue'] || 0);
@@ -101,10 +102,10 @@ exports.handler = async (event) => {
     }
 
     for (const row of resData) {
-      const name = row['dimproperty.property_name'];
-      if (!name) continue;
-      byProp[name] = byProp[name] || { property_name: name };
-      const r = byProp[name];
+      const pid = row['dimproperty.property_id'];
+      if (pid == null) continue;
+      byProp[pid] = byProp[pid] || { property_id: String(pid), property_name: row['dimproperty.property_name'] };
+      const r = byProp[pid];
       r.period_reservations = (r.period_reservations || 0) + (row['dimreservation.count'] || 0);
     }
 
@@ -115,6 +116,7 @@ exports.handler = async (event) => {
       const rev = r.period_revenue || 0;
       const res = r.period_reservations || 0;
       return {
+        property_id: r.property_id,
         property_name: r.property_name,
         period_reservations: res || 0,
         period_occupied_nights: occ || 0,

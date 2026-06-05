@@ -2989,13 +2989,17 @@ function openPropertyDetail(d) {
   document.getElementById('dp-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading...</div>';
   panel.classList.add('open');
 
-  loadPropertyDetailContent(d.property_name, 'units');
+  loadPropertyDetailContent('units');
 }
 
-async function loadPropertyDetailContent(name, tab) {
+// Uses _drillState.propertyData (a grid row) — keyed by property_id when
+// present so two same-named properties resolve to the right one.
+async function loadPropertyDetailContent(tab) {
   const listEl = document.getElementById('dp-list');
+  const d = (_drillState && _drillState.propertyData) || {};
+  const key = d.property_id != null ? String(d.property_id) : (d.property_name || _drillState?.title || '');
   try {
-    const data = await fetchPropertyDetail(name);
+    const data = await fetchPropertyDetail(key);
     if (tab === 'units') renderPropertyDetailUnits(listEl, data.units);
     else renderPropertyDetailReservations(listEl, data.reservations);
   } catch (e) {
@@ -3008,7 +3012,7 @@ function showPropertyDetailTab(tab) {
   event.target.classList.add('active');
   if (!_drillState || _drillState.type !== 'property') return;
   document.getElementById('dp-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)"><div class="spinner" style="display:inline-block;width:18px;height:18px;border-width:2px;vertical-align:middle;margin-right:8px"></div>Loading...</div>';
-  loadPropertyDetailContent(_drillState.title, tab);
+  loadPropertyDetailContent(tab);
 }
 
 function renderPropertyDetailUnits(el, units) {
@@ -4728,8 +4732,11 @@ function gridRender() {
   }
   let html = '';
   sorted.forEach(r => {
-    const isExp = gridExpandedProp === r.property_name;
-    html += `<tr class="${isExp ? 'expanded' : ''}" data-prop="${gEsc(r.property_name)}" onclick="gridToggleExpand('${gEsc(r.property_name)}')" onmouseenter="gridPrefetch('${gEsc(r.property_name)}')">`;
+    // Identity = property_id (unique). Falls back to name for any legacy row
+    // without an id. Two properties can share a name, so name can't be the key.
+    const rowKey = r.property_id != null ? String(r.property_id) : (r.property_name || '');
+    const isExp = gridExpandedProp === rowKey;
+    html += `<tr class="${isExp ? 'expanded' : ''}" data-prop="${gEsc(rowKey)}" onclick="gridToggleExpand('${gEsc(rowKey)}')" onmouseenter="gridPrefetch('${gEsc(rowKey)}')">`;
     for (const c of cols) {
       const out = c.cell(r);
       // If the cell function returned a full <td>, use it; otherwise wrap.
@@ -4793,10 +4800,11 @@ async function gridSetPeriod(period, force) {
     }
   }
 
-  // Build lookup: property_name -> period record
+  // Build lookup: property_id -> period record (name fallback for legacy rows)
   _periodLookup = {};
   for (const p of _periodCache[period]) {
-    if (p.property_name) _periodLookup[p.property_name] = p;
+    const k = p.property_id != null ? String(p.property_id) : p.property_name;
+    if (k) _periodLookup[k] = p;
   }
 
   // Default-sort by Period Rev (desc) the first time user switches to a period
@@ -4816,7 +4824,7 @@ function mergePeriodIntoFiltered() {
     delete r.period_occupancy; delete r.period_reservations; delete r.period_occupied_nights;
     delete r.period_rev_per_res; delete r.period_revenue; delete r.period_adr;
     delete r.period_revpau; delete r.period_available_nights; delete r.period_cost;
-    const p = _periodLookup[r.property_name];
+    const p = _periodLookup[r.property_id != null ? String(r.property_id) : r.property_name];
     if (p) {
       r.period_occupancy = p.period_occupancy;
       r.period_reservations = p.period_reservations;
@@ -4831,10 +4839,11 @@ function mergePeriodIntoFiltered() {
   }
 }
 
-function gridToggleExpand(name) {
+// `key` is the row's property_id (or name for legacy rows).
+function gridToggleExpand(key) {
   const tbody = document.getElementById('grid-body');
   const prev = gridExpandedProp;
-  gridExpandedProp = prev === name ? null : name;
+  gridExpandedProp = prev === key ? null : key;
 
   // Targeted DOM: remove old detail row + un-expand old row
   if (prev) {
@@ -4850,7 +4859,7 @@ function gridToggleExpand(name) {
     for (const tr of rows) {
       if (tr.getAttribute('data-prop') === gridExpandedProp) {
         tr.classList.add('expanded');
-        const r = gridFiltered.find(d => d.property_name === gridExpandedProp);
+        const r = gridRowByKey(gridExpandedProp);
         if (!r) break;
         const detailTr = document.createElement('tr');
         detailTr.id = 'grid-detail-row';
@@ -4858,8 +4867,8 @@ function gridToggleExpand(name) {
           <div id="grid-detail-header" class="gd-detail-header"></div>
           <div id="grid-detail-trend"></div>
           <div class="grid-detail-tabs">
-            <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','units',this)">Units &amp; Status</button>
-            <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(r.property_name)}','reservations',this)">Reservations</button>
+            <button class="gd-tab active" onclick="event.stopPropagation();gridDetailTab('${gEsc(gridExpandedProp)}','units',this)">Units &amp; Status</button>
+            <button class="gd-tab" onclick="event.stopPropagation();gridDetailTab('${gEsc(gridExpandedProp)}','reservations',this)">Reservations</button>
           </div>
           <div id="grid-detail-content" class="gd-loading"><div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>Loading...</div>
         </div></td>`;
@@ -4871,27 +4880,42 @@ function gridToggleExpand(name) {
   }
 }
 
-// Fetch both units + reservations in one call, cache with 10-min TTL
+// Resolve a row by its key (property_id, or name for legacy rows).
+function gridRowByKey(key) {
+  const k = String(key);
+  return (gridFiltered || []).find(d => String(d.property_id) === k || d.property_name === k)
+      || (gridData || []).find(d => String(d.property_id) === k || d.property_name === k)
+      || null;
+}
+
+// Fetch both units + reservations in one call, cache with 10-min TTL.
+// `key` is the row's property_id (or name). We pass BOTH id + name to the API:
+// id is the unique join key; name is kept for back-compat / display.
 const DETAIL_TTL = 600000; // 10 minutes
-async function fetchPropertyDetail(name) {
-  const cached = _detailCache[name];
+async function fetchPropertyDetail(key) {
+  const cached = _detailCache[key];
   if (cached && (Date.now() - cached._ts) < DETAIL_TTL) return cached;
-  const resp = await fetch(GRID_API + '/property-detail?name=' + encodeURIComponent(name));
+  const row = gridRowByKey(key) || {};
+  const name = row.property_name || String(key);
+  const id = row.property_id != null ? String(row.property_id) : null;
+  let url = GRID_API + '/property-detail?name=' + encodeURIComponent(name);
+  if (id) url += '&id=' + encodeURIComponent(id);
+  const resp = await fetch(url);
   if (!resp.ok) throw new Error('API returned ' + resp.status);
   const data = await resp.json();
   data._ts = Date.now();
-  _detailCache[name] = data;
+  _detailCache[key] = data;
   return data;
 }
 
 // Prefetch on hover — cache-warms so click is instant
 let _prefetchTimer = null;
-function gridPrefetch(name) {
+function gridPrefetch(key) {
   clearTimeout(_prefetchTimer);
   _prefetchTimer = setTimeout(() => {
-    const cached = _detailCache[name];
+    const cached = _detailCache[key];
     if (!cached || (Date.now() - cached._ts) >= DETAIL_TTL) {
-      fetchPropertyDetail(name).catch(() => {}); // fire-and-forget
+      fetchPropertyDetail(key).catch(() => {}); // fire-and-forget
     }
   }, 150);
 }
@@ -5306,12 +5330,13 @@ function renderUnitRentTable(units) {
 //                  (Actual to partner / Contract base / LT alt) + trajectory.
 //   Landing POV : Net vs LT-only alt @ X% with breakdown + talking points.
 // Properties without bundle data get an honest refusal block, not fake data.
-function renderTrendModule(name, data) {
+function renderTrendModule(key, data) {
   const wrap = document.getElementById('grid-detail-trend');
   if (!wrap) return;
   const trend = data.trend || [];
   const meta  = data.meta || {};
-  const gridRow = (typeof gridData !== 'undefined' ? gridData : []).find(g => g.property_name === name) || {};
+  // Resolve the grid row by key (property_id, or name for legacy rows).
+  const gridRow = (typeof gridRowByKey === 'function' ? gridRowByKey(key) : null) || {};
   const units = gridRow.home_count || 0;
   const strUnits = gridRow.str_unit_count || meta.str_unit_count || 0;
   const ltUnits = Math.max(0, units - strUnits);
