@@ -76,11 +76,12 @@ function cleanRow(row) {
   return out;
 }
 
-// Aggregate to one row per property_name
+// Aggregate to one row per property_id (NOT name — distinct properties can
+// share a marketing name, e.g. "The Grayson" in Spring TX vs Alexandria VA).
 function aggregate(rows) {
   const groups = {};
   for (const r of rows) {
-    const key = r.property_name || '';
+    const key = r.property_id != null ? String(r.property_id) : (r.property_name || '');
     if (!groups[key]) {
       groups[key] = { ...r, _count: 1, _str_units: r._unit_str_enabled ? 1 : 0 };
     } else {
@@ -159,7 +160,7 @@ exports.handler = async (event) => {
       // Standard and Autopilot properties (unlike dimproperty.eligible_for_str
       // which only applies to Standard).
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name', 'dimproperty.property_management_company',
+        'dimproperty.property_id', 'dimproperty.property_name', 'dimproperty.property_management_company',
         'dimdirectpartner.dp_full_name', 'dimmarket.market_name',
         'tbldailyhomemetrics.home_count', 'tbldailyhomemetrics.home_occupied_count',
         'tbldailyhomemetrics.active_property_count',
@@ -168,62 +169,63 @@ exports.handler = async (event) => {
 
       // Financials: rent/revenue/markup (slower fields isolated, ~2s)
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name',
+        'dimproperty.property_id', 'dimproperty.property_name',
         'dimhome.home_average_rent_cost',
         'tbldailyhomemetrics.home_daily_rent_revenue', 'tbldailyhomemetrics.home_daily_rent_cost_autopilot',
         'tbldailyhomemetrics.all_in_revpah_net', 'tbldailyhomemetrics.markup',
       ], installedFilter, ['dimproperty.property_name'], 5000),
 
       lookerQuery(token, 'dimreservation', [
-        'dimproperty.property_name',
+        'dimproperty.property_id', 'dimproperty.property_name',
         'dimreservation.current_reservation_count', 'dimreservation.future_reservation_count', 'dimreservation.count',
       ], { 'dimreservation.current_reservation_count': '>0' },
       ['dimproperty.property_name'], 5000),
 
       // Deinstalled units specifically (for DI badge)
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name', 'tbldailyhomemetrics.home_count',
+        'dimproperty.property_id', 'dimproperty.property_name', 'tbldailyhomemetrics.home_count',
       ], { 'tbldailyhomemetrics.date_date': date, 'tbldailyhomemetrics.active_property_count': '>0', 'dimhome.deinstall_date': 'NOT NULL' },
       ['dimproperty.property_name'], 5000),
     ]);
 
-    // Merge financial fields into core rows by property_name before aggregation
+    // Merge financial fields into core rows by property_id before aggregation.
+    // property_id (not name) is the join key — two properties can share a name.
     const finLookup = {};
     for (const raw of finData) {
-      const name = raw['dimproperty.property_name'];
-      if (name) finLookup[name] = raw;
+      const pid = raw['dimproperty.property_id'];
+      if (pid != null) finLookup[pid] = raw;
     }
     const mergedOcc = coreData.map(row => {
-      const name = row['dimproperty.property_name'];
-      const fin = finLookup[name] || {};
+      const pid = row['dimproperty.property_id'];
+      const fin = finLookup[pid] || {};
       return { ...row, ...fin };
     });
 
     // Aggregate occupancy
     const occAgg = aggregate(mergedOcc.map(cleanRow));
 
-    // Reservation lookup
+    // Reservation lookup (keyed by property_id)
     const resLookup = {};
     for (const raw of resData) {
-      const name = raw['dimproperty.property_name'];
-      if (!name) continue;
-      if (!resLookup[name]) resLookup[name] = { current_reservation_count: 0, future_reservation_count: 0, count: 0 };
-      resLookup[name].current_reservation_count += raw['dimreservation.current_reservation_count'] || 0;
-      resLookup[name].future_reservation_count += raw['dimreservation.future_reservation_count'] || 0;
-      resLookup[name].count += raw['dimreservation.count'] || 0;
+      const pid = raw['dimproperty.property_id'];
+      if (pid == null) continue;
+      if (!resLookup[pid]) resLookup[pid] = { current_reservation_count: 0, future_reservation_count: 0, count: 0 };
+      resLookup[pid].current_reservation_count += raw['dimreservation.current_reservation_count'] || 0;
+      resLookup[pid].future_reservation_count += raw['dimreservation.future_reservation_count'] || 0;
+      resLookup[pid].count += raw['dimreservation.count'] || 0;
     }
 
     // Deinstall lookup (for DI badge display only — unit counts already correct from installed-only query)
     const deinstallLookup = {};
     for (const raw of deinstallData) {
-      const name = raw['dimproperty.property_name'];
-      if (name) deinstallLookup[name] = (deinstallLookup[name] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
+      const pid = raw['dimproperty.property_id'];
+      if (pid != null) deinstallLookup[pid] = (deinstallLookup[pid] || 0) + (raw['tbldailyhomemetrics.home_count'] || 1);
     }
 
     // Merge — home_count already reflects installed-only from the Looker query
     const records = occAgg.map(r => {
-      const res = resLookup[r.property_name] || {};
-      const di = deinstallLookup[r.property_name] || 0;
+      const res = resLookup[r.property_id] || {};
+      const di = deinstallLookup[r.property_id] || 0;
 
       // Recompute occupancy from installed counts
       r.occupancy = r.home_count > 0 ? r.home_occupied_count / r.home_count : 0;
@@ -246,12 +248,12 @@ exports.handler = async (event) => {
       // agreement (median of |mgmt_fee|/gross across reporting months). The
       // mgmt fee is the contractual Landing take; FFE/install/wifi fees are
       // setup reimbursements, not part of the rev share.
-      const mgmtFeeInfo = revshareCache.getMgmtFeeRate(r.property_name);
+      const mgmtFeeInfo = revshareCache.getMgmtFeeRateById(r.property_id);
       const contracted_mgmt_pct = mgmtFeeInfo ? mgmtFeeInfo.rate_pct : null;
       const contracted_mgmt_months = mgmtFeeInfo ? mgmtFeeInfo.months_observed : null;
       const contracted_mgmt_min = mgmtFeeInfo ? mgmtFeeInfo.min_pct : null;
       const contracted_mgmt_max = mgmtFeeInfo ? mgmtFeeInfo.max_pct : null;
-      const trend = revshareCache.getTrend(r.property_name);
+      const trend = revshareCache.getTrendById(r.property_id);
       const validCount = trend ? trend.filter(t => t.l != null).length : 0;
       const monthlyBase = (r.home_count || 0) * (r.home_average_rent_cost || 0);
       // Effective take rate from this property's own actuals (Σl / Σg across

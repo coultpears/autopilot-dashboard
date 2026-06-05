@@ -15,43 +15,63 @@ const { handler: propertyDetailHandler } = require('./property-detail.js');
 
 const DETAIL_PREFIX = 'property-detail:';
 
-// Pull the canonical property-name list from the already-cached grid-data
-// payload — no extra Looker call. Returns [] if grid-data hasn't been cached
-// yet (the grid must be loaded at least once first).
-async function propertyNames() {
+// Cache key for a property-detail entry. Mirrors the key built in
+// property-detail.js: `<id>:<name>` when an id exists, else just `<name>`.
+function detailKeySuffix(id, name) {
+  return `${id ? id + ':' : ''}${name}`;
+}
+
+// Pull the canonical property targets from the already-cached grid-data
+// payload — no extra Looker call. Returns [{ id, name }] (id may be null for
+// legacy rows). [] if grid-data hasn't been cached yet (the grid must be
+// loaded at least once first).
+async function propertyTargets() {
   const grid = await responseCache.load('grid-data:today');
   if (!grid) return [];
   try {
     const arr = JSON.parse(grid.payloadJson);
-    return [...new Set(arr.map((r) => r && r.property_name).filter(Boolean))];
+    const seen = new Set();
+    const out = [];
+    for (const r of arr) {
+      if (!r || !r.property_name) continue;
+      const id = r.property_id != null ? String(r.property_id) : null;
+      const key = detailKeySuffix(id, r.property_name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ id, name: r.property_name });
+    }
+    return out;
   } catch {
     return [];
   }
 }
 
 async function warmBatch({ limit = 20, concurrency = 3, maxAgeMs = 1440000, log = () => {} } = {}) {
-  const names = await propertyNames();
-  if (!names.length) {
+  const targets = await propertyTargets();
+  if (!targets.length) {
     log('no property list (grid-data:today not cached yet) — skipping');
     return { total: 0, selected: 0, warmed: 0, failed: 0, skipped: 'no-grid-cache' };
   }
 
-  // Current cache age per property
+  // Current cache age per property (keyed by the full `<id>:<name>` suffix)
   const ages = await responseCache.listAges(DETAIL_PREFIX);
-  const ageByName = {};
-  for (const a of ages) ageByName[a.key.slice(DETAIL_PREFIX.length)] = new Date(a.updatedAt).getTime();
+  const ageByKey = {};
+  for (const a of ages) ageByKey[a.key.slice(DETAIL_PREFIX.length)] = new Date(a.updatedAt).getTime();
 
   // Stalest/missing first, capped
   const now = Date.now();
-  const candidates = names
-    .map((n) => ({ n, age: ageByName[n] == null ? Infinity : now - ageByName[n] }))
+  const candidates = targets
+    .map((t) => {
+      const k = detailKeySuffix(t.id, t.name);
+      return { ...t, age: ageByKey[k] == null ? Infinity : now - ageByKey[k] };
+    })
     .filter((c) => c.age >= maxAgeMs)
     .sort((a, b) => b.age - a.age)
     .slice(0, limit);
 
   if (!candidates.length) {
-    log(`all ${names.length} properties fresh — nothing to warm`);
-    return { total: names.length, selected: 0, warmed: 0, failed: 0 };
+    log(`all ${targets.length} properties fresh — nothing to warm`);
+    return { total: targets.length, selected: 0, warmed: 0, failed: 0 };
   }
 
   let warmed = 0, failed = 0, idx = 0;
@@ -62,7 +82,9 @@ async function warmBatch({ limit = 20, concurrency = 3, maxAgeMs = 1440000, log 
         // refresh=1 forces a live Looker fetch + cache update (bypasses the
         // serve-from-cache shortcut, which would otherwise just return the
         // stale copy we're trying to replace).
-        const res = await propertyDetailHandler({ queryStringParameters: { name: c.n, refresh: '1' } });
+        const qs = { name: c.name, refresh: '1' };
+        if (c.id) qs.id = c.id;
+        const res = await propertyDetailHandler({ queryStringParameters: qs });
         const src = res.headers && res.headers['X-Data-Source'];
         if (res.statusCode === 200 && (src === 'live' || src === 'cache')) warmed++;
         else failed++;
@@ -73,8 +95,8 @@ async function warmBatch({ limit = 20, concurrency = 3, maxAgeMs = 1440000, log 
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, candidates.length) }, worker));
 
-  log(`warmed ${warmed}/${candidates.length} (failed ${failed}); pool=${names.length}`);
-  return { total: names.length, selected: candidates.length, warmed, failed };
+  log(`warmed ${warmed}/${candidates.length} (failed ${failed}); pool=${targets.length}`);
+  return { total: targets.length, selected: candidates.length, warmed, failed };
 }
 
-module.exports = { warmBatch, propertyNames };
+module.exports = { warmBatch, propertyTargets };

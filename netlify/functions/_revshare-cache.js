@@ -2,11 +2,19 @@
 // NEON_DATABASE_URL is set, falls back to the bundled JSON
 // (data/revshare.json) when not — graceful dev mode + safety net.
 //
-// API:
-//   await revshareCache.init();          // call once per handler invocation
-//   revshareCache.getTrend(propertyName)  // sync after init()
-//   revshareCache.getMgmtFeeRate(name)    // sync after init()
-//   revshareCache.getCoverage()           // sync after init()
+// API (all sync after init()):
+//   await revshareCache.init();              // call once per handler invocation
+//   revshareCache.getTrendById(propertyId)   // PRIMARY — unique join key
+//   revshareCache.getMgmtFeeRateById(id)
+//   revshareCache.getTrend(propertyName)     // back-compat; null on collided names
+//   revshareCache.getMgmtFeeRate(name)       // back-compat
+//   revshareCache.resolveIds(propertyName)   // name → [property_id, ...]
+//   revshareCache.getCoverage()
+//
+// Keyed by property_id, NOT property_name: two distinct properties can share a
+// marketing name (e.g. "The Grayson" in Spring TX 36817 vs Alexandria VA
+// 41909). Name-based lookups remain for back-compat but return null when the
+// name maps to >1 property — callers should prefer the *ById variants.
 //
 // Why init() is async but the rest is sync:
 //   grid-data.js calls these helpers inside .map() loops where Promise.all
@@ -84,11 +92,11 @@ async function loadFromPostgres() {
     const t0 = Date.now();
     const rows = await client.query(`
       SELECT
-        property_name, period_key, period,
+        property_id, property_name, period_key, period,
         landing_margin, net_allocation, total_revenue, occupancy_rate, stay_count,
         mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment
       FROM monthly_actuals
-      ORDER BY property_name, period_key
+      ORDER BY property_id, period_key
     `);
     // 2) Distinct months in the dataset (used for the _meta.source_months
     // shape consumers expect). Order by period_key so consumers can iterate
@@ -100,11 +108,17 @@ async function loadFromPostgres() {
     `);
     console.log(`[revshare-cache] loaded ${rows.rows.length} rows × ${months.rows.length} months from Postgres in ${Date.now() - t0}ms`);
 
-    // Reshape into the same { _meta, by_property: { name: { period_key: slot } } } structure
-    const by_property = {};
+    // Reshape into { _meta, by_property_id: { property_id: { period_key: slot } } }.
+    // property_id is the unique join key (two properties can share a name).
+    // Each slot also carries property_id + property_name so consumers and the
+    // name-index can resolve either direction.
+    const by_property_id = {};
     for (const r of rows.rows) {
-      if (!by_property[r.property_name]) by_property[r.property_name] = {};
-      by_property[r.property_name][String(r.period_key)] = {
+      const pid = String(r.property_id);
+      if (!by_property_id[pid]) by_property_id[pid] = {};
+      by_property_id[pid][String(r.period_key)] = {
+        property_id: pid,
+        property_name: r.property_name,
         period: r.period,
         l: r.landing_margin != null ? Number(r.landing_margin) : null,
         p: r.net_allocation != null ? Number(r.net_allocation) : null,
@@ -124,11 +138,40 @@ async function loadFromPostgres() {
         loaded_at: new Date().toISOString(),
         source_months: months.rows.map(m => ({ period: m.period, period_key: m.period_key })),
       },
-      by_property,
+      by_property_id,
     };
   } finally {
     await client.end();
   }
+}
+
+// ─── Normalization ───────────────────────────────────────────────────
+// Build the canonical id-keyed index (`by_id`) plus a name→[ids] lookup
+// (`by_name`) regardless of which source/shape we loaded:
+//   - Postgres / new bundle → `by_property_id` (id-keyed, slots carry name)
+//   - legacy bundle         → `by_property` (name-keyed, no property_id) —
+//     synthesize id = name so name lookups still work pre-rebuild.
+function normalize(raw) {
+  const by_id = {};
+  const by_name = {}; // property_name → [property_id, ...]
+  const addName = (name, id) => {
+    if (!name) return;
+    if (!by_name[name]) by_name[name] = [];
+    if (!by_name[name].includes(id)) by_name[name].push(id);
+  };
+  if (raw && raw.by_property_id) {
+    for (const [pid, months] of Object.entries(raw.by_property_id)) {
+      by_id[pid] = months;
+      for (const k in months) { if (months[k].property_name) { addName(months[k].property_name, pid); break; } }
+    }
+  } else if (raw && raw.by_property) {
+    // Legacy name-keyed bundle — id unknown, use the name as the synthetic id.
+    for (const [name, months] of Object.entries(raw.by_property)) {
+      by_id[name] = months;
+      addName(name, name);
+    }
+  }
+  return { by_id, by_name };
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -152,6 +195,12 @@ async function init() {
     })();
   }
   _cache = await _cachePromise;
+  // Build the id + name indexes once.
+  if (_cache && !_cache.by_id) {
+    const { by_id, by_name } = normalize(_cache);
+    _cache.by_id = by_id;
+    _cache.by_name = by_name;
+  }
   // Attach the alias map once (tiny synchronous file read; cheap to repeat
   // but we memoize it on the cache object alongside the data).
   if (_cache && !_cache._aliases) _cache._aliases = loadAliases();
@@ -165,29 +214,18 @@ function _requireCache() {
   return _cache;
 }
 
-// Returns an ordered array of monthly slots (oldest → newest) for the given
-// property name. Same shape as before the Postgres backend:
-//   { period_key, period, l, p, g, o, u, mf, ff, if_, wf, pa }
-// Numeric fields may be null. Returns null when the property isn't in the
-// dataset.
-function getTrend(propertyName) {
-  if (!propertyName) return null;
-  const c = _requireCache();
+// Shape a property's monthly map into an ordered array of slots
+// (oldest → newest), padded to the full source-month window with nulls.
+function _shapeTrend(c, propData) {
   const monthsMeta = c._meta?.source_months || [];
-  let propData = c.by_property?.[propertyName];
-  // Alias fallback — the rent-roll sheet spells this property differently.
-  // Only consulted on an exact-match miss; data/revshare-aliases.json.
-  if (!propData) {
-    const alias = c._aliases?.[propertyName];
-    if (alias) propData = c.by_property?.[alias];
-  }
-  if (!propData) return null;
   const out = [];
   for (const m of monthsMeta) {
     const slot = propData[String(m.period_key)];
     out.push({
       period_key: m.period_key,
       period: m.period,
+      property_id: slot?.property_id ?? null,
+      property_name: slot?.property_name ?? null,
       l: slot?.l ?? null,
       p: slot?.p ?? null,
       g: slot?.g ?? null,
@@ -203,10 +241,46 @@ function getTrend(propertyName) {
   return out;
 }
 
+// PRIMARY lookup — by Landing property_id (the unique join key). Returns an
+// ordered array of monthly slots, or null when the id isn't in the dataset.
+function getTrendById(propertyId) {
+  if (propertyId == null) return null;
+  const c = _requireCache();
+  const propData = c.by_id?.[String(propertyId)];
+  if (!propData) return null;
+  return _shapeTrend(c, propData);
+}
+
+// Resolve a property_name → its property_id(s). Returns an array (may be
+// empty, one, or — for collided names like "The Grayson" — multiple).
+function resolveIds(propertyName) {
+  if (!propertyName) return [];
+  const c = _requireCache();
+  let ids = c.by_name?.[propertyName];
+  if (!ids || !ids.length) {
+    // Alias fallback — rent-roll spells this property differently.
+    const alias = c._aliases?.[propertyName];
+    if (alias) ids = c.by_name?.[alias];
+  }
+  return ids ? ids.slice() : [];
+}
+
+// BACK-COMPAT lookup by name. Unambiguous names resolve to their single
+// property; collided names (>1 id) return null since name alone can't pick
+// the right building — callers should switch to getTrendById(). Kept so
+// legacy callers (and the name-only property-detail path) keep working.
+function getTrend(propertyName) {
+  const ids = resolveIds(propertyName);
+  if (ids.length !== 1) {
+    if (ids.length > 1) console.warn(`[revshare-cache] getTrend("${propertyName}") ambiguous across ids ${ids.join(',')} — use getTrendById`);
+    return null;
+  }
+  return getTrendById(ids[0]);
+}
+
 // Median of (|mgmt_fee| / total_revenue) across months that have both
 // populated — the contracted Landing take rate per the partnership.
-function getMgmtFeeRate(propertyName) {
-  const trend = getTrend(propertyName);
+function _mgmtFeeFromTrend(trend) {
   if (!trend) return null;
   const rates = [];
   for (const m of trend) {
@@ -223,6 +297,14 @@ function getMgmtFeeRate(propertyName) {
     min_pct: Math.round(rates[0] * 1000) / 10,
     max_pct: Math.round(rates[rates.length - 1] * 1000) / 10,
   };
+}
+// PRIMARY — by property_id.
+function getMgmtFeeRateById(propertyId) {
+  return _mgmtFeeFromTrend(getTrendById(propertyId));
+}
+// BACK-COMPAT — by name (null on ambiguous collided names; see getTrend).
+function getMgmtFeeRate(propertyName) {
+  return _mgmtFeeFromTrend(getTrend(propertyName));
 }
 
 function getCoverage() {
@@ -244,8 +326,8 @@ function getPortfolioTakeRate() {
   const c = _requireCache();
   if (c._portfolio_take_rate !== undefined) return c._portfolio_take_rate;
   let totalLanding = 0, totalGross = 0;
-  for (const propName in (c.by_property || {})) {
-    const months = c.by_property[propName];
+  for (const pid in (c.by_id || {})) {
+    const months = c.by_id[pid];
     for (const key in months) {
       const m = months[key];
       if (m.l != null && m.g != null && m.g > 0) {
@@ -258,11 +340,21 @@ function getPortfolioTakeRate() {
   return c._portfolio_take_rate;
 }
 
-// Every property_name present in the revshare dataset. Used by the
+// Every property_id present in the revshare dataset.
+function getAllPropertyIds() {
+  const c = _requireCache();
+  return Object.keys(c.by_id || {});
+}
+
+// Every distinct property_name present in the revshare dataset. Used by the
 // reconciliation diagnostic (scripts/list-revshare-gaps.js).
 function getAllProperties() {
   const c = _requireCache();
-  return Object.keys(c.by_property || {});
+  return Object.keys(c.by_name || {});
 }
 
-module.exports = { init, getTrend, getCoverage, getMgmtFeeRate, getPortfolioTakeRate, getAllProperties };
+module.exports = {
+  init, getCoverage, getPortfolioTakeRate,
+  getTrendById, getMgmtFeeRateById, resolveIds, getAllPropertyIds,
+  getTrend, getMgmtFeeRate, getAllProperties, // back-compat (name-based)
+};

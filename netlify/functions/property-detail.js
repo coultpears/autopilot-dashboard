@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { init: initRevshare, getTrend, getCoverage } = require('./_revshare-cache');
+const { init: initRevshare, getTrend, getTrendById, getCoverage } = require('./_revshare-cache');
 const { timedFetch } = require('./_looker.js');
 const responseCache = require('./_response-cache.js');
 
@@ -67,9 +67,16 @@ function startOfMonthISO() {
 
 exports.handler = async (event) => {
   const name = event.queryStringParameters?.name;
+  // Optional property_id — the unique join key. When supplied (the FE passes it
+  // from the grid row), Looker is filtered by id and the revshare trend is
+  // looked up by id, so the drawer is correct even for two properties that
+  // share a name (e.g. "The Grayson" in Spring TX vs Alexandria VA). Falls
+  // back to name-only behavior when absent (back-compat / direct links).
+  const id = event.queryStringParameters?.id || null;
   if (!name) return { statusCode: 400, body: JSON.stringify({ error: 'name parameter required' }) };
 
-  const cacheKey = `property-detail:${name}`;
+  // Cache key includes id so collided names don't share a cache entry.
+  const cacheKey = `property-detail:${id ? id + ':' : ''}${name}`;
   // FRESH: under this age a cached payload is served as-is and labelled fresh.
   // MAX:   up to this age it's still served immediately (labelled stale) rather
   //        than making the user wait on Looker — the background warmer is
@@ -120,9 +127,17 @@ exports.handler = async (event) => {
     //   2) ALL reservations for this property (current/future/past) — used
     //      both for the existing reservations tab and for MTD aggregation
     //   3) (no third query yet — kept room here for future MTD-via-daily-metrics)
+    // Filter by property_id when supplied (unique), else fall back to name.
+    const unitsFilter = id
+      ? { 'dimproperty.property_id': id, 'tbldailyhomemetrics.date_date': 'today' }
+      : { 'dimproperty.property_name': name, 'tbldailyhomemetrics.date_date': 'today' };
+    const resFilter = id
+      ? { 'dimproperty.property_id': id }
+      : { 'dimproperty.property_name': name };
+
     const [unitsData, resData] = await Promise.all([
       lookerQuery(token, 'tbldailyhomemetrics', [
-        'dimproperty.property_name', 'dimproperty.property_management_company',
+        'dimproperty.property_id', 'dimproperty.property_name', 'dimproperty.property_management_company',
         'dimdirectpartner.dp_full_name', 'dimmarket.market_name', 'dimhome.unit_number',
         'tbldailyhomemetrics.home_is_active', 'tbldailyhomemetrics.home_is_installed',
         'tbldailyhomemetrics.home_reservation_status',
@@ -142,11 +157,11 @@ exports.handler = async (event) => {
         'dimhome.str_status',
         'dimhome.minimum_nightly_stay',
         'dimhome.property_allows_ota',
-      ], { 'dimproperty.property_name': name, 'tbldailyhomemetrics.date_date': 'today' },
+      ], unitsFilter,
       ['dimproperty.property_name', 'dimhome.unit_number']),
 
       lookerQuery(token, 'dimreservation', [
-        'dimproperty.property_name', 'dimproperty.property_management_company',
+        'dimproperty.property_id', 'dimproperty.property_name', 'dimproperty.property_management_company',
         'dimdirectpartner.dp_full_name', 'dimmarket.market_name', 'dimhome.unit_number',
         'dimreservation.reservation_start_date', 'dimreservation.reservation_end_date',
         'dimreservation.days_in_reservation', 'dimreservation.reservation_length_raw',
@@ -156,7 +171,7 @@ exports.handler = async (event) => {
         // Nightly-rate fields — added 2026-05 to surface STR per-night economics
         'dimreservation.admin_reservation_rent_rate',
         'dimreservation.admin_reservation_rent_unit',
-      ], { 'dimproperty.property_name': name },
+      ], resFilter,
       ['dimproperty.property_name', 'dimreservation.reservation_start_date']),
     ]);
 
@@ -285,7 +300,7 @@ exports.handler = async (event) => {
     // Landing-vs-Partner monthly trend from the revshare cache (Postgres-backed).
     // Null when the property isn't in the dataset (e.g. recent additions
     // pre-onboarding); the FE renders the section conditionally.
-    const trend = getTrend(name);
+    const trend = id ? getTrendById(id) : getTrend(name);
 
     // Coverage window of the revshare dataset — the FE shows this in the
     // "P&L unavailable" refusal state so the message stays accurate as new
