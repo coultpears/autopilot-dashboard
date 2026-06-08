@@ -139,6 +139,35 @@ exports.handler = async (event) => {
   const date = event.queryStringParameters?.date || 'today';
   const cacheKey = `grid-data:${date}`;
 
+  // Serve a warm cached payload immediately instead of blocking on Looker.
+  // Fresh (<GRID_FRESH_MS) → 'cache'; older but usable (<GRID_MAX_MS) →
+  // 'stale-cache'. Only a missing/too-old entry pays a live Looker fetch — so a
+  // degraded Explore can't produce the ~22s wait or a 503 when we have data.
+  // The warmer keeps this entry fresh via ?refresh=1, which bypasses the shortcut.
+  const GRID_FRESH_MS = Number(process.env.GRID_DATA_TTL_MS) || 600000;     // 10 min
+  const GRID_MAX_MS = Number(process.env.GRID_DATA_MAX_AGE_MS) || 86400000; // 24 h
+  const forceRefresh = event.queryStringParameters?.refresh === '1';
+
+  let cachedEntry = null;
+  try { cachedEntry = await responseCache.load(cacheKey); } catch (e) { /* ignore */ }
+  if (!forceRefresh && cachedEntry) {
+    const ageMs = Date.now() - new Date(cachedEntry.updatedAt).getTime();
+    if (ageMs < GRID_MAX_MS) {
+      const fresh = ageMs < GRID_FRESH_MS;
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': fresh ? 'public, max-age=300, stale-while-revalidate=1800' : 'no-store',
+          'Netlify-CDN-Cache-Control': fresh ? 'public, max-age=1800, stale-while-revalidate=7200' : 'no-store',
+          'X-Data-Source': fresh ? 'cache' : 'stale-cache',
+          'X-Data-As-Of': new Date(cachedEntry.updatedAt).toISOString(),
+        },
+        body: cachedEntry.payloadJson,
+      };
+    }
+  }
+
   try {
     // Warm the revshare cache (Postgres-backed when NEON_DATABASE_URL is set,
     // falls back to data/revshare.json bundle otherwise). Parallel with the
@@ -401,7 +430,7 @@ exports.handler = async (event) => {
     // / hard 500, serve the most recent successful payload from Neon so the
     // dashboard degrades to slightly-stale data. The frontend reads
     // X-Data-Source / X-Data-As-Of to flag the staleness to the user.
-    const stale = await responseCache.load(cacheKey);
+    const stale = cachedEntry || await responseCache.load(cacheKey);
     if (stale) {
       return {
         statusCode: 200,
