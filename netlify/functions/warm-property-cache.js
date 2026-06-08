@@ -7,8 +7,19 @@
 // read-through path, so a partial/failed run is harmless.
 
 const { warmBatch } = require('./_warm.js');
+const { handler: gridDataHandler } = require('./grid-data.js');
 
 exports.handler = async () => {
+  // Refresh grid-data first (?refresh=1 forces a live fetch + re-cache) so the
+  // main dashboard payload — and the property list the warmer reads from it —
+  // stays fresh. Best-effort; a slow Looker just leaves the prior cache in place.
+  try {
+    const g = await gridDataHandler({ queryStringParameters: { refresh: '1' } });
+    console.log('[warm-property-cache] grid-data refresh:', g.statusCode, g.headers && g.headers['X-Data-Source']);
+  } catch (e) {
+    console.log('[warm-property-cache] grid-data refresh failed:', e.message);
+  }
+
   const ttl = Number(process.env.PROPERTY_DETAIL_TTL_MS) || 1800000;
   const result = await warmBatch({
     limit: Number(process.env.WARM_BATCH_LIMIT) || 8,
