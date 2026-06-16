@@ -1164,6 +1164,33 @@ tbody td {
   letter-spacing: 0;
   transform: translateY(-0.5px);
 }
+/* YoY pill sits on its own line beneath the metric (vs same period last year).
+   Subtle tinted wash — visible at a glance, but small + quiet so it never competes
+   with the headline number. Same green/red language as the KPI "vs 2025" badges.
+   The wrapper reserves a fixed line so rows with no comparison stay aligned. */
+.scorecard-table .sc-yoy-wrap {
+  display: block;
+  text-align: center;
+  margin-top: 5px;
+  min-height: 1.05rem;
+}
+.scorecard-table .sc-yoy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.scorecard-table .sc-yoy.up   { background: rgba(16,185,129,0.10); color: #0F8A5F; }
+.scorecard-table .sc-yoy.down { background: rgba(238,83,61,0.10);  color: #C8472F; }
+.scorecard-table .sc-yoy.flat { background: var(--surface-3);      color: var(--ink-3); }
+.scorecard-table .sc-yoy__g { font-size: 0.54rem; line-height: 1; transform: translateY(-0.5px); }
 
 /* ─── FOOTER (Team Total) ─── anchored by a 2px landing-blue top rule.
    The Σ totals here are the biggest, heaviest numbers on the entire table —
@@ -1195,6 +1222,17 @@ tbody td {
   font-weight: 800;
   color: var(--landing-blue);
   letter-spacing: -0.025em;
+}
+/* "all reps" caption under Team Total — clarifies the footer is the whole org,
+   not just the pod-leader rows shown above. */
+.scorecard-table tfoot td:first-child .foot-sub {
+  display: block;
+  margin-top: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--ink-3);
 }
 /* ─── RANK PILL ─── compact circle. Top-3 = landing-blue fill (the single
    visual signal that distinguishes leaders from the rest). */
@@ -1941,6 +1979,9 @@ function extractFirstName(email) {
     if (email && email.includes(' ')) return email.split(' ')[0];
     return email || '—';
   }
+  // Two reps named Jack: jack.thomasson (central pod) → "Jack",
+  // jack.harvey (NMHC lead) → "Jack H". Disambiguate so they don't merge.
+  if (email.toLowerCase().startsWith('jack.harvey@')) return 'Jack H';
   const local = email.split('@')[0];
   const parts = local.split('.');
   return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
@@ -2113,6 +2154,7 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const pitchLastWeek = pitchData.byWeek?.lastWeek || 0;
   const pitchesByRep = pitchData.byRep || {};
   const monthlyPitchesByRep = pitchData.monthlyByRep || {};
+  const ytdPitchesByRep = pitchData.ytdByRep || {};
   const lastWeekByRep = pitchData.lastWeekByRep || {};
   const lastMonthByRep = pitchData.lastMonthByRep || {};
   const pitchRepsSorted = Object.entries(pitchesByRep).sort((a, b) => b[1] - a[1]);
@@ -2200,7 +2242,11 @@ function render(deals, deinstalls, dealMap, pitchData) {
   const maxRenewalUnits = Math.max(...renewalMonths.map(m => m.units), 1);
 
   // Rep leaderboard (current year) — include all AP reps even if 0 deals
-  const AP_REPS = ['Wells', 'Scout', 'Jack', 'Sophia', 'Ghislain', 'Jason', 'Richard', 'Nolan', 'Raegan', 'Xander', 'Renato'];
+  const AP_REPS = ['Wells', 'Scout', 'Jack', 'Sophia', 'Ghislain', 'Jason', 'Richard', 'Nolan', 'Raegan', 'Xander', 'Renato', 'Jack H'];
+  // Pod leaders (territory-map SDMs) — the only rows shown on the scorecard now
+  // that territories are organized into pods. 5 geographic pod SDMs + the two NMHC
+  // national leads (Nolan, Jack H). Ref: landing-territory-map DEFAULT_CONFIG.
+  const POD_LEADERS = new Set(['Jack', 'Wells', 'Scout', 'Xander', 'Ghislain', 'Nolan', 'Jack H']);
   // Former reps — explicitly excluded from scorecard even if they appear in
   // historical deal data or HubSpot owner records. Their deals still count
   // toward team YTD totals; they just don't get their own row.
@@ -2221,15 +2267,14 @@ function render(deals, deinstalls, dealMap, pitchData) {
 
   // ─── REP SCORECARD DATA ───
   const repScorecard = {};
-  AP_REPS.forEach(name => {
-    repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 };
-  });
+  const scInit = () => ({ ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, ytdPitches: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 });
+  AP_REPS.forEach(name => { repScorecard[name] = scInit(); });
   curDeals.forEach(d => {
     let name = extractFirstName(d.rep);
     if (name === '—' || !d.rep.includes('@')) return;
     if (name.toLowerCase() === 'jasoncreel') name = 'Jason';
     if (FORMER_REPS.has(name)) return;
-    if (!repScorecard[name]) repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 };
+    if (!repScorecard[name]) repScorecard[name] = scInit();
     repScorecard[name].ytdDeals++;
     repScorecard[name].ytdUnits += d.units;
     if (d.signDate.getMonth() === curMonth && d.signDate <= NOW) {
@@ -2237,15 +2282,19 @@ function render(deals, deinstalls, dealMap, pitchData) {
       repScorecard[name].monthUnits += d.units;
     }
   });
+  Object.entries(ytdPitchesByRep).forEach(([name, count]) => {
+    if (FORMER_REPS.has(name)) return;
+    if (repScorecard[name]) repScorecard[name].ytdPitches = count;
+  });
   Object.entries(monthlyPitchesByRep).forEach(([name, count]) => {
     if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].monthPitches = count;
-    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: count, weekPitches: 0 };
+    else { repScorecard[name] = scInit(); repScorecard[name].monthPitches = count; }
   });
   Object.entries(pitchesByRep).forEach(([name, count]) => {
     if (FORMER_REPS.has(name)) return;
     if (repScorecard[name]) repScorecard[name].weekPitches = count;
-    else repScorecard[name] = { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: count, lastWeekPitches: 0, lastMonthPitches: 0 };
+    else { repScorecard[name] = scInit(); repScorecard[name].weekPitches = count; }
   });
   Object.entries(lastWeekByRep).forEach(([name, count]) => {
     if (FORMER_REPS.has(name)) return;
@@ -2258,14 +2307,14 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // Filter former reps from the displayed scorecard rows (catches any reps added
   // through the per-column fallbacks above that didn't go through the explicit
   // FORMER_REPS check, e.g. legacy data shapes)
+  // Only pod leaders are shown now that territories are pod-based.
   const scRows = Object.entries(repScorecard)
-    .filter(([name]) => !FORMER_REPS.has(name))
+    .filter(([name]) => POD_LEADERS.has(name))
     .sort((a, b) => b[1].ytdUnits - a[1].ytdUnits);
-  const scTotals = scRows.reduce((t, [, v]) => ({ ytdDeals: t.ytdDeals + v.ytdDeals, ytdUnits: t.ytdUnits + v.ytdUnits, monthDeals: t.monthDeals + v.monthDeals, monthUnits: t.monthUnits + v.monthUnits, monthPitches: t.monthPitches + v.monthPitches, weekPitches: t.weekPitches + v.weekPitches }), { ytdDeals: 0, ytdUnits: 0, monthDeals: 0, monthUnits: 0, monthPitches: 0, weekPitches: 0, lastWeekPitches: 0, lastMonthPitches: 0 });
 
-  // Per-column rankings for badge display (top 2 in each non-YTD metric)
+  // Per-column rankings for badge display (top 3 in each non-YTD metric)
   const colRanks = {};
-  ['monthDeals','monthUnits','weekPitches','monthPitches'].forEach(col => {
+  ['monthDeals','monthUnits','monthPitches'].forEach(col => {
     const sorted = scRows.slice().filter(r => r[1][col] > 0).sort((a, b) => b[1][col] - a[1][col]);
     colRanks[col] = {};
     let rank = 0, prevVal = -1;
@@ -2288,6 +2337,23 @@ function render(deals, deinstalls, dealMap, pitchData) {
   // ─── BUILD HTML ───
   let html = '';
 
+  // Footer YoY caption (same period last year). Whole-team figures, matching the
+  // team-wide pitch totals already shown in the footer.
+  const yoyFoot = (cur, prev) => {
+    if (!cur && !prev) return '<div class="sc-yoy-wrap"></div>';
+    if (!prev) return '<div class="sc-yoy-wrap"><span class="sc-yoy flat">new</span></div>';
+    const diff = cur - prev;
+    if (diff === 0) return '<div class="sc-yoy-wrap"><span class="sc-yoy flat">±0</span></div>';
+    const cls = diff > 0 ? 'up' : 'down';
+    const glyph = diff > 0 ? '▲' : '▼';
+    const txt = diff > 0 ? '+' + fmt(diff) : '−' + fmt(-diff);
+    return `<div class="sc-yoy-wrap"><span class="sc-yoy ${cls}"><span class="sc-yoy__g">${glyph}</span>${txt}</span></div>`;
+  };
+  const teamYtdDeals = ytdCur.length, teamYtdUnits = sum(ytdCur);
+  const teamPrevYtdDeals = ytdPrev.length, teamPrevYtdUnits = sum(ytdPrev);
+  const teamMonthDeals = mCur.length, teamMonthUnits = sum(mCur);
+  const teamPrevMonthDeals = mPrev.length, teamPrevMonthUnits = sum(mPrev);
+
   // ─── PRIMARY HERO: Rep Scorecard ───
   const dtEntries = Object.entries(dealTypeMap).sort((a,b) => b[1].units - a[1].units);
 
@@ -2297,63 +2363,44 @@ function render(deals, deinstalls, dealMap, pitchData) {
         <div class="scorecard-period">
           <span class="scorecard-period__main">${MONTH_NAMES[curMonth]} ${CUR_YEAR}</span>
           <span class="scorecard-period__sep">·</span>
-          <span class="scorecard-period__sub">12 reps · YTD ${CUR_YEAR}</span>
+          <span class="scorecard-period__sub">${scRows.length} pod leaders · YTD ${CUR_YEAR}</span>
         </div>
       </div>
       <div class="table-wrap">
         <table class="scorecard-table">
           <thead>
             <tr class="col-groups">
-              <th rowspan="3" class="rep-head">Rep</th>
-              <th colspan="2" rowspan="2" class="cg-ytd">Year to Date</th>
-              <th colspan="2" rowspan="2" class="cg-month col-div">${MONTH_NAMES[curMonth]}</th>
-              <th colspan="4" class="cg-pitch col-div">Pitches This Week</th>
-              <th colspan="4" class="cg-pitch col-div">Pitches ${MONTH_NAMES[curMonth]}</th>
-            </tr>
-            <tr class="col-groups subgroup">
-              <th rowspan="2" class="col-div sub-newlogo">New Logo</th>
-              <th colspan="2" class="cg-expansion">Expansion</th>
-              <th rowspan="2" class="sigma-head col-sigma">Σ</th>
-              <th rowspan="2" class="col-div sub-newlogo">New Logo</th>
-              <th colspan="2" class="cg-expansion">Expansion</th>
-              <th rowspan="2" class="sigma-head col-sigma">Σ</th>
+              <th rowspan="2" class="rep-head">Rep</th>
+              <th colspan="3" class="cg-ytd">Year to Date</th>
+              <th colspan="3" class="cg-month col-div">${MONTH_NAMES[curMonth]}</th>
             </tr>
             <tr class="col-leaf">
               <th>Deals</th>
               <th>Units</th>
+              <th class="cg-pitch">Pitches</th>
               <th class="col-div">Deals</th>
               <th>Units</th>
-              <th class="sub-exp" title="Expansion - New (target property not currently in Landing's portfolio)">New</th>
-              <th class="sub-exp" title="Expansion - Existing (more units at a property Landing already operates)">Existing</th>
-              <th class="sub-exp" title="Expansion - New (target property not currently in Landing's portfolio)">New</th>
-              <th class="sub-exp" title="Expansion - Existing (more units at a property Landing already operates)">Existing</th>
+              <th class="cg-pitch">Pitches</th>
             </tr>
           </thead>
           <tbody id="sc-tbody">
           </tbody>
           <tfoot><tr>
-            <td>Team Total</td>
-            <td>${fmt(scTotals.ytdDeals)}</td>
-            <td>${fmt(scTotals.ytdUnits)}</td>
-            <td class="col-div">${fmt(scTotals.monthDeals)}</td>
-            <td>${fmt(scTotals.monthUnits)}</td>
-            <td class="col-div pitch-newlogo">${fmt((pitchCat.thisWeek || {})['New Logo'] || 0)}</td>
-            <td class="exp-band-first pitch-exp">${fmt((pitchCat.thisWeek || {})['Expansion New'] || 0)}</td>
-            <td class="pitch-exp">${fmt((pitchCat.thisWeek || {})['Expansion Existing'] || 0)}</td>
-            <td class="pitch-sigma col-sigma">${fmt(pitchThisWeek)}<div class="pitch-delta" style="color:${pitchThisWeek >= pitchLastWeek ? 'var(--green-light)' : 'var(--orange-light)'}"><span class="pitch-delta__glyph">${pitchThisWeek - pitchLastWeek > 0 ? '▲' : pitchThisWeek - pitchLastWeek < 0 ? '▼' : '·'}</span>${pitchThisWeek - pitchLastWeek >= 0 ? '+' : ''}${fmt(pitchThisWeek - pitchLastWeek)}</div></td>
-            <td class="col-div pitch-newlogo">${fmt((pitchCat.thisMonth || {})['New Logo'] || 0)}</td>
-            <td class="exp-band-first pitch-exp">${fmt((pitchCat.thisMonth || {})['Expansion New'] || 0)}</td>
-            <td class="pitch-exp">${fmt((pitchCat.thisMonth || {})['Expansion Existing'] || 0)}</td>
-            <td class="pitch-sigma col-sigma">${fmt(pitchThisMonth)}<div class="pitch-delta" style="color:${pitchThisMonth >= pitchLastMonth ? 'var(--green-light)' : 'var(--orange-light)'}"><span class="pitch-delta__glyph">${pitchThisMonth - pitchLastMonth > 0 ? '▲' : pitchThisMonth - pitchLastMonth < 0 ? '▼' : '·'}</span>${pitchThisMonth - pitchLastMonth >= 0 ? '+' : ''}${fmt(pitchThisMonth - pitchLastMonth)}</div></td>
+            <td>Team Total<div class="foot-sub">all reps</div></td>
+            <td>${fmt(teamYtdDeals)}${yoyFoot(teamYtdDeals, teamPrevYtdDeals)}</td>
+            <td>${fmt(teamYtdUnits)}${yoyFoot(teamYtdUnits, teamPrevYtdUnits)}</td>
+            <td class="pitch-sigma">${fmt(pitchYtdCur)}</td>
+            <td class="col-div">${fmt(teamMonthDeals)}${yoyFoot(teamMonthDeals, teamPrevMonthDeals)}</td>
+            <td>${fmt(teamMonthUnits)}${yoyFoot(teamMonthUnits, teamPrevMonthUnits)}</td>
+            <td class="pitch-sigma">${fmt(pitchThisMonth)}</td>
           </tr></tfoot>
         </table>
       </div>
       <div class="scorecard-legend">
         <div class="legend-row">
-          <span class="legend-item"><span class="legend-key">Σ</span>Total unique companies pitched (includes untagged)</span>
-          <span class="legend-item"><span class="legend-key">Exp New</span>Target property not currently in Landing's portfolio</span>
-          <span class="legend-item"><span class="legend-key">Exp Existing</span>More units at a property Landing already operates</span>
+          <span class="legend-item"><span class="legend-key">▲▼ vs ${PREV_YEAR}</span>Compare to same point last year</span>
         </div>
+        <p class="legend-note"><span style="color:var(--green-light);font-weight:600">▲</span>/<span style="color:var(--orange-light);font-weight:600">▼</span> shows the change vs the same period in ${PREV_YEAR} — YTD through today's date, month through today's day. Pitches have no year-over-year mark: pitch tracking began Jan ${CUR_YEAR}.</p>
         <p class="legend-note">1 pitch = 1 unique company per rep per window. When two reps pitch the same company, both get credit; team total counts it once, so per-rep totals may sum higher.</p>
       </div>
   </div>`;
@@ -2661,42 +2708,16 @@ function render(deals, deinstalls, dealMap, pitchData) {
       var initials = name.charAt(0);
       var barWidth = Math.round((v.ytdUnits / maxYtdUnits) * 100);
       var zd = function(n) { return n === 0 ? '<span class="sc-zero">&mdash;</span>' : fmt(n); };
-      // Per-rep pitch counts by category × window. pitchRepCat is keyed thisWeek/thisMonth → rep → category.
-      var wkCats = (pitchRepCat.thisWeek || {})[name] || {};
-      var moCats = (pitchRepCat.thisMonth || {})[name] || {};
-      // Total cell (Σ): rep's unique-company count for the window. ALWAYS renders a 2-line
-      // structure (value + delta line) so row heights stay consistent across the scorecard,
-      // even when prev-period was zero (placeholder &nbsp; reserves the line).
-      var totalCell = function(cur, prev, col) {
-        var topPart = (!prev && !cur) ? '<span class="sc-zero">&mdash;</span>' : scBadge(name, col, cur);
-        var deltaText, deltaColor, deltaGlyph;
-        if (!cur && !prev) {
-          deltaText = ' '; deltaColor = 'transparent';
-        } else if (!prev) {
-          deltaText = 'new'; deltaColor = 'var(--ink-3)';
-        } else {
-          var diff = cur - prev;
-          deltaText = diff > 0 ? '+' + diff : diff < 0 ? String(diff) : ' ';
-          deltaColor = diff > 0 ? 'var(--green-light)' : diff < 0 ? 'var(--orange-light)' : 'var(--ink-3)';
-          deltaGlyph = diff > 0 ? '▲' : diff < 0 ? '▼' : '';
-        }
-        var glyphSpan = deltaGlyph ? '<span class="pitch-delta__glyph">' + deltaGlyph + '</span>' : '';
-        return topPart + '<div class="pitch-delta" style="color:' + deltaColor + '">' + glyphSpan + deltaText + '</div>';
-      };
+      // Per-rep rows are kept clean — just the numbers. The YoY compare lives on the
+      // Team Total row only (see footer), where it reads as an org-level signal.
       return '<tr class="' + (isTop ? 'sc-top' : '') + '">' +
         '<td><span class="sc-rank ' + (isTop ? 'top' : '') + (i === 0 ? ' rank-1' : i === 1 ? ' rank-2' : i === 2 ? ' rank-3' : '') + '">' + (i + 1) + '</span><span class="sc-avatar">' + initials + '</span>' + name + '</td>' +
         '<td>' + zd(v.ytdDeals) + '</td>' +
         '<td class="sc-bar-cell ' + (isTop ? 'sc-highlight' : '') + '">' + zd(v.ytdUnits) + '<div class="sc-bar"><div class="sc-bar-fill" style="width:' + barWidth + '%"></div></div></td>' +
+        '<td class="pitch-sigma">' + zd(v.ytdPitches) + '</td>' +
         '<td class="col-div">' + scBadge(name, 'monthDeals', v.monthDeals) + '</td>' +
         '<td>' + scBadge(name, 'monthUnits', v.monthUnits) + '</td>' +
-        '<td class="col-div pitch-newlogo">' + zd(wkCats['New Logo'] || 0) + '</td>' +
-        '<td class="exp-band-first pitch-exp">' + zd(wkCats['Expansion New'] || 0) + '</td>' +
-        '<td class="pitch-exp">' + zd(wkCats['Expansion Existing'] || 0) + '</td>' +
-        '<td class="pitch-sigma col-sigma">' + totalCell(v.weekPitches, v.lastWeekPitches, 'weekPitches') + '</td>' +
-        '<td class="col-div pitch-newlogo">' + zd(moCats['New Logo'] || 0) + '</td>' +
-        '<td class="exp-band-first pitch-exp">' + zd(moCats['Expansion New'] || 0) + '</td>' +
-        '<td class="pitch-exp">' + zd(moCats['Expansion Existing'] || 0) + '</td>' +
-        '<td class="pitch-sigma col-sigma">' + totalCell(v.monthPitches, v.lastMonthPitches, 'monthPitches') + '</td>' +
+        '<td class="pitch-sigma">' + scBadge(name, 'monthPitches', v.monthPitches) + '</td>' +
       '</tr>';
     }).join('');
   }
