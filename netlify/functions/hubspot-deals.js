@@ -281,11 +281,17 @@ exports.handler = async () => {
     const ownersResp = await fetchWithRetry('https://api.hubapi.com/crm/v3/owners', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     });
+    // Display-name overrides resolve first-name collisions. Two reps share the
+    // first name "Jack" (Jack Thomasson — central pod; Jack Harvey — NMHC lead),
+    // so by-firstName keying would merge their pitch counts. Map Jack Harvey to a
+    // distinct label that matches the front-end scorecard ("Jack H").
+    const OWNER_NAME_OVERRIDES = { 'jack.harvey@hellolanding.com': 'Jack H' };
     const ownerMap = {};
     if (ownersResp.ok) {
       const ownerData = await ownersResp.json();
       for (const o of ownerData.results || []) {
-        ownerMap[o.id] = o.firstName || o.email?.split('@')[0] || 'Unknown';
+        const email = (o.email || '').toLowerCase();
+        ownerMap[o.id] = OWNER_NAME_OVERRIDES[email] || o.firstName || o.email?.split('@')[0] || 'Unknown';
       }
     }
 
@@ -331,6 +337,8 @@ exports.handler = async () => {
     const lastWeekW = bucketWindow(annotated, prevWeekStartStr, prevWeekEndStr);
     const thisMonthW = bucketWindow(annotated, monthStartStr, todayStr);
     const lastMonthW = bucketWindow(annotated, lastMonthStartStr, lastMonthEndStr);
+    // YTD window: 2026-01-01 → today. Used for the per-rep YTD pitches column.
+    const ytdW = bucketWindow(annotated, sparkStartStr, todayStr);
 
     // ─── 7. Sparkline: unique-company count per month, 2026-01 → current month ───
     const pitchByMonth = {};
@@ -360,6 +368,7 @@ exports.handler = async () => {
       lastWeekByRep: lastWeekW.byRep,
       monthlyByRep: thisMonthW.byRep,
       lastMonthByRep: lastMonthW.byRep,
+      ytdByRep: ytdW.byRep,
       byCategory: {
         thisWeek: thisWeekW.byCategory,
         lastWeek: lastWeekW.byCategory,
