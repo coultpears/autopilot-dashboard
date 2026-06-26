@@ -28,8 +28,11 @@
 # of the stalest properties on a cadence so UI opens hit a warm cache. Kept
 # under the function time budget (small batch + low concurrency); a cut-off or
 # failed run is harmless (read-through path covers un-warmed properties).
+# Every 30 min (was 15) — the grid-data full rebuild inside is additionally
+# gated to ~hourly (GRID_WARM_REFRESH_MS) since its data only changes daily;
+# that's the main lever on Neon data-transfer egress.
 [functions."warm-property-cache"]
-  schedule = "*/15 * * * *"
+  schedule = "*/30 * * * *"
   timeout = 26
 
 [[redirects]]
