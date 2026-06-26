@@ -1666,8 +1666,13 @@ tr.expanded .expand-chevron {
 
 /* Chart: projected bars split into a solid "booked" base (confirmed
    reservations) + a dashed-outline "still to book" fill. The booked base
-   shrinks for further-out months — STR books close-in. */
-.bar-proj-booked { fill: var(--landing-blue); opacity: 0.5; }
+   shrinks for further-out months — STR books close-in. The booked base is
+   itself stacked Landing (dark) + partner (light), mirroring the actual bars,
+   so the rev-share split is applied to confirmed bookings — not shown gross. */
+.bar-proj-booked-l { fill: var(--landing-blue); opacity: 0.5; }
+.bar-proj-booked-p { fill: var(--landing-blue); opacity: 0.22; }
+.gd-trend-wrap.str .bar-proj-booked-l { fill: var(--str); opacity: 0.5; }
+.gd-trend-wrap.str .bar-proj-booked-p { fill: var(--str); opacity: 0.25; }
 .bar-proj-fill {
   fill: rgba(26,97,217,0.10);
   stroke: var(--landing-blue); stroke-width: 0.6; stroke-dasharray: 2 2;
@@ -2032,6 +2037,10 @@ tr.expanded .expand-chevron {
   border-top: 1px solid rgba(255,255,255,0.14);
 }
 .gd-chart-tooltip .ttip-row-booked span { color: rgba(255,255,255,0.55); }
+/* Indented Landing/partner split under "Booked so far" — no divider, dimmer. */
+.gd-chart-tooltip .ttip-sub { margin-top: 0; padding-top: 1px; border-top: none; }
+.gd-chart-tooltip .ttip-sub span { padding-left: 8px; color: rgba(255,255,255,0.42); }
+.gd-chart-tooltip .ttip-sub b { color: rgba(255,255,255,0.72); font-weight: 600; }
 
 /* Right-side summary card with Landing | Partner split */
 .gd-trend-side {
@@ -5520,8 +5529,12 @@ function renderTrendModule(key, data) {
         g: Math.round(runRateGross),
         o: avgO,                  // projected occupancy = avg of last 3 actual months
         isProjection: true,
-        // Confirmed-booking revenue overlapping the month, in NET terms — the
-        // solid segment of the projected bar + the tooltip "Booked so far".
+        // Confirmed-booking revenue overlapping the month, split by the recent
+        // gross→net shares so the booked base stacks Landing + partner like the
+        // actual bars (the rev-share split applied to confirmed bookings).
+        // bookedNet (their sum) drives the tooltip "Booked so far" total.
+        bookedLanding: Math.round(bookedGross * landingShare),
+        bookedPartner: Math.round(bookedGross * partnerShare),
         bookedNet: Math.round(bookedGross * (landingShare + partnerShare)),
       });
     }
@@ -5596,7 +5609,7 @@ function renderTrendModule(key, data) {
               <button type="button" data-lt="0.25" title="Generous: assumes the units could have leased themselves to 25% occ on their own. Yields the SMALLEST Landing delta (toughest test).">25%</button>
             </div>
           </div>
-          <div class="gd-lt-wrap" title="Extend chart + rollup with projected months. Projected total = recent 3-month run-rate; each bar splits into confirmed booked-reservation revenue (solid) and still-to-book fill (dashed). Booked shrinks for further-out months — STR books close-in.">
+          <div class="gd-lt-wrap" title="Extend chart + rollup with projected months. Projected total = recent 3-month run-rate; each bar splits into confirmed booked-reservation revenue (solid, stacked Landing + partner via the rev-share split) and still-to-book fill (dashed). Booked shrinks for further-out months — STR books close-in.">
             <span class="gd-lt-label">Project forward</span>
             <div class="gd-lt-toggle" role="tablist">
               <button type="button" data-proj="0" class="active">Off</button>
@@ -5968,15 +5981,23 @@ function paintTrendChart(svg, ttip, trend) {
     } else {
       const totalH = (total / niceMax) * (bottom - top);
       if (m.isProjection) {
-        // Projected bar: total height = run-rate. Split into the confirmed
-        // booked portion (solid base) and the still-to-book run-rate fill
-        // (dashed outline). bookedNet capped at total so the solid segment
-        // can't overflow on a month booked above run-rate.
-        const bookedNet = Math.min(Math.max(m.bookedNet || 0, 0), total);
-        const bookedH = (bookedNet / niceMax) * (bottom - top);
+        // Projected bar: total height = run-rate. The confirmed-booked portion
+        // is stacked Landing (bottom) + partner (top) — the rev-share split
+        // applied to bookings, mirroring the actual bars. The still-to-book
+        // remainder is the dashed run-rate fill above. Booked is capped at the
+        // run-rate total (scaled proportionally) so the solid base can't
+        // overflow on a month booked above run-rate.
+        let bL = Math.max(m.bookedLanding || 0, 0);
+        let bP = Math.max(m.bookedPartner || 0, 0);
+        let bookedNet = bL + bP;
+        if (bookedNet > total && bookedNet > 0) { const k = total / bookedNet; bL *= k; bP *= k; bookedNet = total; }
+        const lH = (bL / niceMax) * (bottom - top);
+        const pH = (bP / niceMax) * (bottom - top);
+        const bookedH = lH + pH;
         const fillH = totalH - bookedH;
         if (fillH > 0.4) barsHtml += `<rect class="bar-proj-fill" x="${x}" y="${bottom - totalH}" width="${barW}" height="${fillH}" rx="1"/>`;
-        if (bookedH > 0) barsHtml += `<rect class="bar-proj-booked" x="${x}" y="${bottom - bookedH}" width="${barW}" height="${bookedH}" rx="1"/>`;
+        if (lH > 0) barsHtml += `<rect class="bar-proj-booked-l" x="${x}" y="${bottom - lH}" width="${barW}" height="${lH}" rx="1"/>`;
+        if (pH > 0) barsHtml += `<rect class="bar-proj-booked-p" x="${x}" y="${bottom - bookedH}" width="${barW}" height="${pH}" rx="1"/>`;
         // Light "proj" label above the bar so reps know it's not actual
         barsHtml += `<text class="proj-bar-label" x="${cx}" y="${bottom - totalH - 4}" text-anchor="middle">proj</text>`;
       } else {
@@ -6041,6 +6062,8 @@ function paintTrendChart(svg, ttip, trend) {
       momCls,
       isProjection: !!m.isProjection,
       booked: m.isProjection ? '$' + Math.round(Math.max(m.bookedNet || 0, 0)).toLocaleString() : null,
+      bookedL: m.isProjection ? '$' + Math.round(Math.max(m.bookedLanding || 0, 0)).toLocaleString() : null,
+      bookedP: m.isProjection ? '$' + Math.round(Math.max(m.bookedPartner || 0, 0)).toLocaleString() : null,
       stillToBook: m.isProjection ? '$' + Math.round(Math.max(total - (m.bookedNet || 0), 0)).toLocaleString() : null,
     });
     const idx = hitInfo.length - 1;
@@ -6072,6 +6095,8 @@ function paintTrendChart(svg, ttip, trend) {
       <div class="ttip-month">${gEsc(info.month)} <span class="ttip-proj-tag">projected</span></div>
       <div class="ttip-row"><span>Total net · run-rate</span><b>${gEsc(info.tot)}</b></div>
       <div class="ttip-row ttip-row-booked"><span>Booked so far</span><b>${gEsc(info.booked)}</b></div>
+      <div class="ttip-row ttip-row-booked ttip-sub"><span>· Landing</span><b>${gEsc(info.bookedL)}</b></div>
+      <div class="ttip-row ttip-row-booked ttip-sub"><span>· Partner</span><b>${gEsc(info.bookedP)}</b></div>
       <div class="ttip-row"><span>Still to book</span><b>${gEsc(info.stillToBook)}</b></div>
     ` : `
       <div class="ttip-month">${gEsc(info.month)} · L take ${gEsc(info.take)}${info.mom ? ` <span class="ttip-mom ${info.momCls}">${gEsc(info.mom)}</span>` : ''}</div>
