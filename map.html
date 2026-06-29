@@ -2041,6 +2041,9 @@ tr.expanded .expand-chevron {
 .gd-chart-tooltip .ttip-sub { margin-top: 0; padding-top: 1px; border-top: none; }
 .gd-chart-tooltip .ttip-sub span { padding-left: 8px; color: rgba(255,255,255,0.42); }
 .gd-chart-tooltip .ttip-sub b { color: rgba(255,255,255,0.72); font-weight: 600; }
+/* Run-rate (no rev-share yet) note — italic caption, no value column. */
+.gd-chart-tooltip .ttip-runrate { margin: 2px 0 4px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.14); }
+.gd-chart-tooltip .ttip-runrate span { color: rgba(255,210,120,0.9); font-style: italic; font-size: 0.62rem; }
 
 /* Right-side summary card with Landing | Partner split */
 .gd-trend-side {
@@ -5504,11 +5507,27 @@ function renderTrendModule(key, data) {
     const recent3 = key => trend.slice().reverse().filter(t => t[key] != null).slice(0, 3);
     const mean = (arr, key) => arr.length ? arr.reduce((s, t) => s + t[key], 0) / arr.length : 0;
     const lastL = recent3('l'), lastP = recent3('p'), lastO = recent3('o'), lastG = recent3('g');
-    if (!lastL.length) return [];
-    const avgL = mean(lastL, 'l');
-    const avgP = mean(lastP, 'p');
-    const avgO = lastO.length ? mean(lastO, 'o') : null;
-    const avgG = mean(lastG, 'g');
+    let avgL = mean(lastL, 'l');
+    let avgP = mean(lastP, 'p');
+    let avgO = lastO.length ? mean(lastO, 'o') : null;
+    let avgG = mean(lastG, 'g');
+    // Run-rate fallback: the rev-share trend carries no real revenue (property
+    // is operating but its statement is empty/zero, or just onboarded). Mirror
+    // the grid's Tier-4 Looker run-rate projection (grid-data's projection_next3
+    // + daily revenue) so the drawer projects a real number instead of flat-
+    // lining at $0 while the grid column shows ~$14K. Flagged isRunRate so the
+    // tooltip marks it as a low-confidence estimate, not realized P&L.
+    let isRunRate = false;
+    if (avgL + avgP <= 0 && avgG <= 0) {
+      const monthlyL = gridRow.projection_next3 != null ? gridRow.projection_next3 / 3 : null;
+      const dailyRev = gridRow.home_daily_rent_revenue;
+      if (!(monthlyL != null && dailyRev > 0)) return [];   // no rev-share AND no run-rate signal
+      avgG = dailyRev * 30;
+      avgL = monthlyL;
+      avgP = Math.max(0, avgG - monthlyL);
+      if (avgO == null && gridRow.occupancy != null) avgO = gridRow.occupancy;
+      isRunRate = true;
+    }
     // Run-rate baseline in GROSS terms (comparable to booked $). Gross→net split
     // ratios from recent actuals; when gross isn't reported, split the run-rate's
     // own l/p directly (ratios then sum to 1).
@@ -5537,6 +5556,7 @@ function renderTrendModule(key, data) {
         g: Math.round(runRateGross),
         o: avgO,                  // projected occupancy = avg of last 3 actual months
         isProjection: true,
+        isRunRate,                // true when derived from Looker run-rate (no rev-share yet)
         // Confirmed-booking revenue overlapping the month, split by the recent
         // gross→net shares so the booked base stacks Landing + partner like the
         // actual bars (the rev-share split applied to confirmed bookings).
@@ -6069,6 +6089,7 @@ function paintTrendChart(svg, ttip, trend) {
       mom: momText,
       momCls,
       isProjection: !!m.isProjection,
+      isRunRate: !!m.isRunRate,
       booked: m.isProjection ? '$' + Math.round(Math.max(m.bookedNet || 0, 0)).toLocaleString() : null,
       bookedL: m.isProjection ? '$' + Math.round(Math.max(m.bookedLanding || 0, 0)).toLocaleString() : null,
       bookedP: m.isProjection ? '$' + Math.round(Math.max(m.bookedPartner || 0, 0)).toLocaleString() : null,
@@ -6101,6 +6122,7 @@ function paintTrendChart(svg, ttip, trend) {
     const screenX = rect.left + (cx / 660) * rect.width;
     ttip.innerHTML = info.isProjection ? `
       <div class="ttip-month">${gEsc(info.month)} <span class="ttip-proj-tag">projected</span></div>
+      ${info.isRunRate ? `<div class="ttip-row ttip-runrate"><span>Looker run-rate · no rev-share statement yet</span></div>` : ''}
       <div class="ttip-row"><span>Total net · run-rate</span><b>${gEsc(info.tot)}</b></div>
       <div class="ttip-row ttip-row-booked"><span>Booked so far</span><b>${gEsc(info.booked)}</b></div>
       <div class="ttip-row ttip-row-booked ttip-sub"><span>· Landing</span><b>${gEsc(info.bookedL)}</b></div>
