@@ -264,16 +264,20 @@ function parseTab(values, tabName) {
   const metaR = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties(title,sheetId)`, { headers: auth });
   const meta = await metaR.json();
   if (!meta.sheets) throw new Error('No sheets in response: ' + JSON.stringify(meta));
-  // Closing paren is optional: some monthly sheets have property tabs whose
-  // names got truncated mid-rename (e.g. 'Series at Riverview Landing (38'
-  // with no closing ')'). The strict pattern silently filtered ~85 such tabs
-  // across 12 monthly sheets, hiding entire properties from the dashboard.
-  // \d+ still requires at least one digit so we don't pick up summary / index tabs.
-  const tabPattern = /^(.+?)\s+\((\d+)\)?$/;
+  // Tab titles are "<name> (<id>)" but get truncated mid-rename, so the id is
+  // partial ('Series at Riverview Landing (38'), a bare '(' with no digits
+  // ('Ascent at Metropolitan Naples ('), or gone entirely ('The Century at Katy
+  // Apartments '). A title-id filter silently dropped ~18 such REAL properties.
+  // So select broadly — everything that isn't an obvious non-property/index tab
+  // — and rely on the authoritative in-sheet 'Autopilot Revenue Share | <id>'
+  // header (read by parseTab) for the id. Tabs with no financial summary and no
+  // resolvable id are skipped in the parse loop below.
+  const tabPattern = /^(.+?)\s+\((\d+)\)?$/;   // still used as a title-id FALLBACK
+  const NON_PROPERTY = /^\s*(ap sales sign off|contact sheet|properties\s*--.*|.*\bpayouts?\b.*|.*\bsummary\b.*|template|instructions?|index|toc|cover|read\s*me|email|drafts?)\s*$/i;
   const propTabs = meta.sheets
     .map(s => s.properties)
-    .filter(p => tabPattern.test(p.title));
-  console.log(`Found ${propTabs.length} property tabs (of ${meta.sheets.length} total tabs)`);
+    .filter(p => p.title && !NON_PROPERTY.test(p.title));
+  console.log(`Found ${propTabs.length} candidate tabs (of ${meta.sheets.length} total tabs)`);
 
   // 2) Batch-pull values in CHUNKS. One big batchGet for hundreds of tabs
   // returns an HTML error page (response size / URL length limits) — splitting
@@ -313,9 +317,9 @@ function parseTab(values, tabName) {
   const seenNames = new Map(); // property_name → first property_id seen (collision detector)
   for (let i = 0; i < propTabs.length; i++) {
     const tab = propTabs[i];
-    const m = tab.title.match(tabPattern);
-    const titleName = m[1].trim();
-    const titleId = m[2]; // from the tab title — may be TRUNCATED for long names
+    const m = tab.title.match(tabPattern) || [];
+    const titleName = (m[1] || tab.title).trim();
+    const titleId = m[2] || null; // from the tab title — TRUNCATED/absent for long names
     const values = batch.valueRanges[i]?.values || [];
     if (!values.length) continue;
     parsed++;
@@ -326,6 +330,9 @@ function parseTab(values, tabName) {
     // title only when the header block is absent (older sheet formats).
     const propId = t.property_id || titleId;
     const propName = t.property_name || titleName;
+    // No resolvable Landing id (neither the in-sheet header nor a title id) —
+    // not a real statement tab (or one we can't safely key); skip it.
+    if (!propId || !/^\d+$/.test(String(propId))) continue;
     if (t.property_id && titleId && t.property_id !== titleId) {
       console.log(`  tab "${tab.title}": title id ${titleId} != in-sheet id ${t.property_id} (using in-sheet)`);
     }
