@@ -19,6 +19,18 @@
       "lng": -96.8904,
       "src": "manual",
       "note": "Looker had street '6300 F 423' (truncated FM road name). Cleaned to '6300 FM 423, Frisco, TX' for Mapbox — exact match."
+    },
+    "Illume": {
+      "lat": 38.8802244,
+      "lng": -77.0061812,
+      "src": "manual",
+      "note": "Never geocoded (null in geocodes.json) so map flung it ~14mi from DC center. Coords from CoStar: 853 New Jersey Ave SE, Washington, DC 20003 (Navy Yard). NB: a same-named 'Illume' exists in Chicago — do not confuse."
+    },
+    "The Kiley": {
+      "lat": 38.8820596,
+      "lng": -77.0160708,
+      "src": "manual",
+      "note": "Never geocoded (null in geocodes.json) so map flung it ~13mi from DC center. Coords from CoStar 'Kiley Apartments': 600 4th St SW, Washington, DC 20024 (SW Waterfront)."
     }
   },
   "byAddress": {}
