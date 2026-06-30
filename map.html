@@ -1671,6 +1671,8 @@ tr.expanded .expand-chevron {
    so the rev-share split is applied to confirmed bookings — not shown gross. */
 .bar-proj-booked-l { fill: var(--landing-blue); opacity: 0.5; }
 .bar-proj-booked-p { fill: var(--landing-blue); opacity: 0.22; }
+/* Run-rate projection (split unknown) — single neutral bar, no Landing/partner. */
+.bar-proj-runrate { fill: var(--ink-3); opacity: 0.42; }
 .gd-trend-wrap.str .bar-proj-booked-l { fill: var(--str); opacity: 0.5; }
 .gd-trend-wrap.str .bar-proj-booked-p { fill: var(--str); opacity: 0.25; }
 .bar-proj-fill {
@@ -5548,23 +5550,38 @@ function renderTrendModule(key, data) {
       const winStart = Date.UTC(year, mIdx, 1);
       const winEnd = Date.UTC(mIdx === 11 ? year + 1 : year, (mIdx + 1) % 12, 1);
       const bookedGross = bookedGrossInWindow(reservations, winStart, winEnd);
-      out.push({
-        period: monthLabels[mIdx] + ' ' + year,
-        // Total = run-rate (honest estimate). Split Landing/Partner by ratios.
-        l: Math.round(runRateGross * landingShare),
-        p: Math.round(runRateGross * partnerShare),
-        g: Math.round(runRateGross),
-        o: avgO,                  // projected occupancy = avg of last 3 actual months
-        isProjection: true,
-        isRunRate,                // true when derived from Looker run-rate (no rev-share yet)
-        // Confirmed-booking revenue overlapping the month, split by the recent
-        // gross→net shares so the booked base stacks Landing + partner like the
-        // actual bars (the rev-share split applied to confirmed bookings).
-        // bookedNet (their sum) drives the tooltip "Booked so far" total.
-        bookedLanding: Math.round(bookedGross * landingShare),
-        bookedPartner: Math.round(bookedGross * partnerShare),
-        bookedNet: Math.round(bookedGross * (landingShare + partnerShare)),
-      });
+      if (isRunRate) {
+        // No rev-share split → project a single revenue figure driven by the
+        // bookings. Total = max(run-rate floor, booked this month) so it tracks
+        // what's actually on the books and can never read below confirmed
+        // bookings. No Landing/partner split (l carries the whole total purely
+        // so the rollup Total / bar height work; the split rows are blanked).
+        const projTotal = Math.max(runRateGross, bookedGross);
+        out.push({
+          period: monthLabels[mIdx] + ' ' + year,
+          l: Math.round(projTotal), p: 0, g: Math.round(projTotal),
+          o: avgO, isProjection: true, isRunRate: true,
+          bookedNet: Math.round(bookedGross), bookedLanding: 0, bookedPartner: 0,
+        });
+      } else {
+        out.push({
+          period: monthLabels[mIdx] + ' ' + year,
+          // Total = run-rate (honest estimate). Split Landing/Partner by ratios.
+          l: Math.round(runRateGross * landingShare),
+          p: Math.round(runRateGross * partnerShare),
+          g: Math.round(runRateGross),
+          o: avgO,                  // projected occupancy = avg of last 3 actual months
+          isProjection: true,
+          isRunRate: false,
+          // Confirmed-booking revenue overlapping the month, split by the recent
+          // gross→net shares so the booked base stacks Landing + partner like the
+          // actual bars (the rev-share split applied to confirmed bookings).
+          // bookedNet (their sum) drives the tooltip "Booked so far" total.
+          bookedLanding: Math.round(bookedGross * landingShare),
+          bookedPartner: Math.round(bookedGross * partnerShare),
+          bookedNet: Math.round(bookedGross * (landingShare + partnerShare)),
+        });
+      }
     }
     return out;
   }
@@ -5576,16 +5593,16 @@ function renderTrendModule(key, data) {
     const cells = [];
     cells.push('<div class="gd-rollup-cell label">&nbsp;</div>');
     for (const m of months) cells.push(`<div class="gd-rollup-cell month-header${m.isProjection ? ' proj' : ''}">${gEsc(m.period)}${m.isProjection ? ' <span class="proj-tag">proj</span>' : ''}</div>`);
-    // Landing row
+    // Landing row — blank for run-rate months (split unknown, don't guess it)
     cells.push('<div class="gd-rollup-cell label"><span class="swatch lt"></span>Landing</div>');
     for (const m of months) {
-      if (m.l == null) cells.push('<div class="gd-rollup-cell ghost">—</div>');
+      if (m.l == null || m.isRunRate) cells.push('<div class="gd-rollup-cell ghost">—</div>');
       else cells.push(`<div class="gd-rollup-cell lt${m.isProjection ? ' proj' : ''}">${fmtKShort(m.l)}</div>`);
     }
-    // Partner row
+    // Partner row — blank for run-rate months (split unknown)
     cells.push('<div class="gd-rollup-cell label"><span class="swatch partner"></span>Partner</div>');
     for (const m of months) {
-      if (m.p == null) cells.push('<div class="gd-rollup-cell ghost">—</div>');
+      if (m.p == null || m.isRunRate) cells.push('<div class="gd-rollup-cell ghost">—</div>');
       else cells.push(`<div class="gd-rollup-cell partner${m.isProjection ? ' proj' : ''}">${fmtKShort(m.p)}</div>`);
     }
     // Total row
@@ -5608,7 +5625,7 @@ function renderTrendModule(key, data) {
     cells.push('<div class="gd-rollup-cell label" title="Landing\'s share of monthly net (Landing ÷ Total).">L take</div>');
     for (const m of months) {
       const tot = (m.l || 0) + (m.p || 0);
-      if ((m.l == null && m.p == null) || tot === 0) { cells.push('<div class="gd-rollup-cell ghost">—</div>'); continue; }
+      if ((m.l == null && m.p == null) || tot === 0 || m.isRunRate) { cells.push('<div class="gd-rollup-cell ghost">—</div>'); continue; }
       const pct = Math.round(((m.l || 0) / tot) * 100);
       cells.push(`<div class="gd-rollup-cell lt${m.isProjection ? ' proj' : ''}">${pct}%</div>`);
     }
@@ -6008,7 +6025,19 @@ function paintTrendChart(svg, ttip, trend) {
       barsHtml += `<text class="zero-label" x="${cx}" y="${bottom - 5}" text-anchor="middle">$0</text>`;
     } else {
       const totalH = (total / niceMax) * (bottom - top);
-      if (m.isProjection) {
+      if (m.isProjection && m.isRunRate) {
+        // Run-rate projection (no rev-share statement yet → split unknown): show
+        // a SINGLE un-split bar = projected revenue from bookings. The booked
+        // portion is solid (one neutral colour), the still-to-book remainder is
+        // the dashed fill above. We deliberately do NOT split Landing/partner
+        // here because we'd only be guessing with the portfolio-average rate.
+        let bookedNet = Math.min(Math.max(m.bookedNet || 0, 0), total);
+        const bookedH = (bookedNet / niceMax) * (bottom - top);
+        const fillH = totalH - bookedH;
+        if (fillH > 0.4) barsHtml += `<rect class="bar-proj-fill" x="${x}" y="${bottom - totalH}" width="${barW}" height="${fillH}" rx="1"/>`;
+        if (bookedH > 0) barsHtml += `<rect class="bar-proj-runrate" x="${x}" y="${bottom - bookedH}" width="${barW}" height="${bookedH}" rx="1"/>`;
+        barsHtml += `<text class="proj-bar-label" x="${cx}" y="${bottom - totalH - 4}" text-anchor="middle">est</text>`;
+      } else if (m.isProjection) {
         // Projected bar: total height = run-rate. The confirmed-booked portion
         // is stacked Landing (bottom) + partner (top) — the rev-share split
         // applied to bookings, mirroring the actual bars. The still-to-book
@@ -6120,9 +6149,14 @@ function paintTrendChart(svg, ttip, trend) {
     const wrap = ttip.parentElement.getBoundingClientRect();
     const cx = +target.getAttribute('x') + +target.getAttribute('width') / 2;
     const screenX = rect.left + (cx / 660) * rect.width;
-    ttip.innerHTML = info.isProjection ? `
+    ttip.innerHTML = info.isProjection && info.isRunRate ? `
       <div class="ttip-month">${gEsc(info.month)} <span class="ttip-proj-tag">projected</span></div>
-      ${info.isRunRate ? `<div class="ttip-row ttip-runrate"><span>Looker run-rate · no rev-share statement yet</span></div>` : ''}
+      <div class="ttip-row ttip-runrate"><span>Run-rate from bookings · no rev-share split yet</span></div>
+      <div class="ttip-row"><span>Projected revenue</span><b>${gEsc(info.tot)}</b></div>
+      <div class="ttip-row ttip-row-booked"><span>Booked so far</span><b>${gEsc(info.booked)}</b></div>
+      <div class="ttip-row"><span>Still to book</span><b>${gEsc(info.stillToBook)}</b></div>
+    ` : info.isProjection ? `
+      <div class="ttip-month">${gEsc(info.month)} <span class="ttip-proj-tag">projected</span></div>
       <div class="ttip-row"><span>Total net · run-rate</span><b>${gEsc(info.tot)}</b></div>
       <div class="ttip-row ttip-row-booked"><span>Booked so far</span><b>${gEsc(info.booked)}</b></div>
       <div class="ttip-row ttip-row-booked ttip-sub"><span>· Landing</span><b>${gEsc(info.bookedL)}</b></div>
