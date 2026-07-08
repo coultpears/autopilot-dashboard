@@ -1923,29 +1923,31 @@ tbody td {
 .dm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-family: var(--font-body); }
 /* header — light, high-contrast, anchored by a navy bottom rule */
 .dm-table thead th {
-  text-align: left; padding: 13px 16px 11px; white-space: nowrap;
+  text-align: left; padding: 13px 12px 11px; white-space: nowrap;
   font-family: var(--font-display); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--ink-1); background: var(--surface-1);
   border-bottom: 2px solid var(--landing-navy);
 }
+.dm-table thead th:first-child, .dm-table tbody td:first-child, .dm-pod td { padding-left: 16px; }
+.dm-table thead th:last-child, .dm-table tbody td:last-child { padding-right: 16px; }
 
 /* pod band — fill + navy left accent, like the Hub's .srow-pod */
-.dm-pod td { padding: 9px 16px; background: var(--surface-2); border-top: 1px solid var(--line-1); box-shadow: inset 3px 0 0 var(--landing-navy); }
+.dm-pod td { padding: 9px 12px; background: var(--surface-2); border-top: 1px solid var(--line-1); box-shadow: inset 3px 0 0 var(--landing-navy); }
 .dm-pod b { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-0); }
 .dm-pod .lead { font-size: 0.68rem; color: var(--ink-2); margin-left: 9px; font-weight: 500; }
 
-.dm-table tbody td { padding: 11px 16px; vertical-align: top; border-bottom: 1px solid var(--line-0); }
+.dm-table tbody td { padding: 11px 12px; vertical-align: top; border-bottom: 1px solid var(--line-0); }
 .dm-table tbody tr.dm-row { animation: dm-row-in .5s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 35ms); }
 .dm-table tbody tr.dm-row:hover td { background: var(--surface-2); }
 
 /* name + avatar */
-.dm-name-inner { display: flex; align-items: center; gap: 11px; min-width: 170px; }
+.dm-name-inner { display: flex; align-items: center; gap: 10px; min-width: 128px; }
 .dm-avatar {
-  width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; display: grid; place-items: center;
-  color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 0.66rem; letter-spacing: 0.02em;
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 0.64rem; letter-spacing: 0.02em;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 1px 2px rgba(21,25,45,0.14);
 }
-.dm-name-txt { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; color: var(--ink-0); line-height: 1.16; }
+.dm-name-txt { font-family: var(--font-display); font-weight: 600; font-size: 0.88rem; color: var(--ink-0); line-height: 1.16; }
 
 /* metric cell */
 .dm-metric { display: flex; flex-direction: column; gap: 5px; }
@@ -2228,7 +2230,7 @@ function dmRow(d, i) {
     </div></td>
     <td><div class="dm-metric">
       <div class="dm-mnum">${dmNf(d.trail4)}<span class="dm-pill ${pillCls}">${dmPct(d.trail4, G4)}%</span></div>
-      <div class="dm-sub">${avg.toFixed(1)}/wk avg · goal ${G4}</div>
+      <div class="dm-sub">${avg.toFixed(1)}/wk · goal ${G4}</div>
     </div></td>
     <td><div class="dm-metric">
       <div class="dm-mnum">${avg.toFixed(1)}</div>
