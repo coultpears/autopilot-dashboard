@@ -52,6 +52,17 @@ exports.handler = async () => {
     const meetings = (main.meetings && main.meetings.byDm) || {};
     const funnel = (main.funnel && main.funnel.byDm) || {};
 
+    // Trailing-4-weeks completed pitches per DM — count pitched deals whose
+    // pitch date falls in the last 28 days (mirrors the Hub's p4w for the
+    // "Pitches by rep" section). goal = pitchWk × 4 = 40.
+    const cut = Date.now() - 28 * 86400000;
+    const trail4 = {};
+    for (const x of (main.deals || [])) {
+      if (x.state !== 'pitched' || !x.pdate) continue;
+      const t = Date.parse(x.pdate);
+      if (t && t >= cut && t <= Date.now()) trail4[x.dmId] = (trail4[x.dmId] || 0) + 1;
+    }
+
     const dms = (main.dms || []).map((d) => {
       const id = d.id;
       const f = funnel[id] || {};
@@ -77,6 +88,8 @@ exports.handler = async () => {
         cadPitch: f.cadence > 0 ? Math.round((f.pitched / f.cadence) * 100) : 0,
         inPerson: n0(mt.mo),
         units: n0(d.unitsMo),
+        // Trailing-4-weeks completed pitches (goal 40) for the "Pitches by rep" view.
+        trail4: n0(trail4[id]),
       };
     });
 
