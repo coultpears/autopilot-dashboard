@@ -8,6 +8,7 @@
 
 const { warmBatch } = require('./_warm.js');
 const { handler: gridDataHandler } = require('./grid-data.js');
+const { handler: gridHistoryHandler } = require('./grid-history.js');
 const responseCache = require('./_response-cache.js');
 
 exports.handler = async () => {
@@ -34,6 +35,32 @@ exports.handler = async () => {
     }
   } else {
     console.log('[warm-property-cache] grid-data still fresh (<55m) — skipping rebuild');
+  }
+
+  // Seed the period rollups (3/6/8/12mo) during healthy Looker windows so the
+  // Period view serves cached data instead of hitting the slow daily Explore
+  // live (which can time out on long windows). Bail on the first failure — if
+  // one window can't complete, Looker is degraded and the rest will too.
+  const ROLLUP_STALE_MS = Number(process.env.GRID_HISTORY_WARM_MS) || 18000000; // 5 h
+  for (const period of ['3mo', '6mo', '8mo', '12mo']) {
+    let stale = true;
+    try {
+      const ages = await responseCache.listAges(`grid-history:${period}`);
+      if (ages.length) stale = (Date.now() - new Date(ages[0].updatedAt).getTime()) >= ROLLUP_STALE_MS;
+    } catch (e) { /* treat as stale */ }
+    if (!stale) { console.log(`[warm-property-cache] rollup ${period} fresh — skip`); continue; }
+    try {
+      const h = await gridHistoryHandler({ queryStringParameters: { period, refresh: '1' } });
+      const src = h.headers && h.headers['X-Data-Source'];
+      console.log(`[warm-property-cache] rollup ${period}:`, h.statusCode, src);
+      if (h.statusCode >= 500 || src === 'stale-cache') {
+        console.log('[warm-property-cache] Looker degraded — skipping remaining rollups');
+        break;
+      }
+    } catch (e) {
+      console.log(`[warm-property-cache] rollup ${period} failed:`, e.message);
+      break;
+    }
   }
 
   const ttl = Number(process.env.PROPERTY_DETAIL_TTL_MS) || 1800000;

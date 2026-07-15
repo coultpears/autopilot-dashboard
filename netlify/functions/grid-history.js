@@ -4,6 +4,7 @@
 
 const LOOKER_BASE = 'https://landing.cloud.looker.com';
 const { timedFetch } = require('./_looker.js');
+const responseCache = require('./_response-cache.js');
 
 // Module-level token cache (same pattern as grid-data.js)
 let _cachedToken = null;
@@ -55,6 +56,36 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: `Invalid period "${period}". Valid: ${Object.keys(PERIOD_DAYS).join(', ')}` }) };
   }
   const dateFilter = dateWindowFilter(days);
+
+  // Cache-and-fallback (mirrors grid-data): the Looker daily-metrics Explore is
+  // slow/degradation-prone and a 90–365 day rollup can time out. Serve a cached
+  // rollup when we have one, and fall back to the last-good copy on failure so
+  // the Period view degrades to "stale" instead of a hard 500. Period data
+  // moves slowly, so the windows are generous.
+  const cacheKey = `grid-history:${period}`;
+  const FRESH_MS = Number(process.env.GRID_HISTORY_TTL_MS) || 21600000;      // 6 h
+  const MAX_MS = Number(process.env.GRID_HISTORY_MAX_AGE_MS) || 604800000;   // 7 d
+  const forceRefresh = event.queryStringParameters?.refresh === '1';
+
+  let cachedEntry = null;
+  try { cachedEntry = await responseCache.load(cacheKey); } catch (e) { /* ignore */ }
+  if (!forceRefresh && cachedEntry) {
+    const ageMs = Date.now() - new Date(cachedEntry.updatedAt).getTime();
+    if (ageMs < MAX_MS) {
+      const fresh = ageMs < FRESH_MS;
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': fresh ? 'public, max-age=600, stale-while-revalidate=3600' : 'no-store',
+          'Netlify-CDN-Cache-Control': fresh ? 'public, max-age=3600, stale-while-revalidate=14400' : 'no-store',
+          'X-Data-Source': fresh ? 'cache' : 'stale-cache',
+          'X-Data-As-Of': new Date(cachedEntry.updatedAt).toISOString(),
+        },
+        body: cachedEntry.payloadJson,
+      };
+    }
+  }
 
   try {
     const token = await getLookerToken();
@@ -130,6 +161,8 @@ exports.handler = async (event) => {
       };
     });
 
+    const body = JSON.stringify({ period, days, records });
+    await responseCache.save(cacheKey, body).catch(() => {}); // seed last-good
     return {
       statusCode: 200,
       headers: {
@@ -137,11 +170,27 @@ exports.handler = async (event) => {
         // Period data changes slowly — cache longer than grid-data
         'Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
         'Netlify-CDN-Cache-Control': 'public, max-age=3600, stale-while-revalidate=14400',
+        'X-Data-Source': 'live',
       },
-      body: JSON.stringify({ period, days, records }),
+      body,
     };
   } catch (err) {
     console.error(err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    // Looker degraded/timed out — serve the last-good rollup rather than 500.
+    const stale = cachedEntry || await responseCache.load(cacheKey).catch(() => null);
+    if (stale) {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-Data-Source': 'stale-cache',
+          'X-Data-As-Of': new Date(stale.updatedAt).toISOString(),
+          'X-Stale-Reason': String(err.message || 'upstream error').slice(0, 200),
+        },
+        body: stale.payloadJson,
+      };
+    }
+    return { statusCode: 503, body: JSON.stringify({ error: err.message, hint: 'Looker Explore degraded — period rollups will populate once it recovers' }) };
   }
 };
