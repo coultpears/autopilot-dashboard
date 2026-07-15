@@ -2253,7 +2253,7 @@ function dmRow(d, i) {
     <td><div class="dm-metric">
       <div class="dm-mnum"><span class="pitchn">${dmNf(d.pitWk)}</span><span class="g">/ ${G}</span>${booked}</div>
       <div class="dm-bar"><div class="f" style="width:${dmPct(d.pitWk, G)}%"></div></div>
-      <div class="dm-prev">PREV ${dmNf(d.pitWkPrev)} ${dmDelta(d.pitWk, d.pitWkPrev)}</div>
+      <div class="dm-sub">net completed &middot; this week</div>
     </div></td>
     <td><div class="dm-metric">
       <div class="dm-mnum">${dmNf(d.trail4)}<span class="dm-pill ${pillCls}">${dmPct(d.trail4, G4)}%</span></div>

@@ -52,9 +52,9 @@ exports.handler = async () => {
     const meetings = (main.meetings && main.meetings.byDm) || {};
     const funnel = (main.funnel && main.funnel.byDm) || {};
 
-    // Trailing-4-weeks completed pitches per DM — count pitched deals whose
-    // pitch date falls in the last 28 days (mirrors the Hub's p4w for the
-    // "Pitches by rep" section). goal = pitchWk × 4 = 40.
+    // Trailing-4-weeks fallback: count pitched deals whose pitch date falls in
+    // the last 28 days. Only used when a DM has no `net` block (see below) —
+    // the Hub prefers net.t4w when present.
     const cut = Date.now() - 28 * 86400000;
     const trail4 = {};
     for (const x of (main.deals || [])) {
@@ -68,6 +68,12 @@ exports.handler = async () => {
       const f = funnel[id] || {};
       const ovi = overall[id] || {};
       const mt = meetings[id] || {};
+      // The Hub displays NET pitch counts when a DM carries a `net` block (it
+      // dedupes multi-unit/reassigned property-deal pitches into one). Mirror
+      // the Hub's own logic exactly (index.html leaderboard map ~L2573 and
+      // pitchDataNet): prefer net.wk.c / net.wk.s / net.t4w, else the gross
+      // pitchesWk+adhocWk / schedWk / trailing-deal-count.
+      const net = d.net || null;
       return {
         id,
         name: d.name,
@@ -79,17 +85,16 @@ exports.handler = async () => {
         ovWk: n0(ovi.wk),
         ovMo: n0(ovi.mo),
         ovMoPrev: num(overallPrev[id]),
-        // "Pitches" = completed pitches = cadence pitches + ad-hoc pitches (Hub convention).
-        pitWk: n0(d.pitchesWk) + n0(d.adhocWk),
-        pitWkPrev: n0(d.pitchesWkPrev) + n0(d.adhocWkPrev),
-        // "+N booked" = pitches booked for a future date this week.
-        booked: n0(d.schedWk),
+        // "Pitches / wk" = net completed pitches this week (Hub convention).
+        pitWk: (net && net.wk) ? n0(net.wk.c) : n0(d.pitchesWk) + n0(d.adhocWk),
+        // "+N booked" = pitches booked for a future date this week (net).
+        booked: (net && net.wk) ? n0(net.wk.s) : n0(d.schedWk),
         // Cad → Pitch = funnel pitched / cadence (company-deduped), matches the Hub.
         cadPitch: f.cadence > 0 ? Math.round((f.pitched / f.cadence) * 100) : 0,
         inPerson: n0(mt.mo),
         units: n0(d.unitsMo),
-        // Trailing-4-weeks completed pitches (goal 40) for the "Pitches by rep" view.
-        trail4: n0(trail4[id]),
+        // Trailing-4-weeks net pitches (goal 40) for the "Pitches by rep" view.
+        trail4: (net && net.t4w != null) ? n0(net.t4w) : n0(trail4[id]),
       };
     });
 
@@ -102,7 +107,7 @@ exports.handler = async () => {
       cadWk: sum('cadWk'), cadWkPrev: sum('cadWkPrev'),
       cadMo: sum('cadMo'), cadMoPrev: sum('cadMoPrev'),
       ovWk: sum('ovWk'), ovMo: sum('ovMo'), ovMoPrev: sum('ovMoPrev'),
-      pitWk: sum('pitWk'), pitWkPrev: sum('pitWkPrev'), booked: sum('booked'),
+      pitWk: sum('pitWk'), booked: sum('booked'),
       inPerson: sum('inPerson'), units: sum('units'),
       cadPitch: fo.cadence > 0 ? Math.round((fo.pitched / fo.cadence) * 100) : 0,
     };
