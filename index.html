@@ -1911,6 +1911,33 @@ tbody td {
   /* Links in nav */
   a[style*="color:var(--silver)"] { color: #6B7280 !important; }
   a[style*="color:var(--silver)"]:hover { color: #111827 !important; }
+
+  /* ── LEADERBOARDS (rep + DM) on the wall — the boards are now .dm-table, which
+     the legacy .scorecard-table board rules above no longer reach. Compact both
+     so the stacked pair fits a portrait board without clipping the DM rows. ── */
+  .scorecard.dm-scoreboard { padding: 0.7rem 0.9rem 0.55rem !important; margin-bottom: 0.5rem !important; }
+  .dm-scoreboard .scorecard-header { margin-bottom: 0.4rem !important; }
+  .dm-scoreboard .scorecard-period { display: none !important; }   /* sub-caption not needed at a distance */
+  .dm-scoreboard .dm-legend { display: none !important; }
+  .dm-table thead th { padding: 5px 8px !important; font-size: 0.6rem !important; }
+  .dm-table tbody td { padding: 5px 8px !important; }
+  .dm-table thead th:first-child,
+  .dm-table tbody td:first-child { padding-left: 10px !important; }
+  .dm-pod td { padding: 4px 10px !important; }
+  .dm-pod b { font-size: 0.6rem !important; }
+  .dm-pod .lead { font-size: 0.6rem !important; }
+  .dm-name-inner { min-width: 108px !important; gap: 7px !important; }
+  .dm-avatar { width: 26px !important; height: 26px !important; flex-basis: 26px !important; font-size: 0.56rem !important; }
+  .dm-name-txt { font-size: 0.78rem !important; }
+  .dm-metric { gap: 3px !important; }
+  .dm-mnum { font-size: 0.95rem !important; }
+  .dm-bar { height: 4px !important; }
+  .dm-sub, .dm-prev { font-size: 0.58rem !important; }
+  /* rep paired-comparison cell — the tallest element; tighten hard */
+  .cmp { gap: 3px !important; margin-top: 1px !important; max-width: 260px !important; }
+  .cmp-t { height: 5px !important; }
+  .cmp-k { font-size: 0.55rem !important; flex-basis: 24px !important; }
+  .cmp-f { font-size: 0.58rem !important; padding-left: 31px !important; margin-top: 0 !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -2741,11 +2768,6 @@ function render(deals, deinstalls, dealMap, pitchData) {
             <th>${MONTH_NAMES[curMonth]} ${CUR_YEAR} <span class="dm-vs">vs ${lmLabel}</span></th>
           </tr></thead>
           <tbody id="sc-tbody"></tbody>
-          <tfoot><tr class="dm-foot">
-            <td><div class="dm-name-inner"><div class="dm-avatar dm-avatar--team">T</div><div class="dm-name-txt">Team Total<div class="dm-foot-sub">all reps</div></div></div></td>
-            <td><div class="dm-metric"><div class="dm-mnum">${fmt(teamYtdUnits)}</div>${cmp(teamYtdUnits, teamPrevYtdUnits, "&rsquo;"+curYr2, "&rsquo;"+prevYr2)}</div></td>
-            <td><div class="dm-metric"><div class="dm-mnum">${fmt(teamMonthUnits)}</div>${cmp(teamMonthUnits, teamLMUnits, curMonShort, lmLabel)}</div></td>
-          </tr></tfoot>
         </table>
       </div>
       <div class="dm-legend">Each cell leads with the current figure, then two bars scaled together: the <span style="color:var(--landing-blue);font-weight:600">blue</span> bar is this period, the <span style="color:#8A93A6;font-weight:600">grey</span> bar is the prior period &mdash; last year for YTD, ${lmLabel} for ${MONTH_NAMES[curMonth]}. The delta reads <span style="color:#0F8A5F;font-weight:600">green</span> when up, <span style="color:#C8472F;font-weight:600">red</span> when down. Both windows run through today&rsquo;s day.</div>
