@@ -109,7 +109,13 @@ const periodKey = parsePeriodKey(period);
 const sheetId = (sheetArg.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/) || [null, sheetArg])[1];
 
 // ─── Google OAuth ────────────────────────────────────────────────────
-const envPath = path.join(os.homedir(), '.google-landing.env');
+// .landing-sheets-rw.env is the durable Desktop-client token; .google-landing.env
+// uses the gcloud CLI client which Google RAPT-expires for non-interactive use.
+const envPath = [
+  process.env.GOOGLE_ENV_FILE,
+  path.join(os.homedir(), '.landing-sheets-rw.env'),
+  path.join(os.homedir(), '.google-landing.env'),
+].find(p => p && fs.existsSync(p));
 const env = {};
 for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
