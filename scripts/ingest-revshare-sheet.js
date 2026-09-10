@@ -147,7 +147,11 @@ const FIELD_LABELS = {
   ffe_fee:            [/ffe fee/i, /^ff&e/i, /furniture/i],
   wifi_fee:           [/wifi/i, /internet fee/i],
   partner_adjustment: [/partner adjustment/i, /adjustment/i],
-  net_allocation:     [/net allocation/i, /partner net/i, /^partner share/i, /^owner share/i],
+  // Quarterra's tabs (Tavin, Emblem Ravine, Emblem Renata) label the summary block
+  // "Gross Revenue" / "Allocation" rather than "Total Revenue" / "Net Allocation".
+  // The bare "Allocation" pattern is anchored so it cannot swallow "Install / Other Fees"
+  // or "Partner Adjustment".
+  net_allocation:     [/net allocation/i, /^allocation$/i, /partner net/i, /^partner share/i, /^owner share/i],
   landing_margin:     [/landing margin/i, /landing net/i, /^landing share/i],
   occupancy:          [/occupancy/i, /^occ %/i],
 };
