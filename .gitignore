@@ -3,3 +3,12 @@
 
 # npm install artifacts (package-lock.json IS committed for reproducible builds)
 node_modules/
+
+# Never stageable in a PUBLIC repo. settings.local.json carries a live HubSpot private-app
+# token in a permission entry; backups/ and .scratch/ carry partner economics. All four were
+# untracked but NOT ignored, so a single `git add -A` would have published them.
+.claude/settings.local.json
+.claude/backups/
+.claude/worktrees/
+.scratch/
+_tmp-*
