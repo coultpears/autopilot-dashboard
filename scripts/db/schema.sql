@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS monthly_actuals (
   net_allocation       NUMERIC(14, 2),                  -- "p"  Partner's net cash
   total_revenue        NUMERIC(14, 2),                  -- "g"  Gross collected
   occupancy_rate       NUMERIC(6, 4),                   -- "o"  decimal 0..1
-  stay_count           INT,                             -- "u"  reservations that month
+  stay_count           INT,                             -- "u"  reservation rows on the statement that month
+  unit_count           INT,                             -- "n"  unit rows on the statement that month
 
   -- Fee breakdown (drives the contracted_mgmt_pct chip in the UI).
   -- mgmt_fee is the contractual Landing take; the others are setup-cost

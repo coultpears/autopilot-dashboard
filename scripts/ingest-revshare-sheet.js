@@ -22,16 +22,17 @@
 // label match in column A, then takes the numeric value from the rightmost
 // non-empty cell in that row.
 //
-// Also looks for an "Occupancy %" row (any of several common spellings) and
-// counts the data rows on each tab for the "stays" approximation that the
-// trend chart uses.
+// Also looks for an "Occupancy %" row (any of several common spellings), and counts the
+// unit and reservation rows in the tab's two detail blocks (revshare-detail-counts.js).
+// Until 2026-09-15 "stays" was every id-looking row on the tab, i.e. units + reservations.
 //
 // Writes per-month per-property:
 //   l: landing_margin (Landing's keep)
 //   p: net_allocation (Partner's net cash)
 //   g: total_revenue (gross)
 //   o: occupancy rate (decimal)
-//   u: stay count
+//   u: stay count  (rows in the tab's "Reservation Level Detail" block)
+//   n: unit count  (rows in the tab's "Unit Level Detail" block)
 //   mf: mgmt_fee (negative; |mf|/g = contracted Landing take rate)
 //   ff: ffe_fee, if_: install_fee, wf: wifi_fee, pa: partner_adjustment
 //
@@ -42,6 +43,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { countDetail } = require('./revshare-detail-counts');
 
 // ─── Repo discovery — runs from any CWD ───────────────────────────────
 function findRepoRoot() {
@@ -202,9 +204,8 @@ function parseTab(values, tabName) {
     property_id: null, property_name: null,
     total_revenue: null, mgmt_fee: null, install_fee: null, ffe_fee: null,
     wifi_fee: null, partner_adjustment: null, net_allocation: null,
-    landing_margin: null, occupancy: null, stay_count: 0,
+    landing_margin: null, occupancy: null, stay_count: null, unit_count: null,
   };
-  let dataRows = 0;
   for (const row of values) {
     if (!row || !row.length) continue;
     // ── Authoritative property_id + name from the in-sheet header block ──
@@ -240,18 +241,10 @@ function parseTab(values, tabName) {
       const val = valueRightOf(row, c);
       if (val != null) out[field] = val;
     }
-    // Heuristic for stay count: rows whose col-A looks like a real
-    // unit/reservation identifier — starts with a digit ("01-112", "2105") OR
-    // a letter immediately followed by a digit ("A206", "C312"). This excludes
-    // the section headers "Unit Number" / "Home ID" that a naive /^unit/i
-    // pattern would mistakenly count.
-    const labelCell = row[0];
-    if (labelCell && !matchField(labelCell)) {
-      const s = String(labelCell);
-      if (/^\d/.test(s) || /^[A-Za-z]\d/.test(s)) dataRows++;
-    }
   }
-  if (dataRows > 0) out.stay_count = dataRows;
+  const detail = countDetail(values);
+  out.stay_count = detail.stays;
+  out.unit_count = detail.units;
 
   // Derive Landing margin when the sheet doesn't carry an explicit row.
   // The Autopilot Revenue Share template (2026+) has Total Revenue, fee
@@ -294,10 +287,12 @@ function parseTab(values, tabName) {
   // into chunks of ~100 tabs keeps each request comfortably inside Sheets'
   // limits. A1:Z100 is enough to cover the Financial Summary + unit-detail
   // rows on the standard rev-share tabs.
-  const CHUNK = 100;
+  const CHUNK = 50;
   // A1:Z300 covers the Financial Summary + the full reservation-detail block
   // even for high-volume STR properties (Hayworth ~178 stays + headers).
-  const allRanges = propTabs.map(t => `'${t.title.replace(/'/g, "''")}'!A1:Z300`);
+  // A1:Z600: units + reservations for the largest STR properties run past 300 rows, and a
+  // clipped tab under-counts stays silently.
+  const allRanges = propTabs.map(t => `'${t.title.replace(/'/g, "''")}'!A1:Z600`);
   const valueRanges = [];
   for (let i = 0; i < allRanges.length; i += CHUNK) {
     const slice = allRanges.slice(i, i + CHUNK);
@@ -361,7 +356,8 @@ function parseTab(values, tabName) {
       p: round2(t.net_allocation),
       g: round2(t.total_revenue),
       o: t.occupancy != null ? Math.round(t.occupancy * 10000) / 10000 : null,
-      u: t.stay_count || null,
+      u: t.stay_count,
+      n: t.unit_count,
       // Fee breakdown — required for the dashboard's contracted_mgmt_pct chip.
       // Without these the "contract X%" indicator won't render for this month.
       // Stored signed (mf typically negative in source sheets).
@@ -378,7 +374,7 @@ function parseTab(values, tabName) {
   const sample = Object.entries(newEntries).slice(0, 3);
   console.log('\nSample entries:');
   for (const [id, rec] of sample) {
-    console.log(`  ${rec.property_name} (${id}): gross=$${rec.g} landing=$${rec.l} partner=$${rec.p} occ=${rec.o} stays=${rec.u}`);
+    console.log(`  ${rec.property_name} (${id}): gross=$${rec.g} landing=$${rec.l} partner=$${rec.p} occ=${rec.o} units=${rec.n} stays=${rec.u}`);
   }
 
   if (dry) {
@@ -421,10 +417,10 @@ async function writeToPostgres(newEntries) {
       `INSERT INTO monthly_actuals (
          property_id, property_name, period_key, period,
          landing_margin, net_allocation, total_revenue,
-         occupancy_rate, stay_count,
+         occupancy_rate, stay_count, unit_count,
          mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment,
          source
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'sheet')
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14,'sheet')
        ON CONFLICT (property_id, period_key) DO UPDATE SET
          property_name = EXCLUDED.property_name,
          period = EXCLUDED.period,
@@ -433,6 +429,7 @@ async function writeToPostgres(newEntries) {
          total_revenue = EXCLUDED.total_revenue,
          occupancy_rate = EXCLUDED.occupancy_rate,
          stay_count = EXCLUDED.stay_count,
+         unit_count = EXCLUDED.unit_count,
          mgmt_fee = EXCLUDED.mgmt_fee,
          ffe_fee = EXCLUDED.ffe_fee,
          install_fee = EXCLUDED.install_fee,
@@ -443,7 +440,7 @@ async function writeToPostgres(newEntries) {
        RETURNING (xmax = 0) AS was_insert`,
       [propId, rec.property_name, rec.period_key, rec.period,
        rec.l, rec.p, rec.g, rec.o, rec.u,
-       rec.mf, rec.ff, rec.if_, rec.wf, rec.pa]
+       rec.mf, rec.ff, rec.if_, rec.wf, rec.pa, rec.n]
     );
     if (result.rows[0]?.was_insert) inserted++; else updated++;
   }

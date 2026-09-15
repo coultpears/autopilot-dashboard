@@ -19,7 +19,7 @@ const { Client } = require('pg');
   await client.connect();
   const rows = (await client.query(`
     SELECT property_id, property_name, period_key, period,
-           landing_margin, net_allocation, total_revenue, occupancy_rate, stay_count,
+           landing_margin, net_allocation, total_revenue, occupancy_rate, stay_count, unit_count,
            mgmt_fee, ffe_fee, install_fee, wifi_fee, partner_adjustment
     FROM monthly_actuals ORDER BY property_id, period_key`)).rows;
   const months = (await client.query(
@@ -36,6 +36,7 @@ const { Client } = require('pg');
       g: r.total_revenue != null ? Number(r.total_revenue) : null,
       o: r.occupancy_rate != null ? Number(r.occupancy_rate) : null,
       u: r.stay_count,
+      n: r.unit_count,
       mf: r.mgmt_fee != null ? Number(r.mgmt_fee) : null,
       ff: r.ffe_fee != null ? Number(r.ffe_fee) : null,
       if_: r.install_fee != null ? Number(r.install_fee) : null,
